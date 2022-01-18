@@ -15,87 +15,37 @@ import {
     EventProvider,
     Context,
     vec3,
+    CuboidGeometry,
 } from 'webgl-operate';
 import { Application } from './Application';
+
+import FloorVert from './shaders/floor.vert';
+import FloorFrag from './shaders/floor.frag';
+
+import MeshVert from './shaders/mesh.vert';
+import MeshFrag from './shaders/mesh.frag';
 
 /* spellchecker: enable */
 
 class DatacubesRenderer extends Renderer {
-    protected static readonly FLOOR_SHADER_SOURCE_VERT: string = `
-precision lowp float;
-
-layout(location = 0) in vec3 a_vertex;
-
-uniform mat4 u_viewProjection;
-uniform mat4 u_model;
-
-out vec4 v_vertex;
-// out vec2 v_uv;
-
-void main()
-{
-    v_vertex = u_model * vec4(a_vertex, 1.0);
-    // v_uv = a_texCoord;
-
-    gl_Position = u_viewProjection *  v_vertex;
-}
-`;
-
-    protected static readonly FLOOR_SHADER_SOURCE_FRAG: string = `
-precision lowp float;
-
-layout(location = 0) out vec4 fragColor;
-
-uniform vec4 u_clearColor;
-uniform vec4 u_diffuse;
-
-in vec4 v_vertex;
-// in vec2 v_uv;
-
-float grid(const in vec3 position, const in float scale) {
-
-    vec3 v_pos = fract(+position * scale);
-    vec3 grid0 = smoothstep(vec3(0.0), 2.0 * fwidth(v_pos), v_pos);
-
-    vec3 v_neg = fract(-position * scale);
-    vec3 grid1 = smoothstep(vec3(0.0), 2.0 * fwidth(v_neg), v_neg);
-
-    vec3 intensity = vec3(1.0) - grid0 * grid1;
-
-    return max(intensity.x, intensity.y) *
-        max(intensity.y, intensity.z) *
-        max(intensity.z, intensity.x);
-}
-
-void main(void)
-{
-    vec3 g = vec3(
-        grid(v_vertex.xyz,  2.0) * 1.00,
-        grid(v_vertex.xyz,  4.0) * 0.50,
-        grid(v_vertex.xyz, 16.0) * 0.25);
-
-    vec2 uv = v_vertex.xz * 0.125;
-    float d = 1.0 - sqrt(dot(uv, uv));
-
-    float alpha = d * max(g[0], max(g[1], g[2]));
-
-    vec4 color = mix(u_clearColor, u_diffuse, alpha);
-    fragColor = vec4(color.rgb, color.a * alpha);
-}
-`;
-
     protected _extensions = false;
 
     protected _defaultFBO: DefaultFramebuffer | undefined;
 
+    protected _cuboidsProgram: Program | undefined;
+    protected _cuboids: Array<{ geometry: CuboidGeometry; transform: mat4 }> = [];
+
+    protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
+    protected _uModelCuboids: WebGLUniformLocation | undefined;
+
+    protected _floorProgram: Program | undefined;
+
     protected _floor: NdcFillingRectangle | undefined;
     protected _floorTransform: mat4 | undefined;
 
-    protected _program: Program | undefined;
-
-    protected _uViewProjection: WebGLUniformLocation | undefined;
-    protected _uModel: WebGLUniformLocation | undefined;
-    protected _uDiffuse: WebGLUniformLocation | undefined;
+    protected _uViewProjectionFloor: WebGLUniformLocation | undefined;
+    protected _uModelFloor: WebGLUniformLocation | undefined;
+    protected _uDiffuseFloor: WebGLUniformLocation | undefined;
 
     protected _camera: Camera | undefined;
     protected _navigation: Navigation | undefined;
@@ -128,20 +78,55 @@ void main(void)
             0.0,   0.0,  0.0, 1.0
         );
 
-        const vert = new Shader(this._context, gl.VERTEX_SHADER, 'floor.vert (in-line)');
-        vert.initialize(DatacubesRenderer.FLOOR_SHADER_SOURCE_VERT);
-        const frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'floor.frag (in-line)');
-        frag.initialize(DatacubesRenderer.FLOOR_SHADER_SOURCE_FRAG);
+        let vert = new Shader(this._context, gl.VERTEX_SHADER, 'floor.vert');
+        vert.initialize(FloorVert);
+        let frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'floor.frag');
+        frag.initialize(FloorFrag);
 
-        this._program = new Program(this._context, 'FloorProgram');
-        this._program.initialize([vert, frag], false);
+        this._floorProgram = new Program(this._context, 'FloorProgram');
+        this._floorProgram.initialize([vert, frag], false);
 
-        this._program.link();
-        this._program.bind();
+        this._floorProgram.link();
+        this._floorProgram.bind();
 
-        this._uViewProjection = this._program.uniform('u_viewProjection');
-        this._uModel = this._program.uniform('u_model');
-        this._uDiffuse = this._program.uniform('u_diffuse');
+        this._uViewProjectionFloor = this._floorProgram.uniform('u_viewProjection');
+        this._uModelFloor = this._floorProgram.uniform('u_model');
+        this._uDiffuseFloor = this._floorProgram.uniform('u_diffuse');
+
+        this._floorProgram.unbind();
+
+        for (let x = 0.25; x <= 1.25; x += 1.0) {
+            const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
+            cuboid.initialize();
+            const cuboidTransform = mat4.fromTranslation(mat4.create(), [x, 0.5, 0.25]);
+
+            this._cuboids = [
+                ...this._cuboids,
+                {
+                    geometry: cuboid,
+                    transform: cuboidTransform,
+                },
+            ];
+        }
+
+        vert = new Shader(this._context, gl.VERTEX_SHADER, 'mesh.vert');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        vert.initialize(MeshVert);
+        frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'mesh.frag');
+        frag.initialize(MeshFrag);
+
+        this._cuboidsProgram = new Program(this._context, 'CuboidsProgram');
+        this._cuboidsProgram.initialize([vert, frag], false);
+
+        this._cuboidsProgram.attribute('a_vertex', this._cuboids[0].geometry.vertexLocation);
+        this._cuboidsProgram.attribute('a_texCoord', this._cuboids[0].geometry.uvCoordLocation);
+        this._cuboidsProgram.link();
+        this._cuboidsProgram.bind();
+
+        this._uViewProjectionCuboids = this._cuboidsProgram.uniform('u_viewProjection');
+        this._uModelCuboids = this._cuboidsProgram.uniform('u_model');
+
+        this._cuboidsProgram.unbind();
 
         this._camera = new Camera();
 
@@ -168,7 +153,8 @@ void main(void)
         super.uninitialize();
 
         this._floor?.uninitialize();
-        this._program?.uninitialize();
+        this._floorProgram?.uninitialize();
+        this._cuboidsProgram?.uninitialize();
 
         this._defaultFBO?.uninitialize();
     }
@@ -200,10 +186,10 @@ void main(void)
             this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
             this._camera.viewport = this._canvasSize;
         }
-        if (this._altered.clearColor && this._defaultFBO && this._program) {
+        if (this._altered.clearColor && this._defaultFBO && this._floorProgram) {
             this._defaultFBO.clearColor(this._clearColor);
             this._context.gl.uniform4f(
-                this._program.uniform('u_clearColor'),
+                this._floorProgram.uniform('u_clearColor'),
                 this._clearColor[0],
                 this._clearColor[1],
                 this._clearColor[2],
@@ -230,15 +216,15 @@ void main(void)
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.BLEND);
 
-        this._program?.bind();
-        gl.uniformMatrix4fv(this._uViewProjection, false, this._camera?.viewProjection);
+        this._floorProgram?.bind();
+        gl.uniformMatrix4fv(this._uViewProjectionFloor, false, this._camera?.viewProjection);
 
         gl.depthFunc(gl.LEQUAL);
 
         this._floor?.bind();
-        gl.uniformMatrix4fv(this._uModel, false, this._floorTransform);
+        gl.uniformMatrix4fv(this._uModelFloor, false, this._floorTransform);
 
-        this._context.gl.uniform4f(this._uDiffuse, 0.5, 0.5, 0.5, 0.25);
+        this._context.gl.uniform4f(this._uDiffuseFloor, 0.5, 0.5, 0.5, 0.25);
 
         gl.disable(gl.CULL_FACE);
         gl.depthMask(false);
@@ -248,7 +234,25 @@ void main(void)
 
         this._floor?.unbind();
 
-        this._program?.unbind();
+        this._floorProgram?.unbind();
+
+        if (this._cuboids.length > 0) {
+            this._cuboidsProgram?.bind();
+
+            gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
+            gl.cullFace(gl.BACK);
+
+            for (const { geometry, transform } of this._cuboids) {
+                geometry.bind();
+
+                gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
+                geometry.draw();
+
+                geometry.unbind();
+            }
+
+            this._cuboidsProgram?.unbind();
+        }
 
         gl.cullFace(gl.BACK);
         gl.disable(gl.CULL_FACE);
