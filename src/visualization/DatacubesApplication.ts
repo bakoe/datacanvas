@@ -1,72 +1,86 @@
 /* spellchecker: disable */
 
-import { Canvas, DefaultFramebuffer, NdcFillingTriangle, Program, Shader, Renderer, Wizard, ChangeLookup } from 'webgl-operate';
+import {
+    Canvas,
+    DefaultFramebuffer,
+    Program,
+    Shader,
+    Renderer,
+    Wizard,
+    NdcFillingRectangle,
+    mat4,
+    Camera,
+    Navigation,
+    Invalidate,
+    EventProvider,
+    Context,
+    vec3,
+} from 'webgl-operate';
 import { Application } from './Application';
 
 /* spellchecker: enable */
 
-// tslint:disable:max-classes-per-file
-
 class DatacubesRenderer extends Renderer {
-    protected _cellWidth = 1.0 / 64.0;
-    protected _uCellWidth: WebGLUniformLocation | undefined;
+    protected static readonly FLOOR_SHADER_SOURCE_VERT: string = `
+precision lowp float;
 
-    /**
-     * Alterable auxiliary object for tracking changes on renderer input and lazy updates.
-     */
-    protected readonly _altered = Object.assign(new ChangeLookup(), {
-        any: false,
-        multiFrameNumber: false,
-        frameSize: false,
-        canvasSize: false,
-        framePrecision: false,
-        clearColor: false,
-        debugTexture: false,
+layout(location = 0) in vec3 a_vertex;
 
-        cellWidth: false,
-    });
+uniform mat4 u_viewProjection;
+uniform mat4 u_model;
 
-    protected static readonly SHADER_SOURCE_VERT: string = `precision lowp float;
+out vec4 v_vertex;
+// out vec2 v_uv;
 
-#if __VERSION__ == 100
-  attribute vec2 a_vertex;
-#else
-  in vec2 a_vertex;
-  #define varying out
-#endif
-
-varying vec2 v_uv;
-
-void main(void)
+void main()
 {
-  v_uv = a_vertex * 0.5 + 0.5;
-  gl_Position = vec4(a_vertex, 0.0, 1.0);
+    v_vertex = u_model * vec4(a_vertex, 1.0);
+    // v_uv = a_texCoord;
+
+    gl_Position = u_viewProjection *  v_vertex;
 }
 `;
 
-    protected static readonly SHADER_SOURCE_FRAG: string = `precision highp float;
+    protected static readonly FLOOR_SHADER_SOURCE_FRAG: string = `
+precision lowp float;
 
-#if __VERSION__ == 100
-  #define fragColor gl_FragColor
-#else
-  layout(location = 0) out vec4 fragColor;
-  #define varying in
-#endif
+layout(location = 0) out vec4 fragColor;
 
-varying vec2 v_uv;
+uniform vec4 u_clearColor;
+uniform vec4 u_diffuse;
 
-uniform float u_cellWidth;
+in vec4 v_vertex;
+// in vec2 v_uv;
+
+float grid(const in vec3 position, const in float scale) {
+
+    vec3 v_pos = fract(+position * scale);
+    vec3 grid0 = smoothstep(vec3(0.0), 2.0 * fwidth(v_pos), v_pos);
+
+    vec3 v_neg = fract(-position * scale);
+    vec3 grid1 = smoothstep(vec3(0.0), 2.0 * fwidth(v_neg), v_neg);
+
+    vec3 intensity = vec3(1.0) - grid0 * grid1;
+
+    return max(intensity.x, intensity.y) *
+        max(intensity.y, intensity.z) *
+        max(intensity.z, intensity.x);
+}
 
 void main(void)
 {
-  vec3 x3 = vec3(gl_FragCoord.x) + vec3(0.0, 1.0, 2.0);
-  vec3 y3 = vec3(gl_FragCoord.y) + vec3(0.0, 1.0, 2.0);
+    vec3 g = vec3(
+        grid(v_vertex.xyz,  2.0) * 1.00,
+        grid(v_vertex.xyz,  4.0) * 0.50,
+        grid(v_vertex.xyz, 16.0) * 0.25);
 
-  vec3 x = step(mod(x3, vec3(3.0)), vec3(1.0));
-  vec3 y = step(mod(y3, vec3(3.0)), vec3(1.0));
+    vec2 uv = v_vertex.xz * 0.125;
+    float d = 1.0 - sqrt(dot(uv, uv));
 
-  float cell = step(mod(gl_FragCoord.x * u_cellWidth + floor(gl_FragCoord.y * u_cellWidth), 2.0), 1.0);
-  fragColor = vec4(mix(x, y, cell), 1.0);
+    float alpha = d * max(g[0], max(g[1], g[2]));
+
+    vec4 color = mix(u_clearColor, u_diffuse, alpha);
+    fragColor = vec4(color.rgb, color.a * alpha);
 }
 `;
 
@@ -74,9 +88,17 @@ void main(void)
 
     protected _defaultFBO: DefaultFramebuffer | undefined;
 
-    protected _ndcTriangle: NdcFillingTriangle | undefined;
+    protected _floor: NdcFillingRectangle | undefined;
+    protected _floorTransform: mat4 | undefined;
 
     protected _program: Program | undefined;
+
+    protected _uViewProjection: WebGLUniformLocation | undefined;
+    protected _uModel: WebGLUniformLocation | undefined;
+    protected _uDiffuse: WebGLUniformLocation | undefined;
+
+    protected _camera: Camera | undefined;
+    protected _navigation: Navigation | undefined;
 
     /**
      * Initializes and sets up rendering passes, navigation, loads a font face and links shaders with program.
@@ -85,10 +107,7 @@ void main(void)
      * @param mouseEventProvider - required for mouse interaction
      * @returns - whether initialization was successful
      */
-    protected onInitialize(): // context: Context,
-    // callback: Invalidate
-    /* eventProvider: EventProvider */
-    boolean {
+    protected onInitialize(_context: Context, callback: Invalidate, eventProvider: EventProvider): boolean {
         /* Create framebuffers, textures, and render buffers. */
 
         this._defaultFBO = new DefaultFramebuffer(this._context, 'DefaultFBO');
@@ -99,21 +118,43 @@ void main(void)
 
         const gl = this._context.gl;
 
-        this._ndcTriangle = new NdcFillingTriangle(this._context, 'NdcFillingTriangle');
-        this._ndcTriangle.initialize();
+        this._floor = new NdcFillingRectangle(this._context, 'Floor');
+        this._floor.initialize();
+        // prettier-ignore
+        this._floorTransform = mat4.fromValues(
+            16.0,  0.0,  0.0, 0.0,
+            0.0,   0.0, 16.0, 0.0,
+            0.0,  16.0,  0.0, 0.0,
+            0.0,   0.0,  0.0, 1.0
+        );
 
-        const vert = new Shader(this._context, gl.VERTEX_SHADER, 'ndcvertices (in-line)');
-        vert.initialize(DatacubesRenderer.SHADER_SOURCE_VERT);
-        const frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'pattern (in-line)');
-        frag.initialize(DatacubesRenderer.SHADER_SOURCE_FRAG);
+        const vert = new Shader(this._context, gl.VERTEX_SHADER, 'floor.vert (in-line)');
+        vert.initialize(DatacubesRenderer.FLOOR_SHADER_SOURCE_VERT);
+        const frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'floor.frag (in-line)');
+        frag.initialize(DatacubesRenderer.FLOOR_SHADER_SOURCE_FRAG);
 
-        this._program = new Program(this._context, 'CanvasSizeProgram');
+        this._program = new Program(this._context, 'FloorProgram');
         this._program.initialize([vert, frag], false);
 
-        this._program.attribute('a_vertex', this._ndcTriangle.vertexLocation);
         this._program.link();
+        this._program.bind();
 
-        this._uCellWidth = this._program.uniform('u_cellWidth');
+        this._uViewProjection = this._program.uniform('u_viewProjection');
+        this._uModel = this._program.uniform('u_model');
+        this._uDiffuse = this._program.uniform('u_diffuse');
+
+        this._camera = new Camera();
+
+        this._camera.center = vec3.fromValues(0.0, 0.5, 0.0);
+        this._camera.up = vec3.fromValues(0.0, 1.0, 0.0);
+        this._camera.eye = vec3.fromValues(2.0, 2.0, 4.0);
+        this._camera.near = 0.01;
+        this._camera.far = 32.0;
+
+        this._navigation = new Navigation(callback, eventProvider);
+        this._navigation.camera = this._camera;
+
+        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
         this.finishLoading();
 
@@ -126,7 +167,7 @@ void main(void)
     protected onUninitialize(): void {
         super.uninitialize();
 
-        this._ndcTriangle?.uninitialize();
+        this._floor?.uninitialize();
         this._program?.uninitialize();
 
         this._defaultFBO?.uninitialize();
@@ -146,7 +187,8 @@ void main(void)
      * @returns whether to redraw
      */
     protected onUpdate(): boolean {
-        return this._altered.any;
+        this._navigation?.update();
+        return this._altered.any || (!!this._camera && this._camera.altered);
     }
 
     /**
@@ -154,16 +196,24 @@ void main(void)
      * camera-updates.
      */
     protected onPrepare(): void {
-        // if (this._altered.canvasSize) {
-        //     this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
-        //     this._camera.viewport = this._canvasSize;
-        // }
-
-        if (this._altered.clearColor) {
-            this._defaultFBO?.clearColor(this._clearColor);
+        if (this._altered.canvasSize && this._camera) {
+            this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
+            this._camera.viewport = this._canvasSize;
         }
-
+        if (this._altered.clearColor && this._defaultFBO && this._program) {
+            this._defaultFBO.clearColor(this._clearColor);
+            this._context.gl.uniform4f(
+                this._program.uniform('u_clearColor'),
+                this._clearColor[0],
+                this._clearColor[1],
+                this._clearColor[2],
+                this._clearColor[3],
+            );
+        }
         this._altered.reset();
+        if (this._camera) {
+            this._camera.altered = false;
+        }
     }
 
     /**
@@ -173,27 +223,35 @@ void main(void)
     protected onFrame(/*frameNumber: number*/): void {
         const gl = this._context.gl;
 
+        this._defaultFBO?.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, true, false);
+
         gl.viewport(0, 0, this._canvasSize[0], this._canvasSize[1]);
 
-        this._defaultFBO?.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, false, false);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
 
         this._program?.bind();
+        gl.uniformMatrix4fv(this._uViewProjection, false, this._camera?.viewProjection);
 
-        gl.uniform1f(this._uCellWidth, this.cellWidth);
+        gl.depthFunc(gl.LEQUAL);
 
-        this._ndcTriangle?.bind();
-        this._ndcTriangle?.draw();
-        this._ndcTriangle?.unbind();
-    }
+        this._floor?.bind();
+        gl.uniformMatrix4fv(this._uModel, false, this._floorTransform);
 
-    get cellWidth(): number {
-        return this._cellWidth;
-    }
+        this._context.gl.uniform4f(this._uDiffuse, 0.5, 0.5, 0.5, 0.25);
 
-    set cellWidth(cellWidth: number) {
-        this._cellWidth = cellWidth;
-        this._altered.alter('cellWidth');
-        this.invalidate(true);
+        gl.disable(gl.CULL_FACE);
+        gl.depthMask(false);
+        this._floor?.draw();
+        gl.depthMask(true);
+        gl.enable(gl.CULL_FACE);
+
+        this._floor?.unbind();
+
+        this._program?.unbind();
+
+        gl.cullFace(gl.BACK);
+        gl.disable(gl.CULL_FACE);
     }
 }
 
@@ -212,11 +270,5 @@ export class DatacubesApplication extends Application {
         this._spinner = spinnerElement;
 
         return true;
-    }
-
-    set cellWidth(cellWidth: number) {
-        if (this._renderer) {
-            this._renderer.cellWidth = cellWidth;
-        }
     }
 }
