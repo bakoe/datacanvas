@@ -33,11 +33,12 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             setApplication(exampleInstance);
         }
 
-        return () => {
-            if (application) {
-                application.uninitialize();
-            }
-        };
+        // Commented-out to avoid infinite recursion in application's uninitialization(?)
+        // return () => {
+        //     if (application) {
+        //         application.uninitialize();
+        //     }
+        // };
     }, []);
 
     return (
