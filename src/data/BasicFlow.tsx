@@ -10,10 +10,9 @@ import ReactFlow, {
     useNodesState,
     useEdgesState,
     ReactFlowInstance,
-    ReactFlowProvider,
 } from 'react-flow-renderer';
 
-import DatasetNode, { DatasetNodeData } from '../data/nodes/DatasetNode';
+import DatasetNode, { DatasetNodeData } from './nodes/DatasetNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
 const onNodeClick = (_: MouseEvent, node: Node) => console.log('click', node);
@@ -55,27 +54,25 @@ const BasicFlow = () => {
     const nodeTypes = useMemo(() => ({ dataset: DatasetNode }), []);
 
     return (
-        <ReactFlowProvider>
-            <ReactFlow
-                nodes={nodes}
-                nodeTypes={nodeTypes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onPaneReady={onPaneReady}
-                onNodeClick={onNodeClick}
-                onConnect={onConnect}
-                onNodeDragStop={onNodeDragStop}
-                className="react-flow-basic-example"
-                defaultZoom={1.5}
-                minZoom={0.2}
-                maxZoom={4}
-            >
-                <Background variant={BackgroundVariant.Lines} />
+        <ReactFlow
+            nodes={nodes}
+            nodeTypes={nodeTypes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onPaneReady={onPaneReady}
+            onNodeClick={onNodeClick}
+            onConnect={onConnect}
+            onNodeDragStop={onNodeDragStop}
+            className="react-flow-basic-example"
+            defaultZoom={1.5}
+            minZoom={0.2}
+            maxZoom={4}
+        >
+            <Background variant={BackgroundVariant.Lines} />
 
-                <div style={{ position: 'absolute', right: 10, top: 10, zIndex: 4 }}></div>
-            </ReactFlow>
-        </ReactFlowProvider>
+            <div style={{ position: 'absolute', right: 10, top: 10, zIndex: 4 }}></div>
+        </ReactFlow>
     );
 };
 
