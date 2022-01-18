@@ -16,6 +16,12 @@ import {
     Context,
     vec3,
     CuboidGeometry,
+    BlitPass,
+    AccumulatePass,
+    Framebuffer,
+    NdcFillingTriangle,
+    AntiAliasingKernel,
+    Texture2D,
 } from 'webgl-operate';
 import { Application } from './Application';
 
@@ -50,6 +56,19 @@ class DatacubesRenderer extends Renderer {
     protected _camera: Camera | undefined;
     protected _navigation: Navigation | undefined;
 
+    // Multi-frame rendering
+    protected _colorRenderTexture: Texture2D | undefined;
+
+    protected _intermediateFBOs: Array<Framebuffer> = [];
+
+    protected _ndcTriangle: NdcFillingTriangle | undefined;
+    protected _ndcOffsetKernel: AntiAliasingKernel | undefined;
+
+    protected _accumulate: AccumulatePass | undefined;
+    protected _blit: BlitPass | undefined;
+
+    protected _uNdcOffsetCuboids: WebGLUniformLocation | undefined;
+
     /**
      * Initializes and sets up rendering passes, navigation, loads a font face and links shaders with program.
      * @param context - valid context to create the object for.
@@ -60,13 +79,35 @@ class DatacubesRenderer extends Renderer {
     protected onInitialize(_context: Context, callback: Invalidate, eventProvider: EventProvider): boolean {
         /* Create framebuffers, textures, and render buffers. */
 
+        const gl = this._context.gl;
+        const gl2facade = this._context.gl2facade;
+
         this._defaultFBO = new DefaultFramebuffer(this._context, 'DefaultFBO');
         this._defaultFBO.initialize();
         this._defaultFBO.bind();
 
-        /* Create and configure canvas-size test pattern pass. */
+        this._ndcTriangle = new NdcFillingTriangle(this._context);
+        this._ndcTriangle.initialize();
 
-        const gl = this._context.gl;
+        this._colorRenderTexture = new Texture2D(this._context, 'ColorRenderTexture');
+
+        this._colorRenderTexture.initialize(
+            this._frameSize[0] || 1,
+            this._frameSize[1] || 1,
+            this._context.isWebGL2 ? gl.RGBA8 : gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+        );
+
+        this._intermediateFBOs = new Array<Framebuffer>(2);
+
+        this._intermediateFBOs[0] = new Framebuffer(this._context, 'IntermediateFBO-0');
+
+        this._intermediateFBOs[0].initialize([
+            [gl2facade.COLOR_ATTACHMENT0, this._colorRenderTexture],
+            // [gl.DEPTH_ATTACHMENT, this._depthRenderbuffer],
+        ]);
+        this._intermediateFBOs[0].clearColor(this._clearColor);
 
         this._floor = new NdcFillingRectangle(this._context, 'Floor');
         this._floor.initialize();
@@ -133,6 +174,7 @@ class DatacubesRenderer extends Renderer {
 
         this._uViewProjectionCuboids = this._cuboidsProgram.uniform('u_viewProjection');
         this._uModelCuboids = this._cuboidsProgram.uniform('u_model');
+        this._uNdcOffsetCuboids = this._cuboidsProgram.uniform('u_ndcOffset');
 
         this._cuboidsProgram.unbind();
 
@@ -148,6 +190,18 @@ class DatacubesRenderer extends Renderer {
         this._navigation.camera = this._camera;
 
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+        this._accumulate = new AccumulatePass(this._context);
+        this._accumulate.initialize(this._ndcTriangle);
+        this._accumulate.precision = this._framePrecision;
+        this._accumulate.texture = this._colorRenderTexture;
+
+        this._blit = new BlitPass(this._context);
+        this._blit.initialize(this._ndcTriangle);
+        this._blit.readBuffer = gl2facade.COLOR_ATTACHMENT0;
+        this._blit.enforceProgramBlit = true;
+        this._blit.drawBuffer = gl.BACK;
+        this._blit.target = this._defaultFBO;
 
         this.finishLoading();
 
@@ -190,6 +244,16 @@ class DatacubesRenderer extends Renderer {
      * camera-updates.
      */
     protected onPrepare(): void {
+        if (this._altered.frameSize) {
+            this._intermediateFBOs.forEach((fbo) => {
+                if (fbo.initialized) {
+                    fbo.resize(this._frameSize[0], this._frameSize[1]);
+                }
+            });
+            if (this._camera) {
+                this._camera.viewport = [this._frameSize[0], this._frameSize[1]];
+            }
+        }
         if (this._altered.canvasSize && this._camera) {
             this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
             this._camera.viewport = this._canvasSize;
@@ -204,6 +268,10 @@ class DatacubesRenderer extends Renderer {
                 this._clearColor[3],
             );
         }
+        if (this._altered.multiFrameNumber) {
+            this._ndcOffsetKernel = new AntiAliasingKernel(this._multiFrameNumber);
+        }
+        this._accumulate?.update();
         this._altered.reset();
         if (this._camera) {
             this._camera.altered = false;
@@ -214,12 +282,19 @@ class DatacubesRenderer extends Renderer {
      * After (1) update and (2) preparation are invoked, a frame is invoked. Renders both 2D and 3D labels.
      * @param frameNumber - for intermediate frames in accumulation rendering
      */
-    protected onFrame(/*frameNumber: number*/): void {
+    protected onFrame(frameNumber: number): void {
         const gl = this._context.gl;
 
-        this._defaultFBO?.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, true, false);
+        this._intermediateFBOs[0].bind();
+        this._intermediateFBOs[0].clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, true, false);
 
-        gl.viewport(0, 0, this._canvasSize[0], this._canvasSize[1]);
+        gl.viewport(0, 0, this._frameSize[0], this._frameSize[1]);
+
+        const ndcOffset = this._ndcOffsetKernel?.get(frameNumber);
+        if (ndcOffset) {
+            ndcOffset[0] = (2.0 * ndcOffset[0]) / this._frameSize[0];
+            ndcOffset[1] = (2.0 * ndcOffset[1]) / this._frameSize[1];
+        }
 
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.BLEND);
@@ -247,6 +322,8 @@ class DatacubesRenderer extends Renderer {
         if (this._cuboids.length > 0) {
             this._cuboidsProgram?.bind();
 
+            gl.uniform2fv(this._uNdcOffsetCuboids, ndcOffset);
+
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
@@ -264,6 +341,19 @@ class DatacubesRenderer extends Renderer {
 
         gl.cullFace(gl.BACK);
         gl.disable(gl.CULL_FACE);
+
+        this._accumulate?.frame(frameNumber);
+    }
+
+    protected onSwap(): void {
+        if (this._blit) {
+            this._blit.framebuffer = this._accumulate?.framebuffer ? this._accumulate.framebuffer : this._intermediateFBOs[0];
+            try {
+                this._blit.frame();
+            } catch (error) {
+                // Do nothing
+            }
+        }
     }
 }
 
@@ -272,7 +362,7 @@ export class DatacubesApplication extends Application {
 
     onInitialize(element: HTMLCanvasElement | string, spinnerElement?: HTMLDivElement): boolean {
         this._canvas = new Canvas(element, { antialias: false });
-        this._canvas.controller.multiFrameNumber = 1;
+        this._canvas.controller.multiFrameNumber = 8;
         this._canvas.framePrecision = Wizard.Precision.byte;
         this._canvas.frameScale = [1.0, 1.0];
 
