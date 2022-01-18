@@ -355,6 +355,28 @@ class DatacubesRenderer extends Renderer {
             }
         }
     }
+
+    set datacubesPositions(datacubesPositions: Array<{ x: number; y: number }>) {
+        this._cuboids = [];
+
+        for (const datacubePosition of datacubesPositions) {
+            const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
+            cuboid.initialize();
+
+            const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
+
+            this._cuboids = [
+                ...this._cuboids,
+                {
+                    geometry: cuboid,
+                    transform: cuboidTransform,
+                },
+            ];
+        }
+
+        // TODO: Use this._altered instead!
+        this._invalidate(true);
+    }
 }
 
 export class DatacubesApplication extends Application {
@@ -372,5 +394,11 @@ export class DatacubesApplication extends Application {
         this._spinner = spinnerElement;
 
         return true;
+    }
+
+    set datacubesPositions(datacubesPositions: Array<{ x: number; y: number }>) {
+        if (this._renderer) {
+            this._renderer.datacubesPositions = datacubesPositions;
+        }
     }
 }

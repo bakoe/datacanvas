@@ -1,6 +1,6 @@
 import React, { PropsWithChildren } from 'react';
 
-import { useStore } from 'react-flow-renderer';
+import { ReactFlowState, useStore, XYPosition } from 'react-flow-renderer';
 
 import { DatacubesApplication } from './DatacubesApplication';
 
@@ -14,22 +14,28 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
     const spinnerRef = React.useRef<HTMLDivElement | null>(null);
     const [application, setApplication] = React.useState<DatacubesApplication | undefined>(undefined);
 
-    const transform = useStore((store) => store.transform);
+    const nodePositions = useStore((state: ReactFlowState) => Array.from(state.nodeInternals).map(([, node]) => node.position));
+
+    const REACT_FLOW_CANVAS_MIN_X = 400;
+    const REACT_FLOW_CANVAS_MIN_Y = 20;
+    const REACT_FLOW_CANVAS_STEP = 300;
 
     React.useEffect(() => {
         if (application) {
-            (application as DatacubesApplication).cellWidth = 1.0 / transform[0];
+            (application as DatacubesApplication).datacubesPositions = nodePositions.map(
+                (xyPosition) =>
+                    ({
+                        x: (xyPosition.x - REACT_FLOW_CANVAS_MIN_X) / REACT_FLOW_CANVAS_STEP,
+                        y: (xyPosition.y - REACT_FLOW_CANVAS_MIN_Y) / REACT_FLOW_CANVAS_STEP,
+                    } as XYPosition),
+            );
         }
-    }, [application, JSON.stringify(transform)]);
+    }, [application, JSON.stringify(nodePositions)]);
 
     React.useEffect(() => {
         if (canvasRef.current) {
             const exampleInstance = new DatacubesApplication();
-
             exampleInstance.initialize(canvasRef.current, spinnerRef.current || undefined);
-
-            (exampleInstance as DatacubesApplication).cellWidth = 1.0 / 64.0;
-
             setApplication(exampleInstance);
         }
 
