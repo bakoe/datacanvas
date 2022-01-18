@@ -1,0 +1,42 @@
+{
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "plugins": ["@typescript-eslint"],
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended",
+        "plugin:react/recommended",
+        "prettier"
+    ],
+    "env": {
+        "browser": true,
+        "es2020": true,
+        "node": true,
+        "worker": true
+    },
+    "parserOptions": {
+        "ecmaVersion": 2020,
+        "sourceType": "module",
+        "project": ["tsconfig.json"]
+    },
+    "rules": {
+        "@typescript-eslint/no-inferrable-types": ["off", "ignore-params"],
+        "@typescript-eslint/no-explicit-any": "warn",
+        "@typescript-eslint/no-non-null-assertion": "warn",
+        "@typescript-eslint/ban-types": [
+            "error",
+            {
+                "types": {
+                    "null": "Use 'undefined' instead of 'null'"
+                }
+            }
+        ],
+        "react/react-in-jsx-scope": "off"
+    },
+    "settings": {
+        "react": {
+            "version": "17.0.2"
+        }
+    }
+}
