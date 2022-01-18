@@ -24,14 +24,14 @@
         "@typescript-eslint/no-inferrable-types": ["off", "ignore-params"],
         "@typescript-eslint/no-explicit-any": "warn",
         "@typescript-eslint/no-non-null-assertion": "warn",
-        "@typescript-eslint/ban-types": [
-            "error",
-            {
-                "types": {
-                    "null": "Use 'undefined' instead of 'null'"
-                }
-            }
-        ],
+        // "@typescript-eslint/ban-types": [
+        //     "error",
+        //     {
+        //         "types": {
+        //             "null": "Use 'undefined' instead of 'null'"
+        //         }
+        //     }
+        // ],
         "react/react-in-jsx-scope": "off"
     },
     "settings": {

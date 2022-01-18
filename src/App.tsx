@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import logo from './logo.svg';
 import './App.css';
+import BasicFlow from './Basic';
 
 function App() {
     const [count, setCount] = useState(0);
@@ -10,6 +11,9 @@ function App() {
             <header className="App-header">
                 <img src={logo} className="App-logo" alt="logo" />
                 <p>Hello Vite + React!</p>
+                <div style={{ width: '100%', height: '400px' }}>
+                    <BasicFlow />
+                </div>
                 <p>
                     <button type="button" onClick={() => setCount((count) => count + 1)}>
                         count is: {count}
