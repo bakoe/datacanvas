@@ -144,20 +144,6 @@ class DatacubesRenderer extends Renderer {
 
         this._floorProgram.unbind();
 
-        for (let x = 0.25; x <= 1.25; x += 1.0) {
-            const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
-            cuboid.initialize();
-            const cuboidTransform = mat4.fromTranslation(mat4.create(), [x, 0.5, 0.25]);
-
-            this._cuboids = [
-                ...this._cuboids,
-                {
-                    geometry: cuboid,
-                    transform: cuboidTransform,
-                },
-            ];
-        }
-
         vert = new Shader(this._context, gl.VERTEX_SHADER, 'mesh.vert');
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         vert.initialize(MeshVert);
@@ -167,8 +153,6 @@ class DatacubesRenderer extends Renderer {
         this._cuboidsProgram = new Program(this._context, 'CuboidsProgram');
         this._cuboidsProgram.initialize([vert, frag], false);
 
-        this._cuboidsProgram.attribute('a_vertex', this._cuboids[0].geometry.vertexLocation);
-        this._cuboidsProgram.attribute('a_texCoord', this._cuboids[0].geometry.uvCoordLocation);
         this._cuboidsProgram.link();
         this._cuboidsProgram.bind();
 
