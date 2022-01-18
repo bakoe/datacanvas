@@ -93,6 +93,14 @@ class DatacubesRenderer extends Renderer {
         this._uModelFloor = this._floorProgram.uniform('u_model');
         this._uDiffuseFloor = this._floorProgram.uniform('u_diffuse');
 
+        this._context.gl.uniform4f(
+            this._floorProgram.uniform('u_clearColor'),
+            this._clearColor[0],
+            this._clearColor[1],
+            this._clearColor[2],
+            this._clearColor[3],
+        );
+
         this._floorProgram.unbind();
 
         for (let x = 0.25; x <= 1.25; x += 1.0) {
