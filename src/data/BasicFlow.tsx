@@ -113,6 +113,7 @@ const BasicFlow = () => {
                 if (index === nds.length - 1) {
                     node.position = { ...node.position, ...dragCoords };
                 }
+                node.draggable = true;
                 return node;
             });
         });
@@ -141,7 +142,8 @@ const BasicFlow = () => {
             id: nodeId,
             type: 'dataset',
             position,
-            data: { type, label: `${type} node`, columns: [], filename: `Loading ${type?.toUpperCase() ?? ''}…` },
+            data: { type, label: `${type} node`, columns: [], filename: `Dropping ${type?.toUpperCase() ?? ''}…` },
+            draggable: false,
         } as Node<DatasetNodeData>;
 
         setNodes((nds) => {
@@ -152,7 +154,7 @@ const BasicFlow = () => {
                 if (item.id === nodeId) {
                     return newNode;
                 }
-                return item;
+                return { ...item, draggable: false };
             });
         });
 
@@ -177,7 +179,12 @@ const BasicFlow = () => {
         if (!draggingInPage && dragInProgress) {
             setDragInProgress(false);
             setDragCoords(undefined);
-            setNodes((nds) => nds.slice(0, nds.length - 1));
+            setNodes((nds) =>
+                nds.slice(0, nds.length - 1).map((node) => {
+                    node.draggable = true;
+                    return node;
+                }),
+            );
         }
     }, [draggingInPage]);
 
@@ -200,6 +207,7 @@ const BasicFlow = () => {
                         type,
                     };
                 }
+                node.draggable = true;
                 return node;
             });
         });
@@ -228,6 +236,7 @@ const BasicFlow = () => {
             defaultZoom={1.5}
             minZoom={0.2}
             maxZoom={4}
+            noDragClassName="foo"
         >
             <Background variant={BackgroundVariant.Lines} />
 
