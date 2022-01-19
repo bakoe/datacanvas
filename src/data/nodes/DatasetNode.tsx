@@ -12,11 +12,24 @@ interface Column {
     name: string;
 }
 
+type DatasetNodeValidTypes = 'csv' | 'json' | undefined;
+
 export interface DatasetNodeData {
-    type: 'csv' | 'json';
+    type: DatasetNodeValidTypes;
     filename: string;
     columns: Column[];
 }
+
+export const mapMimetypeToNodeFiletype = (mimeType: string): DatasetNodeValidTypes | undefined => {
+    switch (mimeType) {
+        case 'text/csv':
+            return 'csv';
+        case 'application/json':
+            return 'json';
+        default:
+            return undefined;
+    }
+};
 
 interface DatasetNodeProps extends NodeProps {
     data: DatasetNodeData;
