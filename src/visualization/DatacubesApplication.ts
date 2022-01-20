@@ -41,6 +41,8 @@ import MeshFrag from './shaders/mesh.frag';
 import DepthFrag from './shaders/depth.frag';
 import { XYPosition } from 'react-flow-renderer';
 import { PausableNavigation } from './webgl-operate-extensions/PausableNavigation';
+import { DatacubeInformation } from './DatacubesVisualization';
+import { Observable, Subject } from 'rxjs';
 
 /* spellchecker: enable */
 
@@ -54,6 +56,8 @@ class DatacubesRenderer extends Renderer {
     protected _extensions = false;
 
     protected _defaultFBO: DefaultFramebuffer | undefined;
+
+    protected _datacubesSubject: Subject<Array<DatacubeInformation>> | undefined;
 
     protected _cuboidsProgram: Program | undefined;
     protected _cuboids: Array<Cuboid> = [];
@@ -361,13 +365,31 @@ class DatacubesRenderer extends Renderer {
 
                     const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
 
-                    this._cuboids = this._cuboids.map((cuboid) => {
+                    const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._draggedCuboidID) {
                             return { ...cuboid, transform: cuboidTransform };
                         }
                         return cuboid;
                     });
 
+                    this._datacubesSubject?.next(
+                        updatedCuboids
+                            .map((cuboid) => {
+                                if (cuboid.id === this._draggedCuboidID) {
+                                    return {
+                                        id: cuboid.id ? 4294967295 - cuboid.id : 0,
+                                        position: {
+                                            x: cuboid.transform[12],
+                                            y: cuboid.transform[14],
+                                        },
+                                    };
+                                }
+                                return undefined;
+                            })
+                            .filter((updatedDatacube) => updatedDatacube !== undefined) as Array<DatacubeInformation>,
+                    );
+
+                    this._cuboids = updatedCuboids;
                     this._invalidate(true);
                 }
             }
@@ -418,25 +440,6 @@ class DatacubesRenderer extends Renderer {
 
                 const coordsAt = this._readbackPass.coordsAt(x, y, undefined, this._camera?.viewProjectionInverse as mat4);
                 console.log(`Coords at [${x}, ${y}]: ${coordsAt?.toString() ?? 'undefined'}`);
-
-                // if (coordsAt) {
-                //     const datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
-                //     const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
-                //     cuboid.initialize();
-
-                //     const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
-
-                //     this._cuboids = [
-                //         ...this._cuboids.slice(0, -1),
-                //         {
-                //             geometry: cuboid,
-                //             transform: cuboidTransform,
-                //         },
-                //     ];
-
-                //     // TODO: Use this._altered instead!
-                //     this._invalidate(true);
-                // }
             }
         });
 
@@ -728,11 +731,17 @@ class DatacubesRenderer extends Renderer {
         }
     }
 
-    set datacubesPositions(datacubesPositions: Array<{ x: number; y: number }>) {
+    set datacubes(datacubes: Array<DatacubeInformation>) {
+        if (this._draggedCuboidID) {
+            // Block updates from outside while the internal state is being updated
+            return;
+        }
+
         this._cuboids = [];
 
-        for (let i = 0; i < datacubesPositions.length; i++) {
-            const datacubePosition = datacubesPositions[i];
+        for (const datacube of datacubes) {
+            const datacubePosition = datacube.position;
+            const datacubeId = datacube.id;
             const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
             cuboid.initialize();
 
@@ -743,13 +752,21 @@ class DatacubesRenderer extends Renderer {
                 {
                     geometry: cuboid,
                     transform: cuboidTransform,
-                    id: 4294967295 - i,
+                    id: 4294967295 - datacubeId,
                 },
             ];
         }
 
         // TODO: Use this._altered instead!
         this._invalidate(true);
+    }
+
+    get datacubes$(): Observable<Array<DatacubeInformation>> {
+        if (this._datacubesSubject === undefined) {
+            this._datacubesSubject = new Subject<Array<DatacubeInformation>>();
+        }
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        return this._datacubesSubject!.asObservable();
     }
 }
 
@@ -770,9 +787,15 @@ export class DatacubesApplication extends Application {
         return true;
     }
 
-    set datacubesPositions(datacubesPositions: Array<{ x: number; y: number }>) {
+    set datacubes(datacubes: Array<DatacubeInformation>) {
         if (this._renderer) {
-            this._renderer.datacubesPositions = datacubesPositions;
+            this._renderer.datacubes = datacubes;
+        }
+    }
+
+    get datacubes$(): Observable<Array<DatacubeInformation>> | undefined {
+        if (this._renderer) {
+            return this._renderer.datacubes$;
         }
     }
 }

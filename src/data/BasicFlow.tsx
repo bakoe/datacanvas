@@ -82,7 +82,7 @@ const initialNodes: Node[] = [
 ];
 
 let id = 2;
-const getId = () => `dndnode_${id}`;
+const getId = () => `${id}`;
 
 const initialEdges: Edge[] = [];
 
