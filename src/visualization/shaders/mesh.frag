@@ -12,8 +12,15 @@ precision lowp float;
 varying vec4 v_vertex;
 varying vec2 v_uv;
 
+uniform vec4 u_encodedID;
+uniform bool u_renderIDToFragColor;
 
 void main(void)
 {
+    if (u_renderIDToFragColor)
+    {
+        fragColor = u_encodedID;
+        return;
+    }
     fragColor = vec4(0.96, 0.97, 0.98, 1.0);
 }

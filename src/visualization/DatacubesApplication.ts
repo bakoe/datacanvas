@@ -47,7 +47,7 @@ class DatacubesRenderer extends Renderer {
     protected _defaultFBO: DefaultFramebuffer | undefined;
 
     protected _cuboidsProgram: Program | undefined;
-    protected _cuboids: Array<{ geometry: CuboidGeometry; transform: mat4 }> = [];
+    protected _cuboids: Array<{ geometry: CuboidGeometry; transform: mat4; id?: number }> = [];
 
     protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
     protected _uModelCuboids: WebGLUniformLocation | undefined;
@@ -81,6 +81,9 @@ class DatacubesRenderer extends Renderer {
 
     // Read-back of object IDs and depths
     protected _depthRenderbuffer: Renderbuffer | undefined;
+
+    protected _uEncodedIdCuboids: WebGLUniformLocation | undefined;
+    protected _uRenderIDToFragColorCuboids: WebGLUniformLocation | undefined;
 
     protected _idRenderTexture: Texture2D | undefined;
     protected _readbackPass: ReadbackPass | undefined;
@@ -234,6 +237,8 @@ class DatacubesRenderer extends Renderer {
         this._uViewProjectionCuboids = this._cuboidsProgram.uniform('u_viewProjection');
         this._uModelCuboids = this._cuboidsProgram.uniform('u_model');
         this._uNdcOffsetCuboids = this._cuboidsProgram.uniform('u_ndcOffset');
+        this._uEncodedIdCuboids = this._cuboidsProgram.uniform('u_encodedID');
+        this._uRenderIDToFragColorCuboids = this._cuboidsProgram.uniform('u_renderIDToFragColor');
 
         this._cuboidsProgram.unbind();
 
@@ -252,7 +257,7 @@ class DatacubesRenderer extends Renderer {
         this._debugPass.enforceProgramBlit = true;
         this._debugPass.debug = DebugPass.Mode.None;
 
-        this._debugPass.framebuffer = this._preDepthFBO;
+        this._debugPass.framebuffer = this._intermediateFBOs[1];
         this._debugPass.readBuffer = gl.COLOR_ATTACHMENT0;
 
         this._debugPass.target = this._defaultFBO;
@@ -330,24 +335,24 @@ class DatacubesRenderer extends Renderer {
                 const coordsAt = this._readbackPass.coordsAt(x, y, undefined, this._camera?.viewProjectionInverse as mat4);
                 console.log(`Coords at [${x}, ${y}]: ${coordsAt?.toString() ?? 'undefined'}`);
 
-                if (coordsAt) {
-                    const datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
-                    const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
-                    cuboid.initialize();
+                // if (coordsAt) {
+                //     const datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
+                //     const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
+                //     cuboid.initialize();
 
-                    const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
+                //     const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
 
-                    this._cuboids = [
-                        ...this._cuboids.slice(0, -1),
-                        {
-                            geometry: cuboid,
-                            transform: cuboidTransform,
-                        },
-                    ];
+                //     this._cuboids = [
+                //         ...this._cuboids.slice(0, -1),
+                //         {
+                //             geometry: cuboid,
+                //             transform: cuboidTransform,
+                //         },
+                //     ];
 
-                    // TODO: Use this._altered instead!
-                    this._invalidate(true);
-                }
+                //     // TODO: Use this._altered instead!
+                //     this._invalidate(true);
+                // }
             }
         });
 
@@ -531,6 +536,9 @@ class DatacubesRenderer extends Renderer {
 
             gl.uniform2fv(this._uNdcOffsetCuboids, ndcOffset);
 
+            gl.uniform1i(this._uRenderIDToFragColorCuboids, 0);
+            gl.uniform4fv(this._uEncodedIdCuboids, [0, 0, 0, 0]);
+
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
@@ -549,6 +557,54 @@ class DatacubesRenderer extends Renderer {
         gl.cullFace(gl.BACK);
         gl.disable(gl.CULL_FACE);
 
+        /* Draw cuboids into ID buffer */
+
+        this._intermediateFBOs[1].bind();
+        // this._intermediateFBOs[1].clearColor([1.0, 0.0, 0.0, 1.0]);
+        this._intermediateFBOs[1].clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, false, false);
+
+        if (this._cuboids.length > 0) {
+            this._cuboidsProgram?.bind();
+
+            // gl.uniform2fv(this._uNdcOffsetCuboids, ndcOffset);
+
+            gl.uniform1i(this._uRenderIDToFragColorCuboids, 1);
+
+            gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
+            gl.cullFace(gl.BACK);
+
+            for (const { geometry, transform, id } of this._cuboids) {
+                geometry.bind();
+
+                gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
+
+                if (id !== undefined) {
+                    const encodedId = vec4.create();
+                    // Maximum to-be-encoded ID: 4294967295 (equals [255, 255, 255, 255])
+                    gl_matrix_extensions.encode_uint32_to_rgba8(encodedId, id);
+                    const encodedIdFloat = new Float32Array(encodedId);
+                    encodedIdFloat[0] /= 255.0;
+                    encodedIdFloat[1] /= 255.0;
+                    encodedIdFloat[2] /= 255.0;
+                    encodedIdFloat[3] /= 255.0;
+
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call
+                    gl.uniform4fv(this._uEncodedIdCuboids, encodedIdFloat);
+                    // console.log(id);
+                } else {
+                    gl.uniform4fv(this._uEncodedIdCuboids, [0, 0, 0, 0]);
+                }
+
+                geometry.draw();
+
+                geometry.unbind();
+            }
+
+            this._cuboidsProgram?.unbind();
+        }
+
+        this._intermediateFBOs[1].unbind();
+
         this._accumulate?.frame(frameNumber);
     }
 
@@ -557,7 +613,7 @@ class DatacubesRenderer extends Renderer {
             this._blit.framebuffer = this._accumulate?.framebuffer ? this._accumulate.framebuffer : this._intermediateFBOs[0];
             try {
                 this._blit.frame();
-                // this._debugPass?.frame();
+                this._debugPass?.frame();
             } catch (error) {
                 // Do nothing
             }
@@ -567,7 +623,8 @@ class DatacubesRenderer extends Renderer {
     set datacubesPositions(datacubesPositions: Array<{ x: number; y: number }>) {
         this._cuboids = [];
 
-        for (const datacubePosition of datacubesPositions) {
+        for (let i = 0; i < datacubesPositions.length; i++) {
+            const datacubePosition = datacubesPositions[i];
             const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
             cuboid.initialize();
 
@@ -578,6 +635,7 @@ class DatacubesRenderer extends Renderer {
                 {
                     geometry: cuboid,
                     transform: cuboidTransform,
+                    id: 4294967295 - i,
                 },
             ];
         }
