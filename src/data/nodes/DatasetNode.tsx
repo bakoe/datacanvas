@@ -2,10 +2,11 @@ import { memo, FC, CSSProperties } from 'react';
 
 import { Handle, Position, NodeProps } from 'react-flow-renderer';
 
-const targetHandleStyle: CSSProperties = { display: 'flex', flexDirection: 'row-reverse', background: '#555', top: 'initial' };
-const handlesWrapperStyle: CSSProperties = { height: '3.0rem' };
-const targetHandleLabelStyle: CSSProperties = { marginRight: '1rem', alignSelf: 'center' };
-const datasetNodeStyle: CSSProperties = { background: '#9CA8B3', color: '#FFF', padding: '1rem' };
+const targetHandleStyle: CSSProperties = { display: 'flex', flexDirection: 'row-reverse', top: 'initial' };
+const handlesWrapperStyle: CSSProperties = { height: '1.5rem' };
+const targetHandleLabelStyle: CSSProperties = { marginRight: '10px', alignSelf: 'center' };
+const datasetNodeStyle: CSSProperties = { boxSizing: 'border-box' };
+const datasetNodeTitleStyle: CSSProperties = { display: 'inline', hyphens: 'auto', background: 'white' };
 
 interface Column {
     type: 'string' | 'number';
@@ -35,10 +36,10 @@ interface DatasetNodeProps extends NodeProps {
     data: DatasetNodeData;
 }
 
-const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable }) => {
+const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) => {
     return (
-        <div style={datasetNodeStyle}>
-            <div>
+        <div style={datasetNodeStyle} className={`react-flow__node-default ${selected && 'selected'}`}>
+            <div style={datasetNodeTitleStyle}>
                 Dataset Node: <strong>{data.filename}</strong>
             </div>
             {data.columns.map((column) => (
