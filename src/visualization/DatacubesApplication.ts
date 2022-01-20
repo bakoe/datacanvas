@@ -313,7 +313,7 @@ class DatacubesRenderer extends Renderer {
 
         this.finishLoading();
 
-        eventProvider.mouseEventProvider.down$.subscribe((value) => {
+        eventProvider.pointerEventProvider.down$.subscribe((value) => {
             if (this._idRenderTexture?.valid && this._readbackPass?.initialized && value.target) {
                 const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
                 const xOffset = elementBoundingRect.x;
@@ -344,7 +344,7 @@ class DatacubesRenderer extends Renderer {
             }
         });
 
-        eventProvider.mouseEventProvider.move$.subscribe((value) => {
+        eventProvider.pointerEventProvider.move$.subscribe((value) => {
             if (this._draggedCuboidID && this._depthTexture?.valid && this._readbackPass?.initialized && value.target) {
                 const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
                 const xOffset = elementBoundingRect.x;
@@ -395,7 +395,7 @@ class DatacubesRenderer extends Renderer {
             }
         });
 
-        eventProvider.mouseEventProvider.up$.subscribe(() => {
+        eventProvider.pointerEventProvider.up$.subscribe(() => {
             if (this._draggedCuboidID) {
                 this._draggedCuboidID = undefined;
                 if (this._navigation) this._navigation.isPaused = false;
