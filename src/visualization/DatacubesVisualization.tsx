@@ -93,7 +93,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
     }, []);
 
     return (
-        <>
+        <div className={classes.canvasContainer}>
             <canvas className={classes.canvas} ref={canvasRef} />
             <div className={classes.spinner} ref={spinnerRef}>
                 <div></div>
@@ -102,6 +102,6 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 <div></div>
             </div>
             {props.children}
-        </>
+        </div>
     );
 };
