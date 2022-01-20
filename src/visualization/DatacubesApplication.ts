@@ -44,13 +44,19 @@ import { PausableNavigation } from './webgl-operate-extensions/PausableNavigatio
 
 /* spellchecker: enable */
 
+interface Cuboid {
+    geometry: CuboidGeometry;
+    transform: mat4;
+    id?: number;
+}
+
 class DatacubesRenderer extends Renderer {
     protected _extensions = false;
 
     protected _defaultFBO: DefaultFramebuffer | undefined;
 
     protected _cuboidsProgram: Program | undefined;
-    protected _cuboids: Array<{ geometry: CuboidGeometry; transform: mat4; id?: number }> = [];
+    protected _cuboids: Array<Cuboid> = [];
 
     protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
     protected _uModelCuboids: WebGLUniformLocation | undefined;
@@ -371,6 +377,7 @@ class DatacubesRenderer extends Renderer {
             if (this._draggedCuboidID) {
                 this._draggedCuboidID = undefined;
                 if (this._navigation) this._navigation.isPaused = false;
+                this.invalidate(true);
             }
         });
 
@@ -570,7 +577,7 @@ class DatacubesRenderer extends Renderer {
         if (this._cuboids.length > 0) {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
-            for (const { geometry, transform, id } of this._cuboids) {
+            for (const { geometry, transform } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
 
                 gl.uniformMatrix4fv(this._uDepthModel, false, transform);
@@ -628,7 +635,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, transform } of this._cuboids) {
+            for (const { geometry, transform } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
@@ -659,7 +666,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, transform, id } of this._cuboids) {
+            for (const { geometry, transform, id } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
@@ -692,6 +699,21 @@ class DatacubesRenderer extends Renderer {
         this._intermediateFBOs[1].unbind();
 
         this._accumulate?.frame(frameNumber);
+    }
+
+    protected distanceToCamera(transformMatrix: mat4): number {
+        const pos = vec3.fromValues(transformMatrix[12] || 0, transformMatrix[13] || 0, transformMatrix[14] || 0);
+        const cameraPos = this._camera?.eye;
+
+        if (!cameraPos) {
+            return -1;
+        }
+
+        return vec3.len(vec3.subtract(v3(), pos, cameraPos));
+    }
+
+    get cuboidsSortedByCameraDistance(): Cuboid[] {
+        return this._cuboids.sort((a, b) => this.distanceToCamera(b.transform) - this.distanceToCamera(a.transform));
     }
 
     protected onSwap(): void {
