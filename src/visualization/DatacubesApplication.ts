@@ -10,7 +10,6 @@ import {
     NdcFillingRectangle,
     mat4,
     Camera,
-    Navigation,
     Invalidate,
     EventProvider,
     Context,
@@ -28,6 +27,9 @@ import {
     DebugPass,
     vec4,
 } from 'webgl-operate';
+
+const { v3 } = gl_matrix_extensions;
+
 import { Application } from './Application';
 
 import FloorVert from './shaders/floor.vert';
@@ -38,6 +40,7 @@ import MeshFrag from './shaders/mesh.frag';
 
 import DepthFrag from './shaders/depth.frag';
 import { XYPosition } from 'react-flow-renderer';
+import { PausableNavigation } from './webgl-operate-extensions/PausableNavigation';
 
 /* spellchecker: enable */
 
@@ -62,9 +65,7 @@ class DatacubesRenderer extends Renderer {
     protected _uDiffuseFloor: WebGLUniformLocation | undefined;
 
     protected _camera: Camera | undefined;
-    protected _navigation: Navigation | undefined;
-
-    protected _noDrag: boolean = false;
+    protected _navigation: PausableNavigation | undefined;
 
     // Multi-frame rendering
     protected _colorRenderTexture: Texture2D | undefined;
@@ -97,9 +98,15 @@ class DatacubesRenderer extends Renderer {
     protected _uDepthCameraNearFar: WebGLUniformLocation | undefined;
     protected _uDepthModel: WebGLUniformLocation | undefined;
     protected _uDepthNdcOffset: WebGLUniformLocation | undefined;
+    protected _uDepthHideFromDepthBuffer: WebGLUniformLocation | undefined;
 
     // Debug pass
     protected _debugPass: DebugPass | undefined;
+
+    // Keeping track of whether a cuboid is dragged
+    protected _draggedCuboidID: number | undefined;
+    protected _dragStartPosition: vec3 | undefined;
+    protected _draggedCuboidStartPosition: vec3 | undefined;
 
     /**
      * Initializes and sets up rendering passes, navigation, loads a font face and links shaders with program.
@@ -164,6 +171,7 @@ class DatacubesRenderer extends Renderer {
         this._uDepthCameraNearFar = this._depthProgram.uniform('u_cameraNearFar');
         this._uDepthModel = this._depthProgram.uniform('u_model');
         this._uDepthNdcOffset = this._depthProgram.uniform('u_ndcOffset');
+        this._uDepthHideFromDepthBuffer = this._depthProgram.uniform('u_hideFromDepthBuffer');
 
         this._depthProgram.unbind();
 
@@ -257,7 +265,8 @@ class DatacubesRenderer extends Renderer {
         this._debugPass.enforceProgramBlit = true;
         this._debugPass.debug = DebugPass.Mode.None;
 
-        this._debugPass.framebuffer = this._intermediateFBOs[1];
+        this._debugPass.framebuffer = this._preDepthFBO;
+        // this._debugPass.framebuffer = this._intermediateFBOs[1];
         this._debugPass.readBuffer = gl.COLOR_ATTACHMENT0;
 
         this._debugPass.target = this._defaultFBO;
@@ -275,7 +284,7 @@ class DatacubesRenderer extends Renderer {
 
         this._readbackPass.cache = true;
 
-        this._navigation = new Navigation(callback, eventProvider);
+        this._navigation = new PausableNavigation(callback, eventProvider);
         this._navigation.camera = this._camera;
 
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -294,11 +303,79 @@ class DatacubesRenderer extends Renderer {
 
         this.finishLoading();
 
-        eventProvider.mouseEventProvider.down$.subscribe(() => (this._noDrag = true));
-        eventProvider.mouseEventProvider.move$.subscribe(() => (this._noDrag ? (this._noDrag = false) : undefined));
+        eventProvider.mouseEventProvider.down$.subscribe((value) => {
+            if (this._idRenderTexture?.valid && this._readbackPass?.initialized && value.target) {
+                const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
+                const xOffset = elementBoundingRect.x;
+                const yOffset = elementBoundingRect.y;
+                const x = ((value.clientX - xOffset) / (value.target as any).clientWidth) * this._idRenderTexture.width;
+                const y = ((value.clientY - yOffset) / (value.target as any).clientHeight) * this._idRenderTexture.height;
+                const nodeId = this._readbackPass.idAt(x, y);
+
+                if (nodeId) {
+                    if (this._navigation) this._navigation.isPaused = true;
+                    this._draggedCuboidID = nodeId;
+
+                    if (this._depthTexture?.valid) {
+                        const coordsAt = this._readbackPass.coordsAt(x, y, undefined, this._camera?.viewProjectionInverse as mat4);
+
+                        if (coordsAt) {
+                            this._dragStartPosition = coordsAt;
+                            const cuboid = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID);
+                            const cuboidPosition = vec3.fromValues(
+                                cuboid?.transform[12] || 0,
+                                cuboid?.transform[13] || 0,
+                                cuboid?.transform[14] || 0,
+                            );
+                            this._draggedCuboidStartPosition = cuboidPosition;
+                        }
+                    }
+                }
+            }
+        });
+
+        eventProvider.mouseEventProvider.move$.subscribe((value) => {
+            if (this._draggedCuboidID && this._depthTexture?.valid && this._readbackPass?.initialized && value.target) {
+                const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
+                const xOffset = elementBoundingRect.x;
+                const yOffset = elementBoundingRect.y;
+                const x = ((value.clientX - xOffset) / (value.target as any).clientWidth) * this._depthTexture.width;
+                const y = ((value.clientY - yOffset) / (value.target as any).clientHeight) * this._depthTexture.height;
+
+                const coordsAt = this._readbackPass.coordsAt(x, y, undefined, this._camera?.viewProjectionInverse as mat4);
+
+                if (coordsAt) {
+                    let datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
+
+                    if (this._dragStartPosition && this._draggedCuboidStartPosition) {
+                        const offset = vec3.subtract(v3(), coordsAt, this._dragStartPosition);
+                        const position = vec3.add(v3(), this._draggedCuboidStartPosition, offset);
+                        datacubePosition = { x: position[0], y: position[2] } as XYPosition;
+                    }
+
+                    const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
+
+                    this._cuboids = this._cuboids.map((cuboid) => {
+                        if (cuboid.id === this._draggedCuboidID) {
+                            return { ...cuboid, transform: cuboidTransform };
+                        }
+                        return cuboid;
+                    });
+
+                    this._invalidate(true);
+                }
+            }
+        });
+
+        eventProvider.mouseEventProvider.up$.subscribe(() => {
+            if (this._draggedCuboidID) {
+                this._draggedCuboidID = undefined;
+                if (this._navigation) this._navigation.isPaused = false;
+            }
+        });
 
         eventProvider.mouseEventProvider.click$.subscribe((value) => {
-            if (this._noDrag && this._idRenderTexture?.valid && this._readbackPass?.initialized && value.target) {
+            if (!this._draggedCuboidID && this._idRenderTexture?.valid && this._readbackPass?.initialized && value.target) {
                 const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
                 const xOffset = elementBoundingRect.x;
                 const yOffset = elementBoundingRect.y;
@@ -312,7 +389,7 @@ class DatacubesRenderer extends Renderer {
                 }
             }
 
-            if (this._noDrag && this._depthTexture?.valid && this._readbackPass?.initialized && value.target) {
+            if (!this._draggedCuboidID && this._depthTexture?.valid && this._readbackPass?.initialized && value.target) {
                 const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
                 const xOffset = elementBoundingRect.x;
                 const yOffset = elementBoundingRect.y;
@@ -480,6 +557,7 @@ class DatacubesRenderer extends Renderer {
         // gl.uniform1i(this._uDepthHideFromDepthBuffer, Number(false));
         gl.uniformMatrix4fv(this._uDepthViewProjection, false, this._camera?.viewProjection);
         gl.uniform2fv(this._uDepthCameraNearFar, [this._camera?.near, this._camera?.far]);
+        gl.uniform1i(this._uDepthHideFromDepthBuffer, Number(false));
 
         // Draw floor
         this._floor?.bind();
@@ -492,10 +570,18 @@ class DatacubesRenderer extends Renderer {
         if (this._cuboids.length > 0) {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
-            for (const { geometry, transform } of this._cuboids) {
+            for (const { geometry, transform, id } of this._cuboids) {
                 geometry.bind();
 
                 gl.uniformMatrix4fv(this._uDepthModel, false, transform);
+
+                if (this._draggedCuboidID) {
+                    // If the user currently drags a cuboid, hide all cuboids from the depth buffer
+                    gl.uniform1i(this._uDepthHideFromDepthBuffer, Number(true));
+                } else {
+                    gl.uniform1i(this._uDepthHideFromDepthBuffer, Number(false));
+                }
+
                 geometry.draw();
 
                 geometry.unbind();

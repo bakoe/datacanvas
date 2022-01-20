@@ -15,6 +15,8 @@ varying vec4 v_vertex;
 
 uniform mat4 u_viewProjection;
 
+uniform bool u_hideFromDepthBuffer;
+
 const float one255ths = 1.0 / 255.0;
 
 vec3 float24x1_to_uint8x3(const in float f) {
@@ -24,6 +26,11 @@ vec3 float24x1_to_uint8x3(const in float f) {
 
 void main(void)
 {
+    if (u_hideFromDepthBuffer)
+    {
+        discard;
+    }
+
     vec4 viewPosition = u_viewProjection * v_vertex;
     viewPosition /= viewPosition.w;
     float depth = viewPosition.z;
