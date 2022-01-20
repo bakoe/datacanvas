@@ -22,6 +22,11 @@ import {
     NdcFillingTriangle,
     AntiAliasingKernel,
     Texture2D,
+    Renderbuffer,
+    ReadbackPass,
+    gl_matrix_extensions,
+    DebugPass,
+    vec4,
 } from 'webgl-operate';
 import { Application } from './Application';
 
@@ -30,6 +35,9 @@ import FloorFrag from './shaders/floor.frag';
 
 import MeshVert from './shaders/mesh.vert';
 import MeshFrag from './shaders/mesh.frag';
+
+import DepthFrag from './shaders/depth.frag';
+import { XYPosition } from 'react-flow-renderer';
 
 /* spellchecker: enable */
 
@@ -56,6 +64,8 @@ class DatacubesRenderer extends Renderer {
     protected _camera: Camera | undefined;
     protected _navigation: Navigation | undefined;
 
+    protected _noDrag: boolean = false;
+
     // Multi-frame rendering
     protected _colorRenderTexture: Texture2D | undefined;
 
@@ -68,6 +78,25 @@ class DatacubesRenderer extends Renderer {
     protected _blit: BlitPass | undefined;
 
     protected _uNdcOffsetCuboids: WebGLUniformLocation | undefined;
+
+    // Read-back of object IDs and depths
+    protected _depthRenderbuffer: Renderbuffer | undefined;
+
+    protected _idRenderTexture: Texture2D | undefined;
+    protected _readbackPass: ReadbackPass | undefined;
+
+    protected _preDepthFBO: Framebuffer | undefined;
+    protected _preDepthRenderbuffer: Renderbuffer | undefined;
+    protected _depthTexture: Texture2D | undefined;
+    protected _depthProgram: Program | undefined;
+
+    protected _uDepthViewProjection: WebGLUniformLocation | undefined;
+    protected _uDepthCameraNearFar: WebGLUniformLocation | undefined;
+    protected _uDepthModel: WebGLUniformLocation | undefined;
+    protected _uDepthNdcOffset: WebGLUniformLocation | undefined;
+
+    // Debug pass
+    protected _debugPass: DebugPass | undefined;
 
     /**
      * Initializes and sets up rendering passes, navigation, loads a font face and links shaders with program.
@@ -90,7 +119,6 @@ class DatacubesRenderer extends Renderer {
         this._ndcTriangle.initialize();
 
         this._colorRenderTexture = new Texture2D(this._context, 'ColorRenderTexture');
-
         this._colorRenderTexture.initialize(
             this._frameSize[0] || 1,
             this._frameSize[1] || 1,
@@ -99,15 +127,15 @@ class DatacubesRenderer extends Renderer {
             gl.UNSIGNED_BYTE,
         );
 
+        const internalFormatAndTypeIDRenderTexture = Wizard.queryInternalTextureFormat(this._context, gl.RGBA, Wizard.Precision.byte);
+
+        this._idRenderTexture = new Texture2D(this._context, 'IDRenderTexture');
+        this._idRenderTexture.initialize(1, 1, internalFormatAndTypeIDRenderTexture[0], gl.RGBA, internalFormatAndTypeIDRenderTexture[1]);
+
         this._intermediateFBOs = new Array<Framebuffer>(2);
 
         this._intermediateFBOs[0] = new Framebuffer(this._context, 'IntermediateFBO-0');
-
-        this._intermediateFBOs[0].initialize([
-            [gl2facade.COLOR_ATTACHMENT0, this._colorRenderTexture],
-            // [gl.DEPTH_ATTACHMENT, this._depthRenderbuffer],
-        ]);
-        this._intermediateFBOs[0].clearColor(this._clearColor);
+        this._intermediateFBOs[1] = new Framebuffer(this._context, 'IntermediateFBO-1');
 
         this._floor = new NdcFillingRectangle(this._context, 'Floor');
         this._floor.initialize();
@@ -118,6 +146,54 @@ class DatacubesRenderer extends Renderer {
             0.0,  16.0,  0.0, 0.0,
             0.0,   0.0,  0.0, 1.0
         );
+
+        const depthVert = new Shader(this._context, gl.VERTEX_SHADER, 'mesh.vert');
+        depthVert.initialize(MeshVert);
+        const depthFrag = new Shader(this._context, gl.FRAGMENT_SHADER, 'depth.frag');
+        depthFrag.initialize(DepthFrag);
+
+        this._depthProgram = new Program(this._context, 'DepthProgram');
+        this._depthProgram.initialize([depthVert, depthFrag], true);
+        this._depthProgram.link();
+        this._depthProgram.bind();
+
+        this._uDepthViewProjection = this._depthProgram.uniform('u_viewProjection');
+        this._uDepthCameraNearFar = this._depthProgram.uniform('u_cameraNearFar');
+        this._uDepthModel = this._depthProgram.uniform('u_model');
+        this._uDepthNdcOffset = this._depthProgram.uniform('u_ndcOffset');
+
+        this._depthProgram.unbind();
+
+        this._preDepthRenderbuffer = new Renderbuffer(this._context, 'PreDepthRenderbuffer');
+        this._preDepthRenderbuffer.initialize(1, 1, gl.DEPTH_COMPONENT16);
+
+        const depthTextureFormatAndType = Wizard.queryInternalTextureFormat(this._context, gl.RGB, Wizard.Precision.byte);
+
+        this._depthTexture = new Texture2D(this._context, 'DepthTexture');
+        this._depthTexture.initialize(1, 1, depthTextureFormatAndType[0], gl.RGB, depthTextureFormatAndType[1]);
+        this._depthTexture.wrap(gl.CLAMP_TO_EDGE, gl.CLAMP_TO_EDGE);
+        this._depthTexture.filter(gl.LINEAR, gl.LINEAR);
+
+        this._preDepthFBO = new Framebuffer(this._context, 'PreDepthFBO');
+        this._preDepthFBO.initialize([
+            [gl2facade.COLOR_ATTACHMENT0, this._depthTexture],
+            [gl.DEPTH_ATTACHMENT, this._preDepthRenderbuffer],
+        ]);
+
+        this._depthRenderbuffer = new Renderbuffer(this._context, 'DepthRenderbuffer');
+        this._depthRenderbuffer.initialize(1, 1, gl.DEPTH_COMPONENT16);
+
+        this._intermediateFBOs[0].initialize([
+            [gl2facade.COLOR_ATTACHMENT0, this._colorRenderTexture],
+            [gl.DEPTH_ATTACHMENT, this._depthRenderbuffer],
+        ]);
+        this._intermediateFBOs[0].clearColor(this._clearColor);
+
+        this._intermediateFBOs[1].initialize([
+            [gl2facade.COLOR_ATTACHMENT0, this._idRenderTexture],
+            [gl.DEPTH_ATTACHMENT, this._depthRenderbuffer],
+        ]);
+        this._intermediateFBOs[1].clearColor([0, 0, 0, 0]);
 
         let vert = new Shader(this._context, gl.VERTEX_SHADER, 'floor.vert');
         vert.initialize(FloorVert);
@@ -145,7 +221,6 @@ class DatacubesRenderer extends Renderer {
         this._floorProgram.unbind();
 
         vert = new Shader(this._context, gl.VERTEX_SHADER, 'mesh.vert');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         vert.initialize(MeshVert);
         frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'mesh.frag');
         frag.initialize(MeshFrag);
@@ -170,6 +245,31 @@ class DatacubesRenderer extends Renderer {
         this._camera.near = 0.01;
         this._camera.far = 32.0;
 
+        /* Create and configure debug pass */
+        this._debugPass = new DebugPass(this._context);
+        this._debugPass.initialize();
+
+        this._debugPass.enforceProgramBlit = true;
+        this._debugPass.debug = DebugPass.Mode.None;
+
+        this._debugPass.framebuffer = this._preDepthFBO;
+        this._debugPass.readBuffer = gl.COLOR_ATTACHMENT0;
+
+        this._debugPass.target = this._defaultFBO;
+        this._debugPass.drawBuffer = gl.BACK;
+
+        /* Create and configure readback pass */
+
+        this._readbackPass = new ReadbackPass(this._context);
+        this._readbackPass.initialize(this._ndcTriangle, true);
+        this._readbackPass.idFBO = this._intermediateFBOs[1];
+        this._readbackPass.idAttachment = gl2facade.COLOR_ATTACHMENT0;
+
+        this._readbackPass.depthFBO = this._preDepthFBO;
+        this._readbackPass.depthAttachment = gl2facade.COLOR_ATTACHMENT0;
+
+        this._readbackPass.cache = true;
+
         this._navigation = new Navigation(callback, eventProvider);
         this._navigation.camera = this._camera;
 
@@ -188,6 +288,68 @@ class DatacubesRenderer extends Renderer {
         this._blit.target = this._defaultFBO;
 
         this.finishLoading();
+
+        eventProvider.mouseEventProvider.down$.subscribe(() => (this._noDrag = true));
+        eventProvider.mouseEventProvider.move$.subscribe(() => (this._noDrag ? (this._noDrag = false) : undefined));
+
+        eventProvider.mouseEventProvider.click$.subscribe((value) => {
+            if (this._noDrag && this._idRenderTexture?.valid && this._readbackPass?.initialized && value.target) {
+                const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
+                const xOffset = elementBoundingRect.x;
+                const yOffset = elementBoundingRect.y;
+                const x = ((value.clientX - xOffset) / (value.target as any).clientWidth) * this._idRenderTexture.width;
+                const y = ((value.clientY - yOffset) / (value.target as any).clientHeight) * this._idRenderTexture.height;
+                const nodeId = this._readbackPass.idAt(x, y);
+                if (nodeId) {
+                    console.log(`Clicked on node with ID: ${nodeId}`);
+                } else {
+                    console.log('Clicked on background (no node ID)');
+                }
+            }
+
+            if (this._noDrag && this._depthTexture?.valid && this._readbackPass?.initialized && value.target) {
+                const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
+                const xOffset = elementBoundingRect.x;
+                const yOffset = elementBoundingRect.y;
+                const x = ((value.clientX - xOffset) / (value.target as any).clientWidth) * this._depthTexture.width;
+                const y = ((value.clientY - yOffset) / (value.target as any).clientHeight) * this._depthTexture.height;
+
+                console.log(`Depth texture width:`, this._depthTexture.width);
+                console.log(`Depth texture height:`, this._depthTexture.height);
+
+                const readDepthAt = this._readbackPass.readDepthAt(x, y);
+                console.log(
+                    `readDepth at [${x}, ${y}]: ${gl_matrix_extensions.decode_float24x1_from_uint8x3(
+                        vec3.fromValues(readDepthAt[0], readDepthAt[1], readDepthAt[2]),
+                    )}`,
+                );
+
+                const depthAt = this._readbackPass.depthAt(x, y);
+                console.log(`depthAt at [${x}, ${y}]: ${depthAt || 'undefined'}`);
+
+                const coordsAt = this._readbackPass.coordsAt(x, y, undefined, this._camera?.viewProjectionInverse as mat4);
+                console.log(`Coords at [${x}, ${y}]: ${coordsAt?.toString() ?? 'undefined'}`);
+
+                if (coordsAt) {
+                    const datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
+                    const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
+                    cuboid.initialize();
+
+                    const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
+
+                    this._cuboids = [
+                        ...this._cuboids.slice(0, -1),
+                        {
+                            geometry: cuboid,
+                            transform: cuboidTransform,
+                        },
+                    ];
+
+                    // TODO: Use this._altered instead!
+                    this._invalidate(true);
+                }
+            }
+        });
 
         return true;
     }
@@ -237,20 +399,37 @@ class DatacubesRenderer extends Renderer {
             if (this._camera) {
                 this._camera.viewport = [this._frameSize[0], this._frameSize[1]];
             }
+            if (this._preDepthFBO) {
+                this._preDepthFBO.resize(this._frameSize[0], this._frameSize[1]);
+            }
         }
-        if (this._altered.canvasSize && this._camera) {
-            this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
-            this._camera.viewport = this._canvasSize;
+        if (this._altered.canvasSize) {
+            if (this._camera) {
+                this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
+                this._camera.viewport = this._canvasSize;
+                if (this._debugPass) {
+                    this._debugPass.dstBounds = vec4.fromValues(
+                        this._canvasSize[0] * (1.0 - 0.187),
+                        this._canvasSize[1] * (1.0 - 0.187 * this._camera.aspect),
+                        this._canvasSize[0] * (1.0 - 0.008),
+                        this._canvasSize[1] * (1.0 - 0.008 * this._camera.aspect),
+                    );
+                }
+            }
         }
-        if (this._altered.clearColor && this._defaultFBO && this._floorProgram) {
-            this._defaultFBO.clearColor(this._clearColor);
-            this._context.gl.uniform4f(
-                this._floorProgram.uniform('u_clearColor'),
-                this._clearColor[0],
-                this._clearColor[1],
-                this._clearColor[2],
-                this._clearColor[3],
-            );
+        if (this._altered.clearColor) {
+            this._preDepthFBO?.clearColor([0.9999999403953552, 0.9999999403953552, 0.9999999403953552, 1.0]);
+            this._intermediateFBOs[0].clearColor(this._clearColor);
+            if (this._defaultFBO && this._floorProgram) {
+                this._defaultFBO.clearColor(this._clearColor);
+                this._context.gl.uniform4f(
+                    this._floorProgram.uniform('u_clearColor'),
+                    this._clearColor[0],
+                    this._clearColor[1],
+                    this._clearColor[2],
+                    this._clearColor[3],
+                );
+            }
         }
         if (this._altered.multiFrameNumber) {
             this._ndcOffsetKernel = new AntiAliasingKernel(this._multiFrameNumber);
@@ -279,6 +458,50 @@ class DatacubesRenderer extends Renderer {
             ndcOffset[0] = (2.0 * ndcOffset[0]) / this._frameSize[0];
             ndcOffset[1] = (2.0 * ndcOffset[1]) / this._frameSize[1];
         }
+
+        // Pre depth pass
+        this._preDepthFBO?.bind();
+        this._preDepthFBO?.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, true, false);
+        gl.viewport(0, 0, this._frameSize[0], this._frameSize[1]);
+
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.CULL_FACE);
+        gl.depthFunc(gl.NOTEQUAL);
+        gl.depthMask(true);
+
+        this._depthProgram?.bind();
+
+        gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
+        // gl.uniform1i(this._uDepthHideFromDepthBuffer, Number(false));
+        gl.uniformMatrix4fv(this._uDepthViewProjection, false, this._camera?.viewProjection);
+        gl.uniform2fv(this._uDepthCameraNearFar, [this._camera?.near, this._camera?.far]);
+
+        // Draw floor
+        this._floor?.bind();
+        gl.uniformMatrix4fv(this._uDepthModel, false, this._floorTransform);
+        gl.cullFace(gl.FRONT);
+        this._floor?.draw();
+        this._floor?.unbind();
+
+        // Draw cuboids
+        if (this._cuboids.length > 0) {
+            gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
+
+            for (const { geometry, transform } of this._cuboids) {
+                geometry.bind();
+
+                gl.uniformMatrix4fv(this._uDepthModel, false, transform);
+                geometry.draw();
+
+                geometry.unbind();
+            }
+        }
+
+        this._depthProgram?.unbind();
+        this._preDepthFBO?.unbind();
+
+        this._intermediateFBOs[0].bind();
+        this._intermediateFBOs[0].clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, true, false);
 
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.BLEND);
@@ -334,6 +557,7 @@ class DatacubesRenderer extends Renderer {
             this._blit.framebuffer = this._accumulate?.framebuffer ? this._accumulate.framebuffer : this._intermediateFBOs[0];
             try {
                 this._blit.frame();
+                // this._debugPass?.frame();
             } catch (error) {
                 // Do nothing
             }
