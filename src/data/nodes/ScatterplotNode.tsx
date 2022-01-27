@@ -50,18 +50,6 @@ const ScatterplotNode: FC<ScatterplotNodeProps> = ({ isConnectable, selected }) 
                 ></Handle>
                 <span className={classes.targetHandleLabel}>z axis</span>
             </div>
-            <hr className={classes.divider} />
-            <div className={classes.handleWrapper}>
-                <Handle
-                    type="source"
-                    position={Position.Right}
-                    id="positions"
-                    className={classes.sourceHandle}
-                    isConnectable={isConnectable}
-                    onConnect={onConnect}
-                ></Handle>
-                <span className={classes.sourceHandleLabel}>Visualization</span>
-            </div>
         </div>
     );
 };
