@@ -5,6 +5,9 @@
 
 .node .hyphenate {
     hyphens: auto;
+    text-align: left;
+    width: 100%;
+    display: block;
 }
 
 .handleWrapper {
