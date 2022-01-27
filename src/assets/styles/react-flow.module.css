@@ -1,0 +1,60 @@
+.node {
+    box-sizing: 'border-box';
+    border-radius: 0 0.5rem 0 0;
+}
+
+.node .hyphenate {
+    hyphens: auto;
+}
+
+.handleWrapper {
+    display: flex;
+    margin-top: 0.4rem;
+    margin-bottom: 0.2rem;
+}
+
+.targetHandle {
+    top: initial;
+    margin-top: 0.5rem;
+}
+
+.targetHandleLabel {
+    text-align: left;
+    width: 100%;
+}
+
+.sourceHandle {
+    top: initial;
+    margin-top: 0.5rem;
+}
+
+.sourceHandleLabel {
+    text-align: right;
+    width: 100%;
+}
+
+.title {
+    display: inline;
+    hyphens: auto;
+    background: white;
+    position: absolute;
+    top: calc(-1.2rem - 1px);
+    left: 0;
+    background: black;
+    color: white;
+    font-weight: bold;
+    padding: 0.2rem;
+    padding-right: 0.8rem;
+    padding-left: 0.8rem;
+    border-radius: 0 0.5rem 0 0;
+}
+
+.divider {
+    margin-top: 0.6rem;
+    margin-bottom: 0.8rem;
+    margin-left: -10px;
+    width: calc(100% + 20px);
+    height: 0px;
+    border: 0;
+    border-top: 1px solid black;
+}

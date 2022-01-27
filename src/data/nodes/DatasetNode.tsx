@@ -1,12 +1,12 @@
-import { memo, FC, CSSProperties } from 'react';
+import { memo, FC, CSSProperties, useEffect, useState } from 'react';
 
-import { Handle, Position, NodeProps } from 'react-flow-renderer';
+import { Handle, Position, NodeProps, Connection, Edge } from 'react-flow-renderer';
 
-const targetHandleStyle: CSSProperties = { display: 'flex', flexDirection: 'row-reverse', top: 'initial' };
-const handlesWrapperStyle: CSSProperties = { height: '1.5rem' };
-const targetHandleLabelStyle: CSSProperties = { marginRight: '10px', alignSelf: 'center' };
-const datasetNodeStyle: CSSProperties = { boxSizing: 'border-box' };
-const datasetNodeTitleStyle: CSSProperties = { display: 'inline', hyphens: 'auto', background: 'white' };
+import { CSV, ColumnHeader } from '@lukaswagner/csv-parser';
+
+import classes from '../../assets/styles/react-flow.module.css';
+
+const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
 interface Column {
     type: 'string' | 'number';
@@ -18,7 +18,8 @@ type DatasetNodeValidTypes = 'csv' | 'json' | undefined;
 export interface DatasetNodeData {
     type: DatasetNodeValidTypes;
     filename: string;
-    columns: Column[];
+    columns?: Column[];
+    file?: File;
 }
 
 export const mapMimetypeToNodeFiletype = (mimeType: string): DatasetNodeValidTypes | undefined => {
@@ -36,26 +37,48 @@ interface DatasetNodeProps extends NodeProps {
     data: DatasetNodeData;
 }
 
+const onConnect = (params: Connection | Edge) => console.log('handle onConnect on DatasetNode', params);
+
 const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) => {
+    const [stateCols, setStateCols] = useState<ColumnHeader[]>([]);
+
+    useEffect(() => {
+        const readColumnsFromCSVFile = async (file: File) => {
+            const fileId = file.name;
+
+            const loader = new CSV<string>({
+                includesHeader: true,
+                delimiter: ',',
+            });
+
+            loader.addDataSource(fileId, file);
+            const columns = await loader.open(fileId);
+            setStateCols(columns);
+        };
+
+        if (data.file) {
+            readColumnsFromCSVFile(data.file);
+        }
+    }, [data.file]);
+
     return (
-        <div style={datasetNodeStyle} className={`react-flow__node-default ${selected && 'selected'}`}>
-            <div style={datasetNodeTitleStyle}>
-                Dataset Node: <strong>{data.filename}</strong>
-            </div>
-            {data.columns.map((column) => (
-                <div key={column.name} style={handlesWrapperStyle}>
-                    <br />
+        <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${classes.node}`}>
+            <div className={classes.title}>{data.type?.toUpperCase() + ' '}Dataset</div>
+            <span className={classes.hyphenate}>{data.filename}</span>
+            <hr className={classes.divider} />
+            {stateCols?.map((column) => (
+                <div key={column.name} className={classes.handleWrapper}>
                     <Handle
-                        type="target"
+                        type="source"
                         position={Position.Right}
                         id={column.name}
-                        style={targetHandleStyle}
+                        className={classes.sourceHandle}
                         isConnectable={isConnectable}
-                    >
-                        <span style={targetHandleLabelStyle}>
-                            {column.name}:&nbsp;{column.type}
-                        </span>
-                    </Handle>
+                        onConnect={onConnect}
+                    ></Handle>
+                    <span className={classes.sourceHandleLabel}>
+                        {column.name}:&nbsp;{column.type}
+                    </span>
                 </div>
             ))}
         </div>

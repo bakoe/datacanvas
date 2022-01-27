@@ -14,6 +14,7 @@ import ReactFlow, {
 } from 'react-flow-renderer';
 
 import DatasetNode, { DatasetNodeData, mapMimetypeToNodeFiletype } from './nodes/DatasetNode';
+import ScatterplotNode, { ScatterplotNodeData } from './nodes/ScatterplotNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
 const onNodeClick = (_: MouseEvent, node: Node) => console.log('click', node);
@@ -57,28 +58,37 @@ const getFileNames = (dataTransfer: DataTransfer): string[] => {
     return fileNames;
 };
 
+const getFiles = (dataTransfer: DataTransfer): File[] => {
+    const files = [] as File[];
+    if (dataTransfer.items) {
+        // Use DataTransferItemList interface to access the file(s)
+        for (let i = 0; i < dataTransfer.items.length; i++) {
+            // If dropped items aren't files, reject them
+            if (dataTransfer.items[i].kind === 'file') {
+                const file = dataTransfer.items[i].getAsFile();
+                if (file) {
+                    files.push(file);
+                }
+            }
+        }
+    } else {
+        // Use DataTransfer interface to access the file(s)
+        for (let i = 0; i < dataTransfer.files.length; i++) {
+            if (dataTransfer.files[i]) {
+                files.push(dataTransfer.files[i]);
+            }
+        }
+    }
+    return files;
+};
+
 const initialNodes: Node[] = [
     {
-        type: 'dataset',
-        id: '0',
-        data: { filename: 'foo.csv', type: 'csv', columns: [{ type: 'number', name: 'col1' }] },
-        position: { x: 400, y: 40 },
-        className: 'light',
-    } as Node<DatasetNodeData>,
-    {
-        type: 'dataset',
+        type: 'scatterplot',
         id: '1',
-        data: {
-            filename: 'bar.json',
-            type: 'json',
-            columns: [
-                { type: 'number', name: 'col1' },
-                { type: 'string', name: 'col2' },
-            ],
-        },
+        data: {},
         position: { x: 700, y: 40 },
-        className: 'light',
-    } as Node<DatasetNodeData>,
+    } as Node<ScatterplotNodeData>,
 ];
 
 let id = 2;
@@ -103,7 +113,7 @@ const BasicFlow = () => {
 
     // This memoization is important to avoid the ReactFlow component to re-render continuously
     // See https://github.com/wbkd/react-flow/pull/1555#issue-1016332917 (section "nodeTypes and edgeTypes")
-    const nodeTypes = useMemo(() => ({ dataset: DatasetNode }), []);
+    const nodeTypes = useMemo(() => ({ dataset: DatasetNode, scatterplot: ScatterplotNode }), []);
 
     useEffect(() => {
         if (!dragInProgress || !dragCoords) return;
@@ -190,6 +200,7 @@ const BasicFlow = () => {
         const fileName = getFileNames(event.dataTransfer)[0];
         const fileMimetype = getFileMimetypes(event.dataTransfer)[0];
         const type = mapMimetypeToNodeFiletype(fileMimetype);
+        const file = getFiles(event.dataTransfer)[0];
 
         setNodes((nds) => {
             return nds.map((node, index) => {
@@ -198,6 +209,7 @@ const BasicFlow = () => {
                         ...(node as Node<DatasetNodeData>).data,
                         filename: fileName,
                         type,
+                        file,
                     };
                 }
                 return node;

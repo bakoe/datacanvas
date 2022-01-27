@@ -6,4 +6,10 @@ import glsl from 'vite-plugin-glsl';
 export default defineConfig({
     base: '/haeley-datacubes/',
     plugins: [react(), glsl()],
+    server: {
+        headers: {
+            'Cross-Origin-Opener-Policy': 'same-origin',
+            'Cross-Origin-Embedder-Policy': 'require-corp',
+        },
+    },
 });
