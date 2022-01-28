@@ -781,6 +781,11 @@ class DatacubesRenderer extends Renderer {
                     scaleY: datacube.relativeHeight * 1000,
                 };
 
+                // Round the scaled target values to 0 decimals (i.e., the unscaled target values to 3 decimals)
+                // This is done to avoid unnecessary animation triggering due to numerical precision errors
+                to.scaleY = parseFloat(to.scaleY.toFixed(0));
+                to.translateY = parseFloat(to.translateY.toFixed(0));
+
                 // https://animejs.com/documentation/#springPhysicsEasing
                 const springParams = {
                     // default: 1, min: 0, max: 100
@@ -793,8 +798,8 @@ class DatacubesRenderer extends Renderer {
                     velocity: 0,
                 };
 
-                const changedSignificantly = (from: any, to: any) => {
-                    return Math.abs(from.translateY - to.translateY) > 0.1 || Math.abs(from.scaleY - to.scaleY) > 0.2;
+                const changedSignificantly = (fromLocal: any, toLocal: any) => {
+                    return Math.abs(fromLocal.translateY - toLocal.translateY) >= 1.0 || Math.abs(fromLocal.scaleY - toLocal.scaleY) > 1.0;
                 };
 
                 if (changedSignificantly(from, to)) {
