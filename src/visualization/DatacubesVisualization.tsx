@@ -7,6 +7,7 @@ import shallow from 'zustand/shallow';
 import { DatacubesApplication } from './DatacubesApplication';
 
 import classes from '../assets/styles/webgloperate.module.css';
+import { isDatasetNode } from '../data/nodes/DatasetNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -14,6 +15,7 @@ interface DatacubesProps {}
 export interface DatacubeInformation {
     id: number;
     position: XYPosition;
+    relativeHeight: number;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -30,7 +32,16 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
     const { updateNodePosition, unselectNodesAndEdges } = useStore(selector, shallow);
 
     const nodeInformations = useStore((state: ReactFlowState) =>
-        Array.from(state.nodeInternals).map(([, node]) => ({ position: node.position, id: parseInt(node.id, 10) } as DatacubeInformation)),
+        Array.from(state.nodeInternals).map(([, node]) => {
+            let relativeHeight = 1.0;
+            if (isDatasetNode(node)) {
+                const colRowCounts = node.data.state?.columns?.map((col) => col.length);
+                if (colRowCounts) {
+                    relativeHeight = Math.max(...colRowCounts) / 2000;
+                }
+            }
+            return { position: node.position, id: parseInt(node.id, 10), relativeHeight } as DatacubeInformation;
+        }),
     );
 
     const REACT_FLOW_CANVAS_MIN_X = 400;

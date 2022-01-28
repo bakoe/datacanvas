@@ -363,7 +363,8 @@ class DatacubesRenderer extends Renderer {
                         datacubePosition = { x: position[0], y: position[2] } as XYPosition;
                     }
 
-                    const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
+                    const cuboidY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.transform[13];
+                    const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, cuboidY || 0.5, datacubePosition.y]);
 
                     const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._draggedCuboidID) {
@@ -742,10 +743,14 @@ class DatacubesRenderer extends Renderer {
         for (const datacube of datacubes) {
             const datacubePosition = datacube.position;
             const datacubeId = datacube.id;
-            const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
+            const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, datacube.relativeHeight, 0.5]);
             cuboid.initialize();
 
-            const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, 0.5, datacubePosition.y]);
+            const cuboidTransform = mat4.fromTranslation(mat4.create(), [
+                datacubePosition.x,
+                datacube.relativeHeight * 0.5,
+                datacubePosition.y,
+            ]);
 
             this._cuboids = [
                 ...this._cuboids,

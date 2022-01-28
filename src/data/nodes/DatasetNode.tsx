@@ -1,6 +1,6 @@
-import { memo, FC, CSSProperties, useEffect, useState } from 'react';
+import { memo, FC, CSSProperties, useEffect } from 'react';
 
-import { Handle, Position, NodeProps, Connection, Edge } from 'react-flow-renderer';
+import { Handle, Position, NodeProps, Node, Connection, Edge } from 'react-flow-renderer';
 
 import {
     Column as CSVColumn,
@@ -14,6 +14,10 @@ import {
     StringColumn,
 } from '@lukaswagner/csv-parser';
 import Papa from 'papaparse';
+
+export function isDatasetNode(node: Node<unknown>): node is Node<DatasetNodeData> {
+    return node.type === 'dataset';
+}
 
 // Workaround to use papaparse instead of @lukaswagner/csv-parser for the time being,
 // due to problems with nested worker imports in Vite
