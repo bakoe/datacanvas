@@ -43,6 +43,7 @@ import { XYPosition } from 'react-flow-renderer';
 import { PausableNavigation } from './webgl-operate-extensions/PausableNavigation';
 import { DatacubeInformation } from './DatacubesVisualization';
 import { Observable, Subject } from 'rxjs';
+import anime from 'animejs';
 
 /* spellchecker: enable */
 
@@ -363,12 +364,15 @@ class DatacubesRenderer extends Renderer {
                         datacubePosition = { x: position[0], y: position[2] } as XYPosition;
                     }
 
-                    const cuboidY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.transform[13];
-                    const cuboidTransform = mat4.fromTranslation(mat4.create(), [datacubePosition.x, cuboidY || 0.5, datacubePosition.y]);
+                    const translateY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.transform[13];
+                    const scaleY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.transform[5];
+                    const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY || 1.0, 1.0));
+                    const translate = mat4.fromTranslation(mat4.create(), [datacubePosition.x, translateY || 0.5, datacubePosition.y]);
+                    const transform = mat4.multiply(mat4.create(), translate, scale);
 
                     const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._draggedCuboidID) {
-                            return { ...cuboid, transform: cuboidTransform };
+                            return { ...cuboid, transform };
                         }
                         return cuboid;
                     });
@@ -692,6 +696,8 @@ class DatacubesRenderer extends Renderer {
                     gl.uniform4fv(this._uEncodedIdCuboids, [0, 0, 0, 0]);
                 }
 
+                gl.uniform3fv(this._uColorCuboids, [1.0, 0.0, 0.0]);
+
                 geometry.draw();
 
                 geometry.unbind();
@@ -745,13 +751,57 @@ class DatacubesRenderer extends Renderer {
             const datacubeId = datacube.id;
             const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
             if (existingCuboid) {
+                const from = {
+                    translateY: existingCuboid.transform[13] * 1000,
+                    scaleY: existingCuboid.transform[5] * 1000,
+                };
+
+                const to = {
+                    translateY: datacube.relativeHeight * 0.5 * 1000,
+                    scaleY: datacube.relativeHeight * 1000,
+                };
+
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, datacube.relativeHeight, 1.0));
                 const translate = mat4.fromTranslation(mat4.create(), [
                     datacubePosition.x,
                     datacube.relativeHeight * 0.5,
                     datacubePosition.y,
                 ]);
+
                 const transform = mat4.multiply(mat4.create(), translate, scale);
+
+                // https://animejs.com/documentation/#springPhysicsEasing
+                const springParams = {
+                    // default: 1, min: 0, max: 100
+                    mass: 1,
+                    // default: 100, min: 0, max: 100
+                    stiffness: 80,
+                    // default: 10, min: 10, max: 100
+                    damping: 80,
+                    // default: 0, min: 0, max: 100
+                    velocity: 0,
+                };
+
+                anime({
+                    targets: from,
+                    translateY: to.translateY,
+                    scaleY: to.scaleY,
+                    round: 1,
+                    easing: `spring(${springParams.mass}, ${springParams.stiffness}, ${springParams.damping}, ${springParams.velocity})`,
+                    update: () => {
+                        const translateY = from.translateY / 1000;
+                        const scaleY = from.scaleY / 1000;
+
+                        const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
+                        const translate = mat4.fromTranslation(mat4.create(), [datacubePosition.x, translateY, datacubePosition.y]);
+
+                        const transform = mat4.multiply(mat4.create(), translate, scale);
+
+                        existingCuboid.transform = transform;
+                        this._invalidate(true);
+                    },
+                });
+
                 existingCuboid.transform = transform;
                 updatedCuboids.push(existingCuboid);
             } else {
