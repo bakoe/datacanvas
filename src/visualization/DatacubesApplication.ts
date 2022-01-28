@@ -97,6 +97,8 @@ class DatacubesRenderer extends Renderer {
     // Read-back of object IDs and depths
     protected _depthRenderbuffer: Renderbuffer | undefined;
 
+    protected _uColorCuboids: WebGLUniformLocation | undefined;
+
     protected _uEncodedIdCuboids: WebGLUniformLocation | undefined;
     protected _uRenderIDToFragColorCuboids: WebGLUniformLocation | undefined;
 
@@ -255,6 +257,8 @@ class DatacubesRenderer extends Renderer {
 
         this._cuboidsProgram.link();
         this._cuboidsProgram.bind();
+
+        this._uColorCuboids = this._cuboidsProgram.uniform('u_color');
 
         this._uViewProjectionCuboids = this._cuboidsProgram.uniform('u_viewProjection');
         this._uModelCuboids = this._cuboidsProgram.uniform('u_model');
@@ -712,7 +716,7 @@ class DatacubesRenderer extends Renderer {
                     gl.uniform4fv(this._uEncodedIdCuboids, [0, 0, 0, 0]);
                 }
 
-                gl.uniform3fv(this._uColorCuboids, [1.0, 0.0, 0.0]);
+                gl.uniform3fv(this._uColorCuboids, [1.0, 1.0, 1.0]);
 
                 geometry.draw();
 

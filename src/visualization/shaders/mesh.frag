@@ -15,6 +15,8 @@ varying vec2 v_uv;
 uniform vec4 u_encodedID;
 uniform bool u_renderIDToFragColor;
 
+uniform vec3 u_color;
+
 void main(void)
 {
     if (u_renderIDToFragColor)
@@ -22,5 +24,5 @@ void main(void)
         fragColor = u_encodedID;
         return;
     }
-    fragColor = vec4(0.96, 0.97, 0.98, 1.0);
+    fragColor = vec4(u_color, 1.0);
 }
