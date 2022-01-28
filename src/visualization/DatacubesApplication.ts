@@ -26,6 +26,7 @@ import {
     gl_matrix_extensions,
     DebugPass,
     vec4,
+    vec2,
 } from 'webgl-operate';
 
 const { v3 } = gl_matrix_extensions;
@@ -49,7 +50,9 @@ import anime from 'animejs';
 
 interface Cuboid {
     geometry: CuboidGeometry;
-    transform: mat4;
+    translateXZ: vec2;
+    translateY: number;
+    scaleY: number;
     id?: number;
 }
 
@@ -334,9 +337,9 @@ class DatacubesRenderer extends Renderer {
                             this._dragStartPosition = coordsAt;
                             const cuboid = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID);
                             const cuboidPosition = vec3.fromValues(
-                                cuboid?.transform[12] || 0,
-                                cuboid?.transform[13] || 0,
-                                cuboid?.transform[14] || 0,
+                                cuboid?.translateXZ[0] || 0,
+                                cuboid?.translateY || 0,
+                                cuboid?.translateXZ[1] || 0,
                             );
                             this._draggedCuboidStartPosition = cuboidPosition;
                         }
@@ -364,15 +367,13 @@ class DatacubesRenderer extends Renderer {
                         datacubePosition = { x: position[0], y: position[2] } as XYPosition;
                     }
 
-                    const translateY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.transform[13];
-                    const scaleY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.transform[5];
-                    const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY || 1.0, 1.0));
-                    const translate = mat4.fromTranslation(mat4.create(), [datacubePosition.x, translateY || 0.5, datacubePosition.y]);
-                    const transform = mat4.multiply(mat4.create(), translate, scale);
+                    const translateY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.translateY || 0.5;
+                    const scaleY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.scaleY || 1.0;
+                    const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
 
                     const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._draggedCuboidID) {
-                            return { ...cuboid, transform };
+                            return { ...cuboid, translateXZ, translateY, scaleY };
                         }
                         return cuboid;
                     });
@@ -384,8 +385,8 @@ class DatacubesRenderer extends Renderer {
                                     return {
                                         id: cuboid.id ? 4294967295 - cuboid.id : 0,
                                         position: {
-                                            x: cuboid.transform[12],
-                                            y: cuboid.transform[14],
+                                            x: translateXZ[0],
+                                            y: translateXZ[1],
                                         },
                                     };
                                 }
@@ -585,8 +586,13 @@ class DatacubesRenderer extends Renderer {
         if (this._cuboids.length > 0) {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
-            for (const { geometry, transform } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
+
+                const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
+                const translate = mat4.fromTranslation(mat4.create(), [translateXZ[0], translateY, translateXZ[1]]);
+
+                const transform = mat4.multiply(mat4.create(), translate, scale);
 
                 gl.uniformMatrix4fv(this._uDepthModel, false, transform);
 
@@ -643,8 +649,13 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, transform } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
+
+                const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
+                const translate = mat4.fromTranslation(mat4.create(), [translateXZ[0], translateY, translateXZ[1]]);
+
+                const transform = mat4.multiply(mat4.create(), translate, scale);
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
                 geometry.draw();
@@ -674,8 +685,13 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, transform, id } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY, id } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
+
+                const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
+                const translate = mat4.fromTranslation(mat4.create(), [translateXZ[0], translateY, translateXZ[1]]);
+
+                const transform = mat4.multiply(mat4.create(), translate, scale);
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
 
@@ -711,8 +727,8 @@ class DatacubesRenderer extends Renderer {
         this._accumulate?.frame(frameNumber);
     }
 
-    protected distanceToCamera(transformMatrix: mat4): number {
-        const pos = vec3.fromValues(transformMatrix[12] || 0, transformMatrix[13] || 0, transformMatrix[14] || 0);
+    protected distanceToCamera(worldPosition: vec3): number {
+        const pos = vec3.fromValues(worldPosition[0] || 0, worldPosition[1] || 0, worldPosition[2] || 0);
         const cameraPos = this._camera?.eye;
 
         if (!cameraPos) {
@@ -723,7 +739,11 @@ class DatacubesRenderer extends Renderer {
     }
 
     get cuboidsSortedByCameraDistance(): Cuboid[] {
-        return this._cuboids.sort((a, b) => this.distanceToCamera(b.transform) - this.distanceToCamera(a.transform));
+        return this._cuboids.sort(
+            (a, b) =>
+                this.distanceToCamera(vec3.fromValues(b.translateXZ[0], b.translateY, b.translateXZ[1])) -
+                this.distanceToCamera(vec3.fromValues(a.translateXZ[0], a.translateY, a.translateXZ[1])),
+        );
     }
 
     protected onSwap(): void {
@@ -752,23 +772,14 @@ class DatacubesRenderer extends Renderer {
             const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
             if (existingCuboid) {
                 const from = {
-                    translateY: existingCuboid.transform[13] * 1000,
-                    scaleY: existingCuboid.transform[5] * 1000,
+                    translateY: existingCuboid.translateY * 1000,
+                    scaleY: existingCuboid.scaleY * 1000,
                 };
 
                 const to = {
                     translateY: datacube.relativeHeight * 0.5 * 1000,
                     scaleY: datacube.relativeHeight * 1000,
                 };
-
-                const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, datacube.relativeHeight, 1.0));
-                const translate = mat4.fromTranslation(mat4.create(), [
-                    datacubePosition.x,
-                    datacube.relativeHeight * 0.5,
-                    datacubePosition.y,
-                ]);
-
-                const transform = mat4.multiply(mat4.create(), translate, scale);
 
                 // https://animejs.com/documentation/#springPhysicsEasing
                 const springParams = {
@@ -782,41 +793,46 @@ class DatacubesRenderer extends Renderer {
                     velocity: 0,
                 };
 
-                anime({
-                    targets: from,
-                    translateY: to.translateY,
-                    scaleY: to.scaleY,
-                    round: 1,
-                    easing: `spring(${springParams.mass}, ${springParams.stiffness}, ${springParams.damping}, ${springParams.velocity})`,
-                    update: () => {
-                        const translateY = from.translateY / 1000;
-                        const scaleY = from.scaleY / 1000;
+                const changedSignificantly = (from: any, to: any) => {
+                    return Math.abs(from.translateY - to.translateY) > 0.1 || Math.abs(from.scaleY - to.scaleY) > 0.2;
+                };
 
-                        const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
-                        const translate = mat4.fromTranslation(mat4.create(), [datacubePosition.x, translateY, datacubePosition.y]);
+                if (changedSignificantly(from, to)) {
+                    console.log('starting anim for datacube', datacubeId);
+                    console.log(from);
+                    console.log(to);
+                    anime({
+                        targets: from,
+                        translateY: to.translateY,
+                        scaleY: to.scaleY,
+                        round: 1,
+                        easing: `spring(${springParams.mass}, ${springParams.stiffness}, ${springParams.damping}, ${springParams.velocity})`,
+                        update: () => {
+                            const translateY = from.translateY / 1000;
+                            const scaleY = from.scaleY / 1000;
 
-                        const transform = mat4.multiply(mat4.create(), translate, scale);
+                            existingCuboid.translateY = translateY;
+                            existingCuboid.scaleY = scaleY;
+                            this._invalidate(true);
+                        },
+                    });
+                }
 
-                        existingCuboid.transform = transform;
-                        this._invalidate(true);
-                    },
-                });
-
-                existingCuboid.transform = transform;
+                existingCuboid.translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
                 updatedCuboids.push(existingCuboid);
             } else {
-                const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, datacube.relativeHeight, 0.5]);
+                const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
                 cuboid.initialize();
 
-                const cuboidTransform = mat4.fromTranslation(mat4.create(), [
-                    datacubePosition.x,
-                    datacube.relativeHeight * 0.5,
-                    datacubePosition.y,
-                ]);
+                const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
+                const translateY = datacube.relativeHeight * 0.5;
+                const scaleY = datacube.relativeHeight;
 
                 const newCuboid = {
                     geometry: cuboid,
-                    transform: cuboidTransform,
+                    translateXZ,
+                    translateY,
+                    scaleY,
                     id: 4294967295 - datacubeId,
                 };
 
