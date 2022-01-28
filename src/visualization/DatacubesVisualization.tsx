@@ -1,13 +1,13 @@
 import React, { PropsWithChildren } from 'react';
 
-import { ReactFlowState, useStore, XYPosition, useStoreApi, NodeDiffUpdate } from 'react-flow-renderer';
+import { ReactFlowState, useStore, XYPosition, useStoreApi, NodeDiffUpdate, Node } from 'react-flow-renderer';
 
 import shallow from 'zustand/shallow';
 
 import { DatacubesApplication } from './DatacubesApplication';
 
 import classes from '../assets/styles/webgloperate.module.css';
-import { isDatasetNode } from '../data/nodes/DatasetNode';
+import { DatasetNodeData, isDatasetNode } from '../data/nodes/DatasetNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -31,18 +31,26 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
 
     const { updateNodePosition, unselectNodesAndEdges } = useStore(selector, shallow);
 
-    const nodeInformations = useStore((state: ReactFlowState) =>
-        Array.from(state.nodeInternals).map(([, node]) => {
+    const nodeInformations = useStore((state: ReactFlowState) => {
+        const maxRowCounts = Array.from(state.nodeInternals)
+            .filter(([, node]) => isDatasetNode(node))
+            .map(([, node]) => {
+                const colRowCounts = (node as Node<DatasetNodeData>).data.state?.columns?.map((col) => col.length);
+                return Math.max(...(colRowCounts || [0.0]));
+            })
+            .filter((maxRowCount) => maxRowCount !== 0);
+        const overallMaxRowCount = maxRowCounts.length > 0 ? Math.max(...maxRowCounts) : undefined;
+        return Array.from(state.nodeInternals).map(([, node]) => {
             let relativeHeight = 1.0;
-            if (isDatasetNode(node)) {
+            if (overallMaxRowCount && isDatasetNode(node)) {
                 const colRowCounts = node.data.state?.columns?.map((col) => col.length);
                 if (colRowCounts) {
-                    relativeHeight = Math.max(...colRowCounts) / 2000;
+                    relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
                 }
             }
             return { position: node.position, id: parseInt(node.id, 10), relativeHeight } as DatacubeInformation;
-        }),
-    );
+        });
+    });
 
     const REACT_FLOW_CANVAS_MIN_X = 400;
     const REACT_FLOW_CANVAS_MIN_Y = 20;
