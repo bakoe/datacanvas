@@ -30,9 +30,17 @@ interface Column {
 
 type DatasetNodeValidTypes = 'csv' | 'json' | undefined;
 
+export interface DatasetNodeState {
+    columnHeaders?: CSVColumnHeader[];
+    columns?: CSVColumn[];
+    isLoading?: boolean;
+}
+
 export interface DatasetNodeData {
     type: DatasetNodeValidTypes;
     filename: string;
+    onChangeState: (state: Partial<DatasetNodeState>) => void;
+    state?: DatasetNodeState;
     columns?: Column[];
     file?: File;
 }
@@ -66,15 +74,15 @@ const prettyPrintDataType = (dataType: DataType): string => {
 };
 
 const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) => {
-    const [columnHeaders, setColumnHeaders] = useState<CSVColumnHeader[]>([]);
-    const [columns, setColumns] = useState<CSVColumn[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { state, onChangeState } = data;
 
     useEffect(() => {
-        if (columnHeaders.length > 0 && columns.length > 0) {
-            setIsLoading(false);
+        if (state && state.columnHeaders && state.columns && state.columnHeaders.length > 0 && state.columns.length > 0) {
+            onChangeState({
+                isLoading: false,
+            });
         }
-    }, [columnHeaders, columns]);
+    }, [state?.columnHeaders, state?.columns]);
 
     useEffect(() => {
         const readColumnsFromCSVFile = async (file: File) => {
@@ -88,7 +96,8 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
 
                 loader.addDataSource(fileId, file);
                 const columnHeaders = await loader.open(fileId);
-                setColumnHeaders(columnHeaders);
+
+                onChangeState({ columnHeaders });
 
                 const [columns, loaderDispatch] = loader.load({
                     columns: columnHeaders.map(({ type }) => type.valueOf() as DataType),
@@ -97,7 +106,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
 
                 for await (const value of loaderDispatch()) {
                     if (value.type === 'done') {
-                        setColumns(columns);
+                        onChangeState({ columns });
                     }
                 }
             } else {
@@ -134,7 +143,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                             } as CSVColumnHeader;
                         });
 
-                        setColumnHeaders(columnHeaders);
+                        onChangeState({ columnHeaders });
 
                         const columns = columnHeaders.map((columnHeader, index) => {
                             const values = data.data.map((row: any) => {
@@ -163,7 +172,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                             }
                         }) as CSVColumn[];
 
-                        setColumns(columns);
+                        onChangeState({ columns });
                     },
                 });
             }
@@ -174,6 +183,8 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         }
     }, [data.file]);
 
+    const { isLoading, columnHeaders, columns } = state || {};
+
     return (
         <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${classes.node}`}>
             <div className={classes.title}>
@@ -182,7 +193,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
             <span className={classes.hyphenate}>{data.filename}</span>
             <hr className={classes.divider} />
             {columnHeaders?.map((columnHeader) => {
-                const column = columns.find((column) => column.name === columnHeader.name);
+                const column = columns?.find((column) => column.name === columnHeader.name);
                 const minMaxString =
                     column?.type === 'number'
                         ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`

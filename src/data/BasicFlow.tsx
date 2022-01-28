@@ -151,7 +151,28 @@ const BasicFlow = () => {
             id: nodeId,
             type: 'dataset',
             position,
-            data: { type, label: `${type} node`, columns: [], filename: `Loading ${type?.toUpperCase() ?? ''}…` },
+            data: {
+                type,
+                label: `${type} node`,
+                columns: [],
+                filename: `Loading ${type?.toUpperCase() ?? ''}…`,
+                onChangeState: (newState) => {
+                    setNodes((nds) => {
+                        return nds.map((node) => {
+                            if (node.id === nodeId) {
+                                (node as Node<DatasetNodeData>).data = {
+                                    ...(node as Node<DatasetNodeData>).data,
+                                    state: {
+                                        ...(node as Node<DatasetNodeData>).data.state,
+                                        ...newState,
+                                    },
+                                };
+                            }
+                            return node;
+                        });
+                    });
+                },
+            },
         } as Node<DatasetNodeData>;
 
         setNodes((nds) => {
