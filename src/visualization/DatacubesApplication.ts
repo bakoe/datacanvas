@@ -738,29 +738,43 @@ class DatacubesRenderer extends Renderer {
             return;
         }
 
-        this._cuboids = [];
+        const updatedCuboids = [];
 
         for (const datacube of datacubes) {
             const datacubePosition = datacube.position;
             const datacubeId = datacube.id;
-            const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, datacube.relativeHeight, 0.5]);
-            cuboid.initialize();
+            const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
+            if (existingCuboid) {
+                const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, datacube.relativeHeight, 1.0));
+                const translate = mat4.fromTranslation(mat4.create(), [
+                    datacubePosition.x,
+                    datacube.relativeHeight * 0.5,
+                    datacubePosition.y,
+                ]);
+                const transform = mat4.multiply(mat4.create(), translate, scale);
+                existingCuboid.transform = transform;
+                updatedCuboids.push(existingCuboid);
+            } else {
+                const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, datacube.relativeHeight, 0.5]);
+                cuboid.initialize();
 
-            const cuboidTransform = mat4.fromTranslation(mat4.create(), [
-                datacubePosition.x,
-                datacube.relativeHeight * 0.5,
-                datacubePosition.y,
-            ]);
+                const cuboidTransform = mat4.fromTranslation(mat4.create(), [
+                    datacubePosition.x,
+                    datacube.relativeHeight * 0.5,
+                    datacubePosition.y,
+                ]);
 
-            this._cuboids = [
-                ...this._cuboids,
-                {
+                const newCuboid = {
                     geometry: cuboid,
                     transform: cuboidTransform,
                     id: 4294967295 - datacubeId,
-                },
-            ];
+                };
+
+                updatedCuboids.push(newCuboid);
+            }
         }
+
+        this._cuboids = updatedCuboids;
 
         // TODO: Use this._altered instead!
         this._invalidate(true);
