@@ -7,9 +7,7 @@ import classes from '../../assets/styles/react-flow.module.css';
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface ScatterplotNodeData {}
 
-interface ScatterplotNodeProps extends NodeProps {
-    data: ScatterplotNodeData;
-}
+type ScatterplotNodeProps = NodeProps<ScatterplotNodeData>;
 
 const onConnect = (params: Connection | Edge) => console.log('handle onConnect on ScatterplotNode', params);
 

@@ -7,7 +7,8 @@ import shallow from 'zustand/shallow';
 import { DatacubesApplication } from './DatacubesApplication';
 
 import classes from '../assets/styles/webgloperate.module.css';
-import { DatasetNodeData, isDatasetNode } from '../data/nodes/DatasetNode';
+import { isDatasetNode } from '../data/nodes/DatasetNode';
+import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -16,6 +17,7 @@ export interface DatacubeInformation {
     id: number;
     position: XYPosition;
     relativeHeight: number;
+    isErroneous?: boolean;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -33,22 +35,39 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
 
     const nodeInformations = useStore((state: ReactFlowState) => {
         const maxRowCounts = Array.from(state.nodeInternals)
-            .filter(([, node]) => isDatasetNode(node))
+            .filter(([, node]) => isDatasetNode(node) || isDateFilterNode(node))
             .map(([, node]) => {
-                const colRowCounts = (node as Node<DatasetNodeData>).data.state?.columns?.map((col) => col.length);
-                return Math.max(...(colRowCounts || [0.0]));
+                if (isDatasetNode(node)) {
+                    const colRowCounts = node.data.state?.columns?.map((col) => col.length);
+                    return Math.max(...(colRowCounts || [0.0]));
+                }
+                if (isDateFilterNode(node)) {
+                    const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
+                    return Math.max(...(colRowCounts || [0.0]));
+                }
+                return 0;
             })
             .filter((maxRowCount) => maxRowCount !== 0);
         const overallMaxRowCount = maxRowCounts.length > 0 ? Math.max(...maxRowCounts) : undefined;
         return Array.from(state.nodeInternals).map(([, node]) => {
             let relativeHeight = 1.0;
-            if (overallMaxRowCount && isDatasetNode(node)) {
-                const colRowCounts = node.data.state?.columns?.map((col) => col.length);
-                if (colRowCounts) {
-                    relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+            let isErroneous = false;
+            if ((isDatasetNode(node) || isDateFilterNode(node)) && overallMaxRowCount) {
+                if (isDatasetNode(node)) {
+                    const colRowCounts = node.data.state?.columns?.map((col) => col.length);
+                    if (colRowCounts) {
+                        relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                    }
+                }
+                if (isDateFilterNode(node)) {
+                    const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
+                    if (colRowCounts) {
+                        relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                    }
+                    isErroneous = node.data.state?.errorMessage !== undefined;
                 }
             }
-            return { position: node.position, id: parseInt(node.id, 10), relativeHeight } as DatacubeInformation;
+            return { position: node.position, id: parseInt(node.id, 10), relativeHeight, isErroneous } as DatacubeInformation;
         });
     });
 

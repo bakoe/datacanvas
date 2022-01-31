@@ -3,6 +3,14 @@
     border-radius: 0 0.5rem 0 0;
 }
 
+.node.erroneous {
+    border-color: red;
+}
+
+.node.erroneous .title {
+    background: red;
+}
+
 .node .hyphenate {
     hyphens: auto;
     text-align: left;

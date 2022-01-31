@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import { MouseEvent, useMemo, useState, DragEvent, useEffect } from 'react';
 
 import ReactFlow, {
@@ -11,10 +12,12 @@ import ReactFlow, {
     useEdgesState,
     ReactFlowInstance,
     XYPosition,
+    NodeProps,
 } from 'react-flow-renderer';
 
-import DatasetNode, { DatasetNodeData, mapMimetypeToNodeFiletype } from './nodes/DatasetNode';
-import ScatterplotNode, { ScatterplotNodeData } from './nodes/ScatterplotNode';
+import DatasetNode, { DatasetNodeData, DatasetNodeState, mapMimetypeToNodeFiletype } from './nodes/DatasetNode';
+import DateFilterNode, { DateFilterNodeData, DateFilterNodeState } from './nodes/DateFilterNode';
+import ScatterplotNode from './nodes/ScatterplotNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
 const onNodeClick = (_: MouseEvent, node: Node) => console.log('click', node);
@@ -82,21 +85,51 @@ const getFiles = (dataTransfer: DataTransfer): File[] => {
     return files;
 };
 
-const initialNodes: Node[] = [
-    {
-        type: 'scatterplot',
-        id: '1',
-        data: {},
-        position: { x: 700, y: 40 },
-    } as Node<ScatterplotNodeData>,
-];
-
 let id = 2;
 const getId = () => `${id}`;
 
 const initialEdges: Edge[] = [];
 
+export interface NodeWithStateProps<T> extends NodeProps {
+    state: T;
+}
+
 const BasicFlow = () => {
+    const updateNodeState = <NodePropsType extends NodeWithStateProps<NodeStateType>, NodeStateType>(
+        nodeId: string,
+        newState: NodeStateType,
+    ) => {
+        setNodes((nds) => {
+            return nds.map((node) => {
+                if (node.id === nodeId) {
+                    (node as Node<NodePropsType>).data = {
+                        ...(node as Node<NodePropsType>).data,
+                        state: {
+                            ...(node as Node<NodePropsType>).data.state,
+                            ...newState,
+                        },
+                    };
+                }
+                return node;
+            });
+        });
+    };
+
+    const initialNodes: Node[] = [
+        {
+            type: 'filter-date',
+            id: '0',
+            data: {
+                state: {
+                    from: DateTime.fromISO('2021-11-15'),
+                    to: DateTime.fromISO('2021-12-19'),
+                },
+                onChangeState: (newState) => updateNodeState('0', newState),
+            },
+            position: { x: 400, y: 40 },
+        } as Node<DateFilterNodeData>,
+    ];
+
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -108,12 +141,33 @@ const BasicFlow = () => {
     const [eventCounter, setEventCounter] = useState(0);
     const [draggingInPage, setDraggingInPage] = useState(false);
 
-    const onConnect = (params: Edge | Connection) => setEdges((els) => addEdge(params, els));
+    const onConnect = (params: Edge | Connection) => {
+        const sourceNode = nodes.find((n) => n.id === params.source);
+        const targetNode = nodes.find((n) => n.id === params.target);
+        console.log(sourceNode, targetNode);
+
+        if (!sourceNode || !targetNode) return;
+
+        if (sourceNode.type === 'dataset' && targetNode.type === 'filter-date') {
+            const edgePreviouslyConnectedToTarget = edges.find((e) => e.target === targetNode.id);
+            if (edgePreviouslyConnectedToTarget) {
+                setEdges((edges) => edges.filter((edge) => edge.id !== edgePreviouslyConnectedToTarget.id));
+            }
+            const sourceColumns = (sourceNode as Node<DatasetNodeData>).data.state?.columns;
+            if (sourceColumns) {
+                updateNodeState(targetNode.id, {
+                    dataToFilter: sourceColumns,
+                } as Partial<DateFilterNodeState>);
+            }
+        }
+
+        setEdges((els) => addEdge(params, els));
+    };
     const onPaneReady = (rfi: ReactFlowInstance) => setReactFlowInstance(rfi);
 
     // This memoization is important to avoid the ReactFlow component to re-render continuously
     // See https://github.com/wbkd/react-flow/pull/1555#issue-1016332917 (section "nodeTypes and edgeTypes")
-    const nodeTypes = useMemo(() => ({ dataset: DatasetNode, scatterplot: ScatterplotNode }), []);
+    const nodeTypes = useMemo(() => ({ dataset: DatasetNode, scatterplot: ScatterplotNode, 'filter-date': DateFilterNode }), []);
 
     useEffect(() => {
         if (!dragInProgress || !dragCoords) return;
@@ -156,22 +210,7 @@ const BasicFlow = () => {
                 label: `${type} node`,
                 columns: [],
                 filename: `Loading ${type?.toUpperCase() ?? ''}…`,
-                onChangeState: (newState) => {
-                    setNodes((nds) => {
-                        return nds.map((node) => {
-                            if (node.id === nodeId) {
-                                (node as Node<DatasetNodeData>).data = {
-                                    ...(node as Node<DatasetNodeData>).data,
-                                    state: {
-                                        ...(node as Node<DatasetNodeData>).data.state,
-                                        ...newState,
-                                    },
-                                };
-                            }
-                            return node;
-                        });
-                    });
-                },
+                onChangeState: (newState: DatasetNodeState) => updateNodeState(nodeId, newState),
             },
         } as Node<DatasetNodeData>;
 

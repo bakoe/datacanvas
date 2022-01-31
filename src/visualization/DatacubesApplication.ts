@@ -54,6 +54,7 @@ interface Cuboid {
     translateY: number;
     scaleY: number;
     id?: number;
+    isErroneous?: boolean;
 }
 
 class DatacubesRenderer extends Renderer {
@@ -653,7 +654,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateXZ, translateY, scaleY } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY, isErroneous } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
@@ -662,6 +663,13 @@ class DatacubesRenderer extends Renderer {
                 const transform = mat4.multiply(mat4.create(), translate, scale);
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
+
+                if (isErroneous !== undefined && isErroneous) {
+                    gl.uniform3fv(this._uColorCuboids, vec3.fromValues(1.0, 0.0, 0.0));
+                } else {
+                    gl.uniform3fv(this._uColorCuboids, vec3.fromValues(1.0, 1.0, 1.0));
+                }
+
                 geometry.draw();
 
                 geometry.unbind();
@@ -715,8 +723,6 @@ class DatacubesRenderer extends Renderer {
                 } else {
                     gl.uniform4fv(this._uEncodedIdCuboids, [0, 0, 0, 0]);
                 }
-
-                gl.uniform3fv(this._uColorCuboids, [1.0, 1.0, 1.0]);
 
                 geometry.draw();
 
@@ -773,6 +779,7 @@ class DatacubesRenderer extends Renderer {
         for (const datacube of datacubes) {
             const datacubePosition = datacube.position;
             const datacubeId = datacube.id;
+            const datacubeIsErroneous = datacube.isErroneous;
             const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
             if (existingCuboid) {
                 const from = {
@@ -828,6 +835,7 @@ class DatacubesRenderer extends Renderer {
                 }
 
                 existingCuboid.translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
+                existingCuboid.isErroneous = datacubeIsErroneous;
                 updatedCuboids.push(existingCuboid);
             } else {
                 const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
@@ -843,6 +851,7 @@ class DatacubesRenderer extends Renderer {
                     translateY,
                     scaleY,
                     id: 4294967295 - datacubeId,
+                    isErroneous: datacubeIsErroneous,
                 };
 
                 updatedCuboids.push(newCuboid);

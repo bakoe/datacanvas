@@ -24,6 +24,7 @@ export function isDatasetNode(node: Node<unknown>): node is Node<DatasetNodeData
 const USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE = false;
 
 import classes from '../../assets/styles/react-flow.module.css';
+import { NodeWithStateProps } from '../BasicFlow';
 
 const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
@@ -39,6 +40,8 @@ export interface DatasetNodeState {
     columns?: CSVColumn[];
     isLoading?: boolean;
 }
+
+const defaultState = { isLoading: true } as DatasetNodeState;
 
 export interface DatasetNodeData {
     type: DatasetNodeValidTypes;
@@ -60,7 +63,7 @@ export const mapMimetypeToNodeFiletype = (mimeType: string): DatasetNodeValidTyp
     }
 };
 
-interface DatasetNodeProps extends NodeProps {
+interface DatasetNodeProps extends NodeWithStateProps<DatasetNodeState> {
     data: DatasetNodeData;
 }
 
@@ -187,7 +190,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         }
     }, [data.file]);
 
-    const { isLoading, columnHeaders, columns } = state || {};
+    const { isLoading, columnHeaders, columns } = { ...defaultState, ...data.state };
 
     return (
         <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${classes.node}`}>
