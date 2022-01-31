@@ -27,6 +27,7 @@ import {
     DebugPass,
     vec4,
     vec2,
+    ray_math,
 } from 'webgl-operate';
 
 const { v3 } = gl_matrix_extensions;
@@ -381,7 +382,20 @@ class DatacubesRenderer extends Renderer {
                 const x = ((value.clientX - xOffset) / (value.target as any).clientWidth) * this._depthTexture.width;
                 const y = ((value.clientY - yOffset) / (value.target as any).clientHeight) * this._depthTexture.height;
 
-                const coordsAt = this._readbackPass.coordsAt(x, y, undefined, this._camera?.viewProjectionInverse as mat4);
+                const xView = (x / this._depthTexture.width) * 2.0 - 1.0;
+                const yView = -1.0 * ((y / this._depthTexture.height) * 2.0 - 1.0);
+
+                const clickedAtWorldVec4 = vec4.transformMat4(
+                    vec4.create(),
+                    vec4.fromValues(xView, yView, 0, 1),
+                    this._camera?.viewProjectionInverse as mat4,
+                );
+                clickedAtWorldVec4[0] /= clickedAtWorldVec4[3];
+                clickedAtWorldVec4[1] /= clickedAtWorldVec4[3];
+                clickedAtWorldVec4[2] /= clickedAtWorldVec4[3];
+
+                const clickedAtWorld = vec3.fromValues(clickedAtWorldVec4[0], clickedAtWorldVec4[1], clickedAtWorldVec4[2]);
+                const coordsAt = ray_math.rayPlaneIntersection(this._camera?.eye as vec3, clickedAtWorld);
 
                 if (coordsAt) {
                     let datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
