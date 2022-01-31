@@ -972,6 +972,12 @@ export class DatacubesApplication extends Application {
         this._renderer = new DatacubesRenderer();
         this._canvas.renderer = this._renderer;
 
+        if (element instanceof HTMLCanvasElement) {
+            new ResizeObserver(() => {
+                this._canvas?.resize();
+            }).observe(element);
+        }
+
         this._spinner = spinnerElement;
 
         return true;

@@ -1,17 +1,28 @@
 import { ReactFlowProvider } from 'react-flow-renderer';
 
+import Split from 'react-split';
+
 import BasicFlow from './data/BasicFlow';
 import { DatacubesVisualization } from './visualization/DatacubesVisualization';
+
+import classes from './assets/styles/react-split.module.css';
 
 function App() {
     return (
         <ReactFlowProvider>
-            <div style={{ width: '100%', height: '50vh' }}>
+            <Split
+                sizes={[50, 50]}
+                className={classes.split}
+                direction="vertical"
+                gutter={(): HTMLElement => {
+                    const gutter = document.createElement('div');
+                    gutter.className = `${classes.gutter} ${classes.gutterVertical}`;
+                    return gutter;
+                }}
+            >
                 <BasicFlow />
-            </div>
-            <div style={{ width: '100%', height: '50vh' }}>
                 <DatacubesVisualization />
-            </div>
+            </Split>
         </ReactFlowProvider>
     );
 }
