@@ -3,12 +3,20 @@
     border-radius: 0 0.5rem 0 0;
 }
 
+.node.pending {
+    border-color: #32c99b;
+}
+
+.node.pending .title {
+    background: #32c99b;
+}
+
 .node.erroneous {
-    border-color: red;
+    border-color: #eb3a3a;
 }
 
 .node.erroneous .title {
-    background: red;
+    background: #eb3a3a;
 }
 
 .node .hyphenate {

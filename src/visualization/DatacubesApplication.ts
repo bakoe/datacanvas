@@ -44,7 +44,7 @@ import { XYPosition } from 'react-flow-renderer';
 import { PausableNavigation } from './webgl-operate-extensions/PausableNavigation';
 import { DatacubeInformation } from './DatacubesVisualization';
 import { Observable, Subject } from 'rxjs';
-import anime from 'animejs';
+import anime, { AnimeInstance } from 'animejs';
 
 /* spellchecker: enable */
 
@@ -53,10 +53,29 @@ interface Cuboid {
     translateXZ: vec2;
     translateY: number;
     scaleY: number;
+    runningAnimeJSAnimation?: AnimeInstance;
+    colorLAB?: [number, number, number];
     id?: number;
     isErroneous?: boolean;
     isPending?: boolean;
 }
+
+// LAB values converted using: https://colors.dopely.top/color-converter/hex/
+const DATACUBE_PENDING_COLOR_LAB = [72.77, -49.48, 12.02] as [number, number, number];
+const DATACUBE_DEFAULT_COLOR_LAB = [98.87, 1.17, -0.14] as [number, number, number];
+const DATACUBE_ERROR_COLOR_LAB = [52.94, 66.39, 42.22] as [number, number, number];
+
+DATACUBE_PENDING_COLOR_LAB[0] /= 100;
+DATACUBE_PENDING_COLOR_LAB[1] = (DATACUBE_PENDING_COLOR_LAB[1] + 128) / 256;
+DATACUBE_PENDING_COLOR_LAB[2] = (DATACUBE_PENDING_COLOR_LAB[2] + 128) / 256;
+
+DATACUBE_DEFAULT_COLOR_LAB[0] /= 100;
+DATACUBE_DEFAULT_COLOR_LAB[1] = (DATACUBE_DEFAULT_COLOR_LAB[1] + 128) / 256;
+DATACUBE_DEFAULT_COLOR_LAB[2] = (DATACUBE_DEFAULT_COLOR_LAB[2] + 128) / 256;
+
+DATACUBE_ERROR_COLOR_LAB[0] /= 100;
+DATACUBE_ERROR_COLOR_LAB[1] = (DATACUBE_ERROR_COLOR_LAB[1] + 128) / 256;
+DATACUBE_ERROR_COLOR_LAB[2] = (DATACUBE_ERROR_COLOR_LAB[2] + 128) / 256;
 
 class DatacubesRenderer extends Renderer {
     protected _extensions = false;
@@ -655,7 +674,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateXZ, translateY, scaleY, isErroneous } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY, colorLAB } of this.cuboidsSortedByCameraDistance) {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
@@ -664,12 +683,7 @@ class DatacubesRenderer extends Renderer {
                 const transform = mat4.multiply(mat4.create(), translate, scale);
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
-
-                if (isErroneous !== undefined && isErroneous) {
-                    gl.uniform3fv(this._uColorCuboids, vec3.fromValues(1.0, 0.0, 0.0));
-                } else {
-                    gl.uniform3fv(this._uColorCuboids, vec3.fromValues(1.0, 1.0, 1.0));
-                }
+                gl.uniform3fv(this._uColorCuboids, colorLAB || DATACUBE_DEFAULT_COLOR_LAB);
 
                 geometry.draw();
 
@@ -789,22 +803,42 @@ class DatacubesRenderer extends Renderer {
                 const from = {
                     translateY: existingCuboid.translateY * 1000,
                     scaleY: existingCuboid.scaleY * 1000,
+                    colorLAB0: existingCuboid.colorLAB ? existingCuboid.colorLAB[0] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
+                    colorLAB1: existingCuboid.colorLAB ? existingCuboid.colorLAB[1] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
+                    colorLAB2: existingCuboid.colorLAB ? existingCuboid.colorLAB[2] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
                 };
 
                 const to = datacubeIsPending
                     ? {
                           translateY: DATACUBE_PENDING_SCALE_Y * 0.5 * 1000,
                           scaleY: DATACUBE_PENDING_SCALE_Y * 1000,
+                          colorLAB0: DATACUBE_PENDING_COLOR_LAB[0] * 1000,
+                          colorLAB1: DATACUBE_PENDING_COLOR_LAB[1] * 1000,
+                          colorLAB2: DATACUBE_PENDING_COLOR_LAB[2] * 1000,
+                      }
+                    : datacubeIsErroneous
+                    ? {
+                          translateY: datacube.relativeHeight * 0.5 * 1000,
+                          scaleY: datacube.relativeHeight * 1000,
+                          colorLAB0: DATACUBE_ERROR_COLOR_LAB[0] * 1000,
+                          colorLAB1: DATACUBE_ERROR_COLOR_LAB[1] * 1000,
+                          colorLAB2: DATACUBE_ERROR_COLOR_LAB[2] * 1000,
                       }
                     : {
                           translateY: datacube.relativeHeight * 0.5 * 1000,
                           scaleY: datacube.relativeHeight * 1000,
+                          colorLAB0: DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
+                          colorLAB1: DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
+                          colorLAB2: DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
                       };
 
                 // Round the scaled target values to 0 decimals (i.e., the unscaled target values to 3 decimals)
                 // This is done to avoid unnecessary animation triggering due to numerical precision errors
                 to.scaleY = parseFloat(to.scaleY.toFixed(0));
                 to.translateY = parseFloat(to.translateY.toFixed(0));
+                to.colorLAB0 = parseFloat(to.colorLAB0.toFixed(0));
+                to.colorLAB1 = parseFloat(to.colorLAB1.toFixed(0));
+                to.colorLAB2 = parseFloat(to.colorLAB2.toFixed(0));
 
                 // https://animejs.com/documentation/#springPhysicsEasing
                 const springParams = {
@@ -819,28 +853,44 @@ class DatacubesRenderer extends Renderer {
                 };
 
                 const changedSignificantly = (fromLocal: any, toLocal: any) => {
-                    return Math.abs(fromLocal.translateY - toLocal.translateY) >= 1.0 || Math.abs(fromLocal.scaleY - toLocal.scaleY) > 1.0;
+                    return (
+                        Math.abs(fromLocal.translateY - toLocal.translateY) > 1.0 ||
+                        Math.abs(fromLocal.scaleY - toLocal.scaleY) > 1.0 ||
+                        Math.abs(fromLocal.colorLAB0 - toLocal.colorLAB0) > 1.0 ||
+                        Math.abs(fromLocal.colorLAB1 - toLocal.colorLAB1) > 1.0 ||
+                        Math.abs(fromLocal.colorLAB2 - toLocal.colorLAB2) > 1.0
+                    );
                 };
 
                 if (changedSignificantly(from, to)) {
-                    console.log('starting anim for datacube', datacubeId);
-                    console.log(from);
-                    console.log(to);
-                    anime({
+                    if (existingCuboid.runningAnimeJSAnimation) {
+                        existingCuboid.runningAnimeJSAnimation.pause();
+                        delete existingCuboid.runningAnimeJSAnimation;
+                    }
+                    const animeInstance = anime({
                         targets: from,
                         translateY: to.translateY,
                         scaleY: to.scaleY,
+                        colorLAB0: to.colorLAB0,
+                        colorLAB1: to.colorLAB1,
+                        colorLAB2: to.colorLAB2,
                         round: 1,
                         easing: `spring(${springParams.mass}, ${springParams.stiffness}, ${springParams.damping}, ${springParams.velocity})`,
                         update: () => {
                             const translateY = from.translateY / 1000;
                             const scaleY = from.scaleY / 1000;
+                            const colorLAB = [from.colorLAB0 / 1000, from.colorLAB1 / 1000, from.colorLAB2 / 1000];
 
                             existingCuboid.translateY = translateY;
                             existingCuboid.scaleY = scaleY;
+                            existingCuboid.colorLAB = colorLAB as [number, number, number];
                             this._invalidate(true);
                         },
+                        complete: () => {
+                            delete existingCuboid.runningAnimeJSAnimation;
+                        },
                     });
+                    existingCuboid.runningAnimeJSAnimation = animeInstance;
                 }
 
                 existingCuboid.translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
@@ -854,10 +904,16 @@ class DatacubesRenderer extends Renderer {
                 const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
                 let translateY = datacube.relativeHeight * 0.5;
                 let scaleY = datacube.relativeHeight;
+                let colorLAB = DATACUBE_DEFAULT_COLOR_LAB;
 
                 if (datacubeIsPending) {
                     translateY = DATACUBE_PENDING_SCALE_Y * 0.5;
                     scaleY = DATACUBE_PENDING_SCALE_Y;
+                    colorLAB = DATACUBE_PENDING_COLOR_LAB;
+                }
+
+                if (datacubeIsErroneous) {
+                    colorLAB = DATACUBE_ERROR_COLOR_LAB;
                 }
 
                 const newCuboid = {
@@ -865,6 +921,7 @@ class DatacubesRenderer extends Renderer {
                     translateXZ,
                     translateY,
                     scaleY,
+                    colorLAB,
                     id: 4294967295 - datacubeId,
                     isErroneous: datacubeIsErroneous,
                     isPending: datacubeIsPending,

@@ -140,7 +140,11 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     }, [JSON.stringify(dataToFilter), from, to]);
 
     return (
-        <div className={`react-flow__node-default ${selected && 'selected'} ${errorMessage && classes.erroneous} ${classes.node}`}>
+        <div
+            className={`react-flow__node-default ${selected && 'selected'} ${isPending && classes.pending} ${
+                errorMessage && classes.erroneous
+            } ${classes.node}`}
+        >
             <div className={classes.title} title={errorMessage}>
                 Filter: Date Range{isPending ? ' …' : ''}
             </div>

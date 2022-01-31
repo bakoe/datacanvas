@@ -193,7 +193,10 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     const { isLoading, columnHeaders, columns } = { ...defaultState, ...data.state };
 
     return (
-        <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${classes.node}`}>
+        <div
+            style={nodeStyleOverrides}
+            className={`react-flow__node-default ${selected && 'selected'} ${isLoading && classes.pending} ${classes.node}`}
+        >
             <div className={classes.title}>
                 {data.type?.toUpperCase() + ' '}Dataset{isLoading ? ' …' : ''}
             </div>
