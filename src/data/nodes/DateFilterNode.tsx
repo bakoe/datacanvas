@@ -20,11 +20,11 @@ import { DateTime } from 'luxon';
 import { NodeWithStateProps } from '../BasicFlow';
 
 export interface DateFilterNodeState {
+    isPending: boolean;
     from: DateTime;
     to: DateTime;
     dataToFilter?: CSVColumn[];
     filteredColumns?: CSVColumn[];
-    isPending?: boolean;
     errorMessage?: string;
 }
 
@@ -113,7 +113,7 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
     }) as CSVColumn[];
 };
 
-const defaultState = { isPending: true } as DateFilterNodeState;
+export const defaultState = { isPending: true } as DateFilterNodeState;
 
 const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable }) => {
     const { state, onChangeState } = data;

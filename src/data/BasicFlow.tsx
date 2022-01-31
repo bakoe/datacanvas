@@ -15,8 +15,17 @@ import ReactFlow, {
     NodeProps,
 } from 'react-flow-renderer';
 
-import DatasetNode, { DatasetNodeData, DatasetNodeState, mapMimetypeToNodeFiletype } from './nodes/DatasetNode';
-import DateFilterNode, { DateFilterNodeData, DateFilterNodeState } from './nodes/DateFilterNode';
+import DatasetNode, {
+    DatasetNodeData,
+    DatasetNodeState,
+    defaultState as DatasetNodeDefaultState,
+    mapMimetypeToNodeFiletype,
+} from './nodes/DatasetNode';
+import DateFilterNode, {
+    DateFilterNodeData,
+    DateFilterNodeState,
+    defaultState as DateFilterNodeDefaultState,
+} from './nodes/DateFilterNode';
 import ScatterplotNode from './nodes/ScatterplotNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
@@ -121,6 +130,7 @@ const BasicFlow = () => {
             id: '0',
             data: {
                 state: {
+                    ...DateFilterNodeDefaultState,
                     from: DateTime.fromISO('2021-11-15'),
                     to: DateTime.fromISO('2021-12-19'),
                 },
@@ -211,6 +221,9 @@ const BasicFlow = () => {
                 columns: [],
                 filename: `Loading ${type?.toUpperCase() ?? ''}…`,
                 onChangeState: (newState: DatasetNodeState) => updateNodeState(nodeId, newState),
+                state: {
+                    ...DatasetNodeDefaultState,
+                },
             },
         } as Node<DatasetNodeData>;
 

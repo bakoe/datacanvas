@@ -55,6 +55,7 @@ interface Cuboid {
     scaleY: number;
     id?: number;
     isErroneous?: boolean;
+    isPending?: boolean;
 }
 
 class DatacubesRenderer extends Renderer {
@@ -776,10 +777,13 @@ class DatacubesRenderer extends Renderer {
 
         const updatedCuboids = [];
 
+        const DATACUBE_PENDING_SCALE_Y = 0.1;
+
         for (const datacube of datacubes) {
             const datacubePosition = datacube.position;
             const datacubeId = datacube.id;
             const datacubeIsErroneous = datacube.isErroneous;
+            const datacubeIsPending = datacube.isPending;
             const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
             if (existingCuboid) {
                 const from = {
@@ -787,10 +791,15 @@ class DatacubesRenderer extends Renderer {
                     scaleY: existingCuboid.scaleY * 1000,
                 };
 
-                const to = {
-                    translateY: datacube.relativeHeight * 0.5 * 1000,
-                    scaleY: datacube.relativeHeight * 1000,
-                };
+                const to = datacubeIsPending
+                    ? {
+                          translateY: DATACUBE_PENDING_SCALE_Y * 0.5 * 1000,
+                          scaleY: DATACUBE_PENDING_SCALE_Y * 1000,
+                      }
+                    : {
+                          translateY: datacube.relativeHeight * 0.5 * 1000,
+                          scaleY: datacube.relativeHeight * 1000,
+                      };
 
                 // Round the scaled target values to 0 decimals (i.e., the unscaled target values to 3 decimals)
                 // This is done to avoid unnecessary animation triggering due to numerical precision errors
@@ -836,14 +845,20 @@ class DatacubesRenderer extends Renderer {
 
                 existingCuboid.translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
                 existingCuboid.isErroneous = datacubeIsErroneous;
+                existingCuboid.isPending = datacubeIsPending;
                 updatedCuboids.push(existingCuboid);
             } else {
                 const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
                 cuboid.initialize();
 
                 const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
-                const translateY = datacube.relativeHeight * 0.5;
-                const scaleY = datacube.relativeHeight;
+                let translateY = datacube.relativeHeight * 0.5;
+                let scaleY = datacube.relativeHeight;
+
+                if (datacubeIsPending) {
+                    translateY = DATACUBE_PENDING_SCALE_Y * 0.5;
+                    scaleY = DATACUBE_PENDING_SCALE_Y;
+                }
 
                 const newCuboid = {
                     geometry: cuboid,
@@ -852,6 +867,7 @@ class DatacubesRenderer extends Renderer {
                     scaleY,
                     id: 4294967295 - datacubeId,
                     isErroneous: datacubeIsErroneous,
+                    isPending: datacubeIsPending,
                 };
 
                 updatedCuboids.push(newCuboid);

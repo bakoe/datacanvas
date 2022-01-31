@@ -41,7 +41,7 @@ export interface DatasetNodeState {
     isLoading?: boolean;
 }
 
-const defaultState = { isLoading: true } as DatasetNodeState;
+export const defaultState = { isLoading: true } as DatasetNodeState;
 
 export interface DatasetNodeData {
     type: DatasetNodeValidTypes;

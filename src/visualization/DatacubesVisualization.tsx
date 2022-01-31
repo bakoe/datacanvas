@@ -17,6 +17,7 @@ export interface DatacubeInformation {
     id: number;
     position: XYPosition;
     relativeHeight: number;
+    isPending?: boolean;
     isErroneous?: boolean;
 }
 
@@ -52,22 +53,29 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
         return Array.from(state.nodeInternals).map(([, node]) => {
             let relativeHeight = 1.0;
             let isErroneous = false;
-            if ((isDatasetNode(node) || isDateFilterNode(node)) && overallMaxRowCount) {
+            let isPending: undefined | boolean = false;
+            if (isDatasetNode(node) || isDateFilterNode(node)) {
                 if (isDatasetNode(node)) {
-                    const colRowCounts = node.data.state?.columns?.map((col) => col.length);
-                    if (colRowCounts) {
-                        relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                    if (overallMaxRowCount) {
+                        const colRowCounts = node.data.state?.columns?.map((col) => col.length);
+                        if (colRowCounts) {
+                            relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                        }
                     }
+                    isPending = node.data.state?.isLoading;
                 }
                 if (isDateFilterNode(node)) {
-                    const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
-                    if (colRowCounts) {
-                        relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                    if (overallMaxRowCount) {
+                        const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
+                        if (colRowCounts) {
+                            relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                        }
                     }
                     isErroneous = node.data.state?.errorMessage !== undefined;
+                    isPending = node.data.state?.isPending;
                 }
             }
-            return { position: node.position, id: parseInt(node.id, 10), relativeHeight, isErroneous } as DatacubeInformation;
+            return { position: node.position, id: parseInt(node.id, 10), relativeHeight, isErroneous, isPending } as DatacubeInformation;
         });
     });
 
