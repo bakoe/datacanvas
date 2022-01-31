@@ -169,7 +169,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
 
             <hr className={classes.divider} />
 
-            <div className={classes.handleWrapper} style={{ alignItems: 'baseline' }}>
+            <div className={`${classes.handleWrapper} nodrag`} style={{ alignItems: 'baseline' }}>
                 <span style={{ marginRight: '0.5rem' }}>From:</span>
                 <input
                     style={{ fontSize: '0.6rem' }}
@@ -178,7 +178,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                     onChange={(event) => onChangeState({ from: DateTime.fromFormat(event.target.value, 'yyyy-MM-dd') })}
                 ></input>
             </div>
-            <div className={classes.handleWrapper} style={{ alignItems: 'baseline' }}>
+            <div className={`${classes.handleWrapper} nodrag`} style={{ alignItems: 'baseline' }}>
                 <span style={{ marginRight: '0.5rem' }}>To:</span>
                 <input
                     style={{ fontSize: '0.6rem' }}
