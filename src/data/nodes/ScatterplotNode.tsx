@@ -1,11 +1,9 @@
-import { memo, FC } from 'react';
+import { FC, memo } from 'react';
+import { Connection, Edge, Handle, Node, Position, useStoreApi } from 'react-flow-renderer/nocss';
 
-import { Handle, Position, Connection, Edge, Node } from 'react-flow-renderer';
-
-import classes from '../../assets/styles/react-flow.module.css';
 import { NodeWithStateProps } from '../BasicFlow';
 
-export function isScatterplotNode(node: Node<unknown>): node is Node<ScatterplotNodeState> {
+export function isScatterplotNode(node: Node<unknown>): node is Node<ScatterplotNodeData> {
     return node.type === 'scatterplot';
 }
 
@@ -28,40 +26,40 @@ const ScatterplotNode: FC<ScatterplotNodeProps> = ({ isConnectable, selected, da
     const { state } = data;
     const { isPending = true } = { ...defaultState, ...state };
     return (
-        <div className={`react-flow__node-default ${classes.node} ${selected && 'selected'} ${isPending && classes.pending}`}>
-            <div className={classes.title}>Scatterplot</div>
-            <div className={classes.handleWrapper}>
+        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
+            <div className="title">Scatterplot</div>
+            <div className="handle-wrapper">
                 <Handle
                     type="target"
                     position={Position.Left}
                     id="x"
-                    className={classes.targetHandle}
+                    className="target-handle"
                     isConnectable={isConnectable}
                     onConnect={onConnect}
                 ></Handle>
-                <span className={classes.targetHandleLabel}>x axis</span>
+                <span className="target-handle-label">x axis</span>
             </div>
-            <div className={classes.handleWrapper}>
+            <div className="handle-wrapper">
                 <Handle
                     type="target"
                     position={Position.Left}
                     id="y"
-                    className={classes.targetHandle}
+                    className="target-handle"
                     isConnectable={isConnectable}
                     onConnect={onConnect}
                 ></Handle>
-                <span className={classes.targetHandleLabel}>y axis</span>
+                <span className="target-handle-label">y axis</span>
             </div>
-            <div className={classes.handleWrapper}>
+            <div className="handle-wrapper">
                 <Handle
                     type="target"
                     position={Position.Left}
                     id="z"
-                    className={classes.targetHandle}
+                    className="target-handle"
                     isConnectable={isConnectable}
                     onConnect={onConnect}
                 ></Handle>
-                <span className={classes.targetHandleLabel}>z axis</span>
+                <span className="target-handle-label">z axis</span>
             </div>
         </div>
     );

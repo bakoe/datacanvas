@@ -1,6 +1,6 @@
 import { memo, FC, CSSProperties, useEffect } from 'react';
 
-import { Handle, Position, Node, Connection, Edge } from 'react-flow-renderer';
+import { Handle, Position, Node, Connection, Edge } from 'react-flow-renderer/nocss';
 
 import {
     Column as CSVColumn,
@@ -23,7 +23,6 @@ export function isDatasetNode(node: Node<unknown>): node is Node<DatasetNodeData
 // due to problems with nested worker imports in Vite
 const USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE = false;
 
-import classes from '../../assets/styles/react-flow.module.css';
 import { NodeWithStateProps } from '../BasicFlow';
 
 const nodeStyleOverrides: CSSProperties = { width: '250px' };
@@ -193,15 +192,12 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     const { isLoading, columnHeaders, columns } = { ...defaultState, ...data.state };
 
     return (
-        <div
-            style={nodeStyleOverrides}
-            className={`react-flow__node-default ${selected && 'selected'} ${isLoading && classes.pending} ${classes.node}`}
-        >
-            <div className={classes.title}>
+        <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node`}>
+            <div className="title">
                 {data.type?.toUpperCase() + ' '}Dataset{isLoading ? ' …' : ''}
             </div>
-            <span className={classes.hyphenate}>{data.filename}</span>
-            <hr className={classes.divider} />
+            <span className="hyphenate">{data.filename}</span>
+            <hr className="divider" />
             {columnHeaders?.map((columnHeader) => {
                 const column = columns?.find((column) => column.name === columnHeader.name);
                 const minMaxString =
@@ -209,16 +205,16 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                         ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
                         : undefined;
                 return (
-                    <div key={columnHeader.name} className={classes.handleWrapper}>
+                    <div key={columnHeader.name} className="handle-wrapper">
                         <Handle
                             type="source"
                             position={Position.Right}
                             id={columnHeader.name}
-                            className={classes.sourceHandle}
+                            className="source-handle"
                             isConnectable={isConnectable}
                             onConnect={onConnect}
                         ></Handle>
-                        <span className={classes.sourceHandleLabel}>
+                        <span className="source-handle-label">
                             {columnHeader.name}
                             <br />
                             <small>

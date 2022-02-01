@@ -26,28 +26,28 @@
     display: block;
 }
 
-.handleWrapper {
+.handle-wrapper {
     display: flex;
     margin-top: 0.4rem;
     margin-bottom: 0.2rem;
 }
 
-.targetHandle {
+.target-handle {
     top: initial;
     margin-top: 0.5rem;
 }
 
-.targetHandleLabel {
+.target-handle-label {
     text-align: left;
     width: 100%;
 }
 
-.sourceHandle {
+.source-handle {
     top: initial;
     margin-top: 0.5rem;
 }
 
-.sourceHandleLabel {
+.source-handle-label {
     text-align: right;
     width: 100%;
 }

@@ -1,6 +1,6 @@
 /* Try to prevent user from selecting canvas by long-tapping on iOS/Safari */
 /* Taken from: https://forum.babylonjs.com/t/prevent-unwanted-inputs-in-ios-safari-hold-click-selects-canvas/21409/4 */
-.canvasContainer {
+.canvas-container {
     width: 100%;
     height: 100%;
     position: relative;

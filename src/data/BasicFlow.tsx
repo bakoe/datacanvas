@@ -13,7 +13,7 @@ import ReactFlow, {
     ReactFlowInstance,
     XYPosition,
     NodeProps,
-} from 'react-flow-renderer';
+} from 'react-flow-renderer/nocss';
 
 import DatasetNode, {
     DatasetNodeData,
@@ -316,7 +316,7 @@ const BasicFlow = () => {
             onDragLeave={onDragLeave}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onPaneReady={onPaneReady}
+            onInit={onPaneReady}
             onNodeClick={onNodeClick}
             onConnect={onConnect}
             onNodeDragStop={onNodeDragStop}

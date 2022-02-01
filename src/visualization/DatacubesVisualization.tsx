@@ -1,12 +1,11 @@
 import React, { PropsWithChildren } from 'react';
 
-import { ReactFlowState, useStore, XYPosition, useStoreApi, NodeDiffUpdate, Node } from 'react-flow-renderer';
+import { ReactFlowState, useStore, XYPosition, useStoreApi, NodeDiffUpdate } from 'react-flow-renderer/nocss';
 
 import shallow from 'zustand/shallow';
 
 import { DatacubesApplication } from './DatacubesApplication';
 
-import classes from '../assets/styles/webgloperate.module.css';
 import { isDatasetNode } from '../data/nodes/DatasetNode';
 import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isScatterplotNode } from '../data/nodes/ScatterplotNode';
@@ -143,9 +142,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
     }, []);
 
     return (
-        <div className={classes.canvasContainer}>
-            <canvas className={classes.canvas} ref={canvasRef} />
-            <div className={classes.spinner} ref={spinnerRef}>
+        <div className="canvas-container">
+            <canvas className="canvas" ref={canvasRef} />
+            <div className="spinner" ref={spinnerRef}>
                 <div></div>
                 <div></div>
                 <div></div>

@@ -1,6 +1,6 @@
 import { memo, FC, useEffect } from 'react';
 
-import { Node, Handle, Position } from 'react-flow-renderer';
+import { Node, Handle, Position } from 'react-flow-renderer/nocss';
 
 import {
     Column as CSVColumn,
@@ -15,7 +15,6 @@ export function isDateFilterNode(node: Node<unknown>): node is Node<DateFilterNo
     return node.type === 'filter-date';
 }
 
-import classes from '../../assets/styles/react-flow.module.css';
 import { DateTime } from 'luxon';
 import { NodeWithStateProps } from '../BasicFlow';
 
@@ -140,23 +139,13 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     }, [JSON.stringify(dataToFilter), from, to]);
 
     return (
-        <div
-            className={`react-flow__node-default ${selected && 'selected'} ${isPending && classes.pending} ${
-                errorMessage && classes.erroneous
-            } ${classes.node}`}
-        >
-            <div className={classes.title} title={errorMessage}>
+        <div className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${errorMessage && 'erroneous'} node`}>
+            <div className="title" title={errorMessage}>
                 Filter: Date Range{isPending ? ' …' : ''}
             </div>
-            <div className={classes.handleWrapper}>
-                <Handle
-                    type="target"
-                    position={Position.Left}
-                    id="x"
-                    className={classes.targetHandle}
-                    isConnectable={isConnectable}
-                ></Handle>
-                <span className={classes.targetHandleLabel}>
+            <div className="handle-wrapper">
+                <Handle type="target" position={Position.Left} id="x" className="target-handle" isConnectable={isConnectable}></Handle>
+                <span className="target-handle-label">
                     {dataToFilter ? (
                         <>
                             <strong>{dataToFilter[0].length}</strong> Dates to filter
@@ -167,9 +156,9 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                 </span>
             </div>
 
-            <hr className={classes.divider} />
+            <hr className="divider" />
 
-            <div className={`${classes.handleWrapper} nodrag`} style={{ alignItems: 'baseline' }}>
+            <div className="handle-wrapper nodrag" style={{ alignItems: 'baseline' }}>
                 <span style={{ marginRight: '0.5rem' }}>From:</span>
                 <input
                     style={{ fontSize: '0.6rem' }}
@@ -178,7 +167,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                     onChange={(event) => onChangeState({ from: DateTime.fromFormat(event.target.value, 'yyyy-MM-dd') })}
                 ></input>
             </div>
-            <div className={`${classes.handleWrapper} nodrag`} style={{ alignItems: 'baseline' }}>
+            <div className="handle-wrapper nodrag" style={{ alignItems: 'baseline' }}>
                 <span style={{ marginRight: '0.5rem' }}>To:</span>
                 <input
                     style={{ fontSize: '0.6rem' }}
@@ -188,17 +177,11 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                 ></input>
             </div>
 
-            <hr className={classes.divider} />
+            <hr className="divider" />
 
-            <div className={classes.handleWrapper}>
-                <Handle
-                    type="source"
-                    position={Position.Right}
-                    id="out"
-                    className={classes.sourceHandle}
-                    isConnectable={isConnectable}
-                ></Handle>
-                <span className={classes.sourceHandleLabel}>
+            <div className="handle-wrapper">
+                <Handle type="source" position={Position.Right} id="out" className="source-handle" isConnectable={isConnectable}></Handle>
+                <span className="source-handle-label">
                     {filteredColumns ? (
                         <>
                             <strong>{filteredColumns[0].length}</strong> Dates
