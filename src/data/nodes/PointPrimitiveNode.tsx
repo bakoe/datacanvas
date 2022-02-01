@@ -10,14 +10,12 @@ export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPri
 }
 
 export enum PointPrimitiveNodeTargetHandles {
-    Dataset = 'Dataset',
     X = 'x axis',
     Y = 'y axis',
     Z = 'z axis',
 }
 
 export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTargetHandles, Datatypes> = new Map([
-    [PointPrimitiveNodeTargetHandles.Dataset, Datatypes.Dataset],
     [PointPrimitiveNodeTargetHandles.X, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Y, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Z, Datatypes.Column],
