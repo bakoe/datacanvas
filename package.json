@@ -16,7 +16,8 @@
         "react-flow-renderer": "^10.0.0-next.38",
         "react-split": "^2.0.14",
         "rxjs": "^6.6.7",
-        "webgl-operate": "^0.7.5"
+        "webgl-operate": "^0.7.5",
+        "zustand": "^3.6.9"
     },
     "devDependencies": {
         "@lukaswagner/csv-parser": "^0.2.0",
