@@ -28,7 +28,7 @@ import DateFilterNode, {
     defaultState as DateFilterNodeDefaultState,
 } from './nodes/DateFilterNode';
 import { NodeTypes } from './nodes/enums/NodeTypes';
-import ScatterplotNode, { defaultState as ScatterplotNodeDefaultState, ScatterplotNodeData } from './nodes/ScatterplotNode';
+import PointPrimitiveNode, { defaultState as PointPrimitiveNodeDefaultState, PointPrimitiveNodeData } from './nodes/PointPrimitiveNode';
 import { sourceHandleDatatype, targetHandleDatatype } from './nodes/sourceHandleDatatype';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
@@ -160,16 +160,16 @@ const BasicFlow = () => {
         } as Node<DateFilterNodeData>,
 
         {
-            type: NodeTypes.Scatterplot,
+            type: NodeTypes.PointPrimitive,
             id: '1',
             data: {
                 state: {
-                    ...ScatterplotNodeDefaultState,
+                    ...PointPrimitiveNodeDefaultState,
                 },
                 isValidConnection,
             },
             position: { x: 700, y: 40 },
-        } as Node<ScatterplotNodeData>,
+        } as Node<PointPrimitiveNodeData>,
     ];
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
@@ -212,7 +212,7 @@ const BasicFlow = () => {
     const nodeTypes = useMemo(() => {
         const mapping = {} as NodeTypesType;
         mapping['dataset'] = DatasetNode;
-        mapping[NodeTypes.Scatterplot] = ScatterplotNode;
+        mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
         return mapping;
     }, []);

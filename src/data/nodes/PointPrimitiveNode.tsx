@@ -5,48 +5,48 @@ import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
 
-export function isScatterplotNode(node: Node<unknown>): node is Node<ScatterplotNodeData> {
-    return node.type === NodeTypes.Scatterplot;
+export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPrimitiveNodeData> {
+    return node.type === NodeTypes.PointPrimitive;
 }
 
-export enum ScatterplotNodeTargetHandles {
+export enum PointPrimitiveNodeTargetHandles {
     Dataset = 'Dataset',
     X = 'x axis',
     Y = 'y axis',
     Z = 'z axis',
 }
 
-export const ScatterplotNodeTargetHandlesDatatypes: Map<ScatterplotNodeTargetHandles, Datatypes> = new Map([
-    [ScatterplotNodeTargetHandles.Dataset, Datatypes.Dataset],
-    [ScatterplotNodeTargetHandles.X, Datatypes.Column],
-    [ScatterplotNodeTargetHandles.Y, Datatypes.Column],
-    [ScatterplotNodeTargetHandles.Z, Datatypes.Column],
+export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTargetHandles, Datatypes> = new Map([
+    [PointPrimitiveNodeTargetHandles.Dataset, Datatypes.Dataset],
+    [PointPrimitiveNodeTargetHandles.X, Datatypes.Column],
+    [PointPrimitiveNodeTargetHandles.Y, Datatypes.Column],
+    [PointPrimitiveNodeTargetHandles.Z, Datatypes.Column],
 ]);
 
-export interface ScatterplotNodeState {
+export interface PointPrimitiveNodeState {
     isPending: boolean;
 }
 
-export const defaultState = { isPending: true } as ScatterplotNodeState;
+export const defaultState = { isPending: true } as PointPrimitiveNodeState;
 
-export interface ScatterplotNodeData {
-    onChangeState: (state: Partial<ScatterplotNodeState>) => void;
-    state?: ScatterplotNodeState;
+export interface PointPrimitiveNodeData {
+    onChangeState: (state: Partial<PointPrimitiveNodeState>) => void;
+    state?: PointPrimitiveNodeState;
     isValidConnection?: (connection: Connection) => boolean;
 }
 
-type ScatterplotNodeProps = NodeWithStateProps<ScatterplotNodeData>;
+type PointPrimitiveNodeProps = NodeWithStateProps<PointPrimitiveNodeData>;
 
-const onConnect = (params: Connection | Edge) => console.log('handle onConnect on ScatterplotNode', params);
+const onConnect = (params: Connection | Edge) => console.log('handle onConnect on PointPrimitiveNode', params);
 
-const ScatterplotNode: FC<ScatterplotNodeProps> = ({ isConnectable, selected, data }) => {
+const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, selected, data }) => {
     const { state, isValidConnection } = data;
     const { isPending = true } = { ...defaultState, ...state };
 
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
-            <div className="title">Scatterplot</div>
-            {Array.from(ScatterplotNodeTargetHandlesDatatypes).map(([targetHandle, datatype]) => {
+            <div className="title">Point Primitive</div>
+            {Array.from(PointPrimitiveNodeTargetHandlesDatatypes).map(([targetHandle, datatype]) => {
                 return (
                     <div className="handle-wrapper" key={targetHandle}>
                         <Handle
@@ -67,4 +67,4 @@ const ScatterplotNode: FC<ScatterplotNodeProps> = ({ isConnectable, selected, da
     );
 };
 
-export default memo(ScatterplotNode);
+export default memo(PointPrimitiveNode);
