@@ -13,6 +13,7 @@ import ReactFlow, {
     ReactFlowInstance,
     XYPosition,
     NodeProps,
+    NodeTypesType,
 } from 'react-flow-renderer/nocss';
 
 import DatasetNode, {
@@ -26,7 +27,9 @@ import DateFilterNode, {
     DateFilterNodeState,
     defaultState as DateFilterNodeDefaultState,
 } from './nodes/DateFilterNode';
+import { NodeTypes } from './nodes/enums/NodeTypes';
 import ScatterplotNode, { defaultState as ScatterplotNodeDefaultState, ScatterplotNodeData } from './nodes/ScatterplotNode';
+import { sourceHandleDatatype, targetHandleDatatype } from './nodes/sourceHandleDatatype';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
 const onNodeClick = (_: MouseEvent, node: Node) => console.log('click', node);
@@ -124,9 +127,25 @@ const BasicFlow = () => {
         });
     };
 
+    const isValidConnection = (connection: Connection): boolean => {
+        if (connection.source && connection.target) {
+            const sourceNode = nodes.find((node) => node.id === connection.source);
+            const targetNode = nodes.find((node) => node.id === connection.target);
+
+            if (!targetNode || !connection.targetHandle || !sourceNode || !connection.sourceHandle) {
+                return false;
+            }
+
+            if (targetHandleDatatype(targetNode, connection.targetHandle) === sourceHandleDatatype(sourceNode, connection.sourceHandle)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     const initialNodes: Node[] = [
         {
-            type: 'filter-date',
+            type: NodeTypes.DateFilter,
             id: '0',
             data: {
                 state: {
@@ -135,17 +154,19 @@ const BasicFlow = () => {
                     to: DateTime.fromISO('2021-12-19'),
                 },
                 onChangeState: (newState) => updateNodeState('0', newState),
+                isValidConnection,
             },
             position: { x: 400, y: 40 },
         } as Node<DateFilterNodeData>,
 
         {
-            type: 'scatterplot',
+            type: NodeTypes.Scatterplot,
             id: '1',
             data: {
                 state: {
                     ...ScatterplotNodeDefaultState,
                 },
+                isValidConnection,
             },
             position: { x: 700, y: 40 },
         } as Node<ScatterplotNodeData>,
@@ -169,7 +190,7 @@ const BasicFlow = () => {
 
         if (!sourceNode || !targetNode) return;
 
-        if (sourceNode.type === 'dataset' && targetNode.type === 'filter-date') {
+        if (sourceNode.type === 'dataset' && targetNode.type === NodeTypes.DateFilter) {
             const edgePreviouslyConnectedToTarget = edges.find((e) => e.target === targetNode.id);
             if (edgePreviouslyConnectedToTarget) {
                 setEdges((edges) => edges.filter((edge) => edge.id !== edgePreviouslyConnectedToTarget.id));
@@ -188,7 +209,13 @@ const BasicFlow = () => {
 
     // This memoization is important to avoid the ReactFlow component to re-render continuously
     // See https://github.com/wbkd/react-flow/pull/1555#issue-1016332917 (section "nodeTypes and edgeTypes")
-    const nodeTypes = useMemo(() => ({ dataset: DatasetNode, scatterplot: ScatterplotNode, 'filter-date': DateFilterNode }), []);
+    const nodeTypes = useMemo(() => {
+        const mapping = {} as NodeTypesType;
+        mapping['dataset'] = DatasetNode;
+        mapping[NodeTypes.Scatterplot] = ScatterplotNode;
+        mapping[NodeTypes.DateFilter] = DateFilterNode;
+        return mapping;
+    }, []);
 
     useEffect(() => {
         if (!dragInProgress || !dragCoords) return;

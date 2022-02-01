@@ -12,11 +12,21 @@ import {
 } from '@lukaswagner/csv-parser';
 
 export function isDateFilterNode(node: Node<unknown>): node is Node<DateFilterNodeData> {
-    return node.type === 'filter-date';
+    return node.type === NodeTypes.DateFilter;
 }
+
+export enum DateFilterNodeSourceHandles {
+    FilteredDataset = 'filtered-dataset',
+}
+
+export const DateFilterNodeSourceHandlesDatatypes: Map<DateFilterNodeSourceHandles, Datatypes> = new Map([
+    [DateFilterNodeSourceHandles.FilteredDataset, Datatypes.Dataset],
+]);
 
 import { DateTime } from 'luxon';
 import { NodeWithStateProps } from '../BasicFlow';
+import { Datatypes } from './enums/Datatypes';
+import { NodeTypes } from './enums/NodeTypes';
 
 export interface DateFilterNodeState {
     isPending: boolean;
@@ -30,6 +40,7 @@ export interface DateFilterNodeState {
 export interface DateFilterNodeData {
     onChangeState: (state: Partial<DateFilterNodeState>) => void;
     state?: DateFilterNodeState;
+    isValidConnection?: (connection: Connection) => boolean;
 }
 
 interface DateFilterNodeProps extends NodeWithStateProps<DateFilterNodeState> {
@@ -115,7 +126,7 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
 export const defaultState = { isPending: true } as DateFilterNodeState;
 
 const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable }) => {
-    const { state, onChangeState } = data;
+    const { state, onChangeState, isValidConnection } = data;
     const { isPending, from, to, filteredColumns, dataToFilter, errorMessage } = { ...defaultState, ...state };
 
     useEffect(() => {
@@ -144,7 +155,14 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                 Filter: Date Range{isPending ? ' …' : ''}
             </div>
             <div className="handle-wrapper">
-                <Handle type="target" position={Position.Left} id="x" className="target-handle" isConnectable={isConnectable}></Handle>
+                <Handle
+                    type="target"
+                    position={Position.Left}
+                    id="x"
+                    className="target-handle handle-dataset"
+                    isConnectable={isConnectable}
+                    isValidConnection={isValidConnection}
+                ></Handle>
                 <span className="target-handle-label">
                     {dataToFilter ? (
                         <>
@@ -180,7 +198,14 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
             <hr className="divider" />
 
             <div className="handle-wrapper">
-                <Handle type="source" position={Position.Right} id="out" className="source-handle" isConnectable={isConnectable}></Handle>
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    id={DateFilterNodeSourceHandles.FilteredDataset}
+                    className="source-handle handle-dataset"
+                    isConnectable={isConnectable}
+                    isValidConnection={isValidConnection}
+                ></Handle>
                 <span className="source-handle-label">
                     {filteredColumns ? (
                         <>
