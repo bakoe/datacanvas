@@ -1,19 +1,34 @@
 import { memo, FC } from 'react';
 
-import { Handle, Position, NodeProps, Connection, Edge } from 'react-flow-renderer';
+import { Handle, Position, Connection, Edge, Node } from 'react-flow-renderer';
 
 import classes from '../../assets/styles/react-flow.module.css';
+import { NodeWithStateProps } from '../BasicFlow';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface ScatterplotNodeData {}
+export function isScatterplotNode(node: Node<unknown>): node is Node<ScatterplotNodeState> {
+    return node.type === 'scatterplot';
+}
 
-type ScatterplotNodeProps = NodeProps<ScatterplotNodeData>;
+export interface ScatterplotNodeState {
+    isPending: boolean;
+}
+
+export const defaultState = { isPending: true } as ScatterplotNodeState;
+
+export interface ScatterplotNodeData {
+    onChangeState: (state: Partial<ScatterplotNodeState>) => void;
+    state?: ScatterplotNodeState;
+}
+
+type ScatterplotNodeProps = NodeWithStateProps<ScatterplotNodeData>;
 
 const onConnect = (params: Connection | Edge) => console.log('handle onConnect on ScatterplotNode', params);
 
-const ScatterplotNode: FC<ScatterplotNodeProps> = ({ isConnectable, selected }) => {
+const ScatterplotNode: FC<ScatterplotNodeProps> = ({ isConnectable, selected, data }) => {
+    const { state } = data;
+    const { isPending = true } = { ...defaultState, ...state };
     return (
-        <div className={`react-flow__node-default ${classes.node} ${selected && 'selected'}`}>
+        <div className={`react-flow__node-default ${classes.node} ${selected && 'selected'} ${isPending && classes.pending}`}>
             <div className={classes.title}>Scatterplot</div>
             <div className={classes.handleWrapper}>
                 <Handle

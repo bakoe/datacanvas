@@ -9,6 +9,7 @@ import { DatacubesApplication } from './DatacubesApplication';
 import classes from '../assets/styles/webgloperate.module.css';
 import { isDatasetNode } from '../data/nodes/DatasetNode';
 import { isDateFilterNode } from '../data/nodes/DateFilterNode';
+import { isScatterplotNode } from '../data/nodes/ScatterplotNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -54,7 +55,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let relativeHeight = 1.0;
             let isErroneous = false;
             let isPending: undefined | boolean = false;
-            if (isDatasetNode(node) || isDateFilterNode(node)) {
+            if (isDatasetNode(node) || isDateFilterNode(node) || isScatterplotNode(node)) {
                 if (isDatasetNode(node)) {
                     if (overallMaxRowCount) {
                         const colRowCounts = node.data.state?.columns?.map((col) => col.length);
@@ -72,6 +73,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                         }
                     }
                     isErroneous = node.data.state?.errorMessage !== undefined;
+                    isPending = node.data.state?.isPending;
+                }
+                if (isScatterplotNode(node)) {
                     isPending = node.data.state?.isPending;
                 }
             }

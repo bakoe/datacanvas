@@ -1,6 +1,6 @@
 import { memo, FC, CSSProperties, useEffect } from 'react';
 
-import { Handle, Position, NodeProps, Node, Connection, Edge } from 'react-flow-renderer';
+import { Handle, Position, Node, Connection, Edge } from 'react-flow-renderer';
 
 import {
     Column as CSVColumn,

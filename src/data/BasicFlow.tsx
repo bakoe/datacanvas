@@ -26,7 +26,7 @@ import DateFilterNode, {
     DateFilterNodeState,
     defaultState as DateFilterNodeDefaultState,
 } from './nodes/DateFilterNode';
-import ScatterplotNode from './nodes/ScatterplotNode';
+import ScatterplotNode, { defaultState as ScatterplotNodeDefaultState, ScatterplotNodeData } from './nodes/ScatterplotNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
 const onNodeClick = (_: MouseEvent, node: Node) => console.log('click', node);
@@ -138,6 +138,17 @@ const BasicFlow = () => {
             },
             position: { x: 400, y: 40 },
         } as Node<DateFilterNodeData>,
+
+        {
+            type: 'scatterplot',
+            id: '1',
+            data: {
+                state: {
+                    ...ScatterplotNodeDefaultState,
+                },
+            },
+            position: { x: 700, y: 40 },
+        } as Node<ScatterplotNodeData>,
     ];
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
