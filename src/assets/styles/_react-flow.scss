@@ -1,8 +1,19 @@
+$handle-clickable-area-size: 0.7rem;
+
 .react-flow__handle {
     box-shadow: 0 0 0 2px white;
     border: 1px solid black;
     width: 4px;
     height: 4px;
+
+    &:before {
+        content: '';
+        position: relative;
+        display: inline-block;
+        padding: $handle-clickable-area-size;
+        margin: -$handle-clickable-area-size;
+        top: -0.5 * $handle-clickable-area-size;
+    }
 }
 
 .react-flow__handle-left {
