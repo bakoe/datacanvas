@@ -14,6 +14,10 @@ $handle-clickable-area-size: 0.7rem;
         margin: -$handle-clickable-area-size;
         top: -0.5 * $handle-clickable-area-size;
     }
+
+    &.connecting {
+        box-shadow: 0 0 0 2px #32c99b;
+    }
 }
 
 .react-flow__handle-left {
