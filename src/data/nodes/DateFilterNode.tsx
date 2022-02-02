@@ -1,6 +1,6 @@
 import { memo, FC, useEffect } from 'react';
 
-import { Node, Handle, Position } from 'react-flow-renderer/nocss';
+import { Node, Handle, Position, Connection } from 'react-flow-renderer/nocss';
 
 import {
     Column as CSVColumn,
