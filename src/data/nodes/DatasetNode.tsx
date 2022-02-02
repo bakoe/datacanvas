@@ -311,8 +311,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 />
                 <span className="source-handle-label">
                     <a
-                        href="#"
-                        className="link"
+                        className="nodrag link"
                         onClick={() => {
                             setIsCollapsed(!isCollapsed);
                         }}
