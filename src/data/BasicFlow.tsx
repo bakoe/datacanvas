@@ -14,6 +14,7 @@ import ReactFlow, {
     XYPosition,
     NodeProps,
     NodeTypesType,
+    useStoreApi,
 } from 'react-flow-renderer/nocss';
 
 import DatasetNode, {
@@ -177,6 +178,8 @@ const BasicFlow = () => {
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [dragInProgress, setDragInProgress] = useState(false);
     const [dragCoords, setDragCoords] = useState<XYPosition | undefined>(undefined);
+
+    const store = useStoreApi();
 
     // Count drag events to be able to detect drag event leaving the flow's DOM element
     // See https://github.com/leonadler/drag-and-drop-across-browsers/blob/master/README.md
@@ -349,6 +352,9 @@ const BasicFlow = () => {
             onNodeDragStop={onNodeDragStop}
             className="react-flow-basic-example"
             defaultZoom={1.5}
+            onPaneClick={() => {
+                store.setState({ connectionStartHandle: null });
+            }}
             minZoom={0.2}
             maxZoom={4}
             attributionPosition="top-right"
