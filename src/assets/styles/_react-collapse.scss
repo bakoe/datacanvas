@@ -1,0 +1,15 @@
+.ReactCollapse--collapse {
+    transition: height 300ms ease-in-out;
+
+    .source-handle,
+    .target-handle {
+        transition: transform 300ms ease-in-out, opacity 300ms ease-in-out;
+    }
+
+    &[aria-hidden='true'] {
+        .source-handle,
+        .target-handle {
+            z-index: -1;
+        }
+    }
+}

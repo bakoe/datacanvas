@@ -1,6 +1,8 @@
-import { memo, FC, CSSProperties, useEffect } from 'react';
+import { memo, FC, CSSProperties, useEffect, useState, useRef } from 'react';
 
-import { Handle, Position, Node, Connection, Edge } from 'react-flow-renderer/nocss';
+import { Handle, Position, Node, Connection, Edge, useStore } from 'react-flow-renderer/nocss';
+
+import { Collapse } from 'react-collapse';
 
 import {
     Column as CSVColumn,
@@ -73,14 +75,85 @@ const prettyPrintDataType = (dataType: DataType): string => {
         case 'string':
             return 'Strings';
         case 'number':
-        default:
             return 'Numbers';
     }
     return 'Elements';
 };
 
+const CollapsibleHandle: FC<{
+    columnHeader: CSVColumnHeader;
+    isCollapsed: boolean;
+    onElementHeightChange: (height: number) => void;
+    previousElementsHeight: number;
+    column?: CSVColumn;
+    // all other props
+    [x: string]: any;
+}> = ({ columnHeader, isCollapsed, onElementHeightChange, previousElementsHeight, column, ...rest }) => {
+    const [, , zoom] = useStore((state) => state.transform);
+    const handleWrapperRef = useRef(null);
+    const [yOffsetCompensation, setYOffsetCompensation] = useState(0);
+
+    useEffect(() => {
+        if (!isCollapsed) {
+            setYOffsetCompensation(0);
+            return;
+        }
+        let elemPixHeight = 0;
+        if (handleWrapperRef.current) {
+            elemPixHeight = (handleWrapperRef.current as HTMLElement).getBoundingClientRect().height / zoom;
+        }
+        setYOffsetCompensation(previousElementsHeight);
+        onElementHeightChange(elemPixHeight);
+    }, [isCollapsed, previousElementsHeight]);
+
+    useEffect(() => {
+        if (!isCollapsed) {
+            setYOffsetCompensation(0);
+            return;
+        }
+        let elemPixHeight = 0;
+        if (handleWrapperRef.current) {
+            elemPixHeight = (handleWrapperRef.current as HTMLElement).getBoundingClientRect().height / zoom;
+        }
+        setYOffsetCompensation(previousElementsHeight);
+        onElementHeightChange(elemPixHeight);
+    }, []);
+
+    const minMaxString =
+        column?.type === 'number'
+            ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
+            : undefined;
+
+    const style = isCollapsed
+        ? { transform: `translateY(calc(-0.2rem - 0.4rem - 5px - 0.4rem - 2.5px - ${yOffsetCompensation}px)`, opacity: 0 }
+        : { opacity: 1 };
+
+    return (
+        <div className="handle-wrapper" ref={handleWrapperRef}>
+            <Handle
+                {...rest}
+                type="source"
+                position={Position.Right}
+                id={columnHeader.name}
+                className="source-handle"
+                style={style}
+            ></Handle>
+            <span className="source-handle-label">
+                {columnHeader.name}
+                <br />
+                <small>
+                    <strong>{column && column.length}</strong> {prettyPrintDataType(columnHeader.type)} {minMaxString}
+                </small>
+            </span>
+        </div>
+    );
+};
+
 const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) => {
     const { state, onChangeState } = data;
+
+    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
 
     useEffect(() => {
         if (state && state.columnHeaders && state.columns && state.columnHeaders.length > 0 && state.columns.length > 0) {
@@ -191,6 +264,35 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
 
     const { isLoading, columnHeaders, columns } = { ...defaultState, ...data.state };
 
+    const previousElementsHeights = [] as number[];
+    for (let index = 0; index < collapsibleHandlesHeights.length; index++) {
+        let sumOfPrevElementsHeight = 0;
+        for (let prevIndex = 0; prevIndex < index; prevIndex++) {
+            sumOfPrevElementsHeight += collapsibleHandlesHeights[prevIndex];
+        }
+        previousElementsHeights[index] = sumOfPrevElementsHeight;
+    }
+
+    const collapsibleHandles = columnHeaders?.map((columnHeader, index) => {
+        const column = columns?.find((column) => column.name === columnHeader.name);
+
+        return (
+            <CollapsibleHandle
+                key={columnHeader.name}
+                columnHeader={columnHeader}
+                onElementHeightChange={(height) => {
+                    collapsibleHandlesHeights[index] = height;
+                    setCollapsibleHandlesHeights(collapsibleHandlesHeights);
+                }}
+                previousElementsHeight={previousElementsHeights[index]}
+                column={column}
+                isCollapsed={isCollapsed}
+                isConnectable={isConnectable}
+                onConnect={onConnect}
+            />
+        );
+    });
+
     return (
         <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node`}>
             <div className="title">
@@ -198,32 +300,32 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
             </div>
             <span className="hyphenate">{data.filename}</span>
             <hr className="divider" />
-            {columnHeaders?.map((columnHeader) => {
-                const column = columns?.find((column) => column.name === columnHeader.name);
-                const minMaxString =
-                    column?.type === 'number'
-                        ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
-                        : undefined;
-                return (
-                    <div key={columnHeader.name} className="handle-wrapper">
-                        <Handle
-                            type="source"
-                            position={Position.Right}
-                            id={columnHeader.name}
-                            className="source-handle"
-                            isConnectable={isConnectable}
-                            onConnect={onConnect}
-                        ></Handle>
-                        <span className="source-handle-label">
-                            {columnHeader.name}
-                            <br />
-                            <small>
-                                <strong>{column && column.length}</strong> {prettyPrintDataType(columnHeader.type)} {minMaxString}
-                            </small>
-                        </span>
-                    </div>
-                );
-            })}
+            <div className="handle-wrapper">
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    id="dataset"
+                    className="source-handle handle-dataset"
+                    isConnectable={isConnectable}
+                    onConnect={onConnect}
+                />
+                <span className="source-handle-label">
+                    <a
+                        href="#"
+                        className="link"
+                        onClick={() => {
+                            setIsCollapsed(!isCollapsed);
+                        }}
+                    >
+                        <strong>
+                            {columns && columns[0] ? `${columns[0].length} Rows | ` : ''}
+                            {columnHeaders?.length}&nbsp;Columns
+                        </strong>{' '}
+                        {isCollapsed ? '↓' : '↑'}
+                    </a>
+                </span>
+            </div>
+            <Collapse isOpened={!isCollapsed}>{collapsibleHandles}</Collapse>
         </div>
     );
 };

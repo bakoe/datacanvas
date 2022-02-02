@@ -79,6 +79,9 @@
 
 .node .hyphenate {
     hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    -ms-hyphens: auto;
     text-align: left;
     width: 100%;
     display: block;
@@ -86,13 +89,14 @@
 
 .handle-wrapper {
     display: flex;
-    margin-top: 0.4rem;
-    margin-bottom: 0.2rem;
+    padding-top: 0.4rem;
+    padding-bottom: 0.2rem;
 }
 
 .target-handle {
-    top: initial;
-    margin-top: 0.5rem;
+    top: auto;
+    transform: translateY(0);
+    margin-top: 5px;
 }
 
 .target-handle-label {
@@ -101,8 +105,9 @@
 }
 
 .source-handle {
-    top: initial;
-    margin-top: 0.5rem;
+    top: auto;
+    transform: translateY(0);
+    margin-top: 5px;
 }
 
 .source-handle-label {
@@ -113,6 +118,9 @@
 .title {
     display: inline;
     hyphens: auto;
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    -ms-hyphens: auto;
     background: white;
     position: absolute;
     top: calc(-1.2rem - 1px);

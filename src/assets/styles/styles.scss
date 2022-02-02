@@ -4,3 +4,12 @@
 @import 'custom-react-flow-nodes-and-edges';
 
 @import 'react-split';
+
+@import 'react-collapse';
+
+.link {
+    text-decoration: none;
+    background-color: black;
+    color: white;
+    padding: 0.2rem;
+}
