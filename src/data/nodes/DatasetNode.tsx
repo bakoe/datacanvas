@@ -194,6 +194,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                     header: true,
                     dynamicTyping: true,
                     delimiter: ',',
+                    skipEmptyLines: true,
                     complete: (data) => {
                         // https://stackoverflow.com/a/9436948
                         const valueIsString = (variable: any): boolean => {

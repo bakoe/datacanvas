@@ -1,5 +1,7 @@
-import { FC, memo } from 'react';
+import { FC, memo, useEffect } from 'react';
 import { Connection, Edge, Handle, Node, Position } from 'react-flow-renderer/nocss';
+
+import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
@@ -10,9 +12,9 @@ export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPri
 }
 
 export enum PointPrimitiveNodeTargetHandles {
-    X = 'x axis',
-    Y = 'y axis',
-    Z = 'z axis',
+    X = 'x coordinate',
+    Y = 'y coordinate',
+    Z = 'z coordinate',
 }
 
 export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTargetHandles, Datatypes> = new Map([
@@ -23,6 +25,9 @@ export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTar
 
 export interface PointPrimitiveNodeState {
     isPending: boolean;
+    xColumn?: CSVColumn;
+    yColumn?: CSVColumn;
+    zColumn?: CSVColumn;
 }
 
 export const defaultState = { isPending: true } as PointPrimitiveNodeState;
@@ -38,8 +43,16 @@ type PointPrimitiveNodeProps = NodeWithStateProps<PointPrimitiveNodeData>;
 const onConnect = (params: Connection | Edge) => console.log('handle onConnect on PointPrimitiveNode', params);
 
 const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, selected, data }) => {
-    const { state, isValidConnection } = data;
-    const { isPending = true } = { ...defaultState, ...state };
+    const { state, onChangeState, isValidConnection } = data;
+    const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined } = { ...defaultState, ...state };
+
+    useEffect(() => {
+        if (xColumn && yColumn && zColumn) {
+            onChangeState({
+                isPending: false,
+            });
+        }
+    }, [xColumn, yColumn, zColumn]);
 
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>

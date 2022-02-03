@@ -29,7 +29,12 @@ import DateFilterNode, {
     defaultState as DateFilterNodeDefaultState,
 } from './nodes/DateFilterNode';
 import { NodeTypes } from './nodes/enums/NodeTypes';
-import PointPrimitiveNode, { defaultState as PointPrimitiveNodeDefaultState, PointPrimitiveNodeData } from './nodes/PointPrimitiveNode';
+import PointPrimitiveNode, {
+    defaultState as PointPrimitiveNodeDefaultState,
+    PointPrimitiveNodeData,
+    PointPrimitiveNodeState,
+    PointPrimitiveNodeTargetHandles,
+} from './nodes/PointPrimitiveNode';
 import { sourceHandleDatatype, targetHandleDatatype } from './nodes/sourceHandleDatatype';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
@@ -167,6 +172,7 @@ const BasicFlow = () => {
                 state: {
                     ...PointPrimitiveNodeDefaultState,
                 },
+                onChangeState: (newState) => updateNodeState('1', newState),
                 isValidConnection,
             },
             position: { x: 700, y: 40 },
@@ -193,16 +199,49 @@ const BasicFlow = () => {
 
         if (!sourceNode || !targetNode) return;
 
+        // Disconnect previous connection to target (if one exists)
+        const edgesPreviouslyConnectedToTarget = edges
+            .filter((e) => e.target === targetNode.id && e.targetHandle === params.targetHandle)
+            .map((edge) => edge.id);
+        if (edgesPreviouslyConnectedToTarget.length > 0) {
+            setEdges((edges) => edges.filter((edge) => !edgesPreviouslyConnectedToTarget.includes(edge.id)));
+        }
+
         if (sourceNode.type === 'dataset' && targetNode.type === NodeTypes.DateFilter) {
-            const edgePreviouslyConnectedToTarget = edges.find((e) => e.target === targetNode.id);
-            if (edgePreviouslyConnectedToTarget) {
-                setEdges((edges) => edges.filter((edge) => edge.id !== edgePreviouslyConnectedToTarget.id));
-            }
             const sourceColumns = (sourceNode as Node<DatasetNodeData>).data.state?.columns;
             if (sourceColumns) {
                 updateNodeState(targetNode.id, {
                     dataToFilter: sourceColumns,
                 } as Partial<DateFilterNodeState>);
+            }
+        }
+
+        if (targetNode.type === NodeTypes.PointPrimitive) {
+            let stateKey;
+            switch (params.targetHandle as PointPrimitiveNodeTargetHandles) {
+                case PointPrimitiveNodeTargetHandles.X:
+                    stateKey = 'xColumn';
+                    break;
+                case PointPrimitiveNodeTargetHandles.Y:
+                    stateKey = 'yColumn';
+                    break;
+                case PointPrimitiveNodeTargetHandles.Z:
+                    stateKey = 'zColumn';
+                    break;
+            }
+            if (stateKey) {
+                let sourceColumn;
+                switch (sourceNode.type as NodeTypes) {
+                    case NodeTypes.Dataset:
+                        sourceColumn = (sourceNode as Node<DatasetNodeData>).data.state?.columns?.find(
+                            (column) => column.name === params.sourceHandle,
+                        );
+                }
+                if (sourceColumn) {
+                    const updatedState = {} as Partial<PointPrimitiveNodeState>;
+                    (updatedState as any)[stateKey] = sourceColumn;
+                    updateNodeState(targetNode.id, updatedState);
+                }
             }
         }
 

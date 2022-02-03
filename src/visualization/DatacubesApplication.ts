@@ -1,6 +1,7 @@
 /* spellchecker: disable */
 
 import {
+    Buffer,
     Canvas,
     DefaultFramebuffer,
     Program,
@@ -28,6 +29,7 @@ import {
     vec4,
     vec2,
     ray_math,
+    ChangeLookup,
 } from 'webgl-operate';
 
 const { v3 } = gl_matrix_extensions;
@@ -40,14 +42,34 @@ import FloorFrag from './shaders/floor.frag';
 import MeshVert from './shaders/mesh.vert';
 import MeshFrag from './shaders/mesh.frag';
 
+import PointVert from './shaders/point.vert';
+import PointFrag from './shaders/point.frag';
+
 import DepthFrag from './shaders/depth.frag';
 import { XYPosition } from 'react-flow-renderer/nocss';
 import { PausableNavigation } from './webgl-operate-extensions/PausableNavigation';
 import { DatacubeInformation } from './DatacubesVisualization';
 import { Observable, Subject } from 'rxjs';
 import anime, { AnimeInstance } from 'animejs';
+import { NodeTypes } from '../data/nodes/enums/NodeTypes';
+import { PointPrimitiveNodeState } from '../data/nodes/PointPrimitiveNode';
+import { NumberColumn } from '@lukaswagner/csv-parser';
 
 /* spellchecker: enable */
+
+interface PointData {
+    x: number;
+    y: number;
+    z: number;
+    r: number;
+    g: number;
+    b: number;
+    size: number;
+}
+
+const CUBOID_SIZE_X = 0.5;
+const CUBOID_SIZE_Y = 1.0;
+const CUBOID_SIZE_Z = 0.5;
 
 interface Cuboid {
     geometry: CuboidGeometry;
@@ -59,6 +81,8 @@ interface Cuboid {
     id?: number;
     isErroneous?: boolean;
     isPending?: boolean;
+    idBufferOnly?: boolean;
+    points?: Array<PointData>;
 }
 
 // LAB values converted using: https://colors.dopely.top/color-converter/hex/
@@ -141,10 +165,29 @@ class DatacubesRenderer extends Renderer {
     // Debug pass
     protected _debugPass: DebugPass | undefined;
 
+    protected _points: Float32Array | undefined; // x, y, z, r, g, b, data=size
+    protected _pointsBuffer: any;
+    protected _pointsProgram: Program | undefined;
+    protected _uPointsViewProjection: WebGLUniformLocation | undefined;
+    protected _uPointsNdcOffset: WebGLUniformLocation | undefined;
+
     // Keeping track of whether a cuboid is dragged
     protected _draggedCuboidID: number | undefined;
     protected _dragStartPosition: vec3 | undefined;
     protected _draggedCuboidStartPosition: vec3 | undefined;
+
+    protected declare _altered: ChangeLookup & {
+        // eslint-disable-next-line id-blacklist
+        any: boolean;
+        multiFrameNumber: boolean;
+        frameSize: boolean;
+        canvasSize: boolean;
+        framePrecision: boolean;
+        clearColor: boolean;
+        debugTexture: boolean;
+
+        points: boolean;
+    };
 
     /**
      * Initializes and sets up rendering passes, navigation, loads a font face and links shaders with program.
@@ -158,6 +201,16 @@ class DatacubesRenderer extends Renderer {
 
         const gl = this._context.gl;
         const gl2facade = this._context.gl2facade;
+
+        this._altered = Object.assign(this._altered, {
+            points: false,
+        });
+
+        // prettier-ignore
+        this.points = new Float32Array([
+            // x, y, z, r, g, b, data,
+            // 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0
+        ]);
 
         this._defaultFBO = new DefaultFramebuffer(this._context, 'DefaultFBO');
         this._defaultFBO.initialize();
@@ -184,6 +237,23 @@ class DatacubesRenderer extends Renderer {
 
         this._intermediateFBOs[0] = new Framebuffer(this._context, 'IntermediateFBO-0');
         this._intermediateFBOs[1] = new Framebuffer(this._context, 'IntermediateFBO-1');
+
+        const vertPoint = new Shader(this._context, gl.VERTEX_SHADER, 'point.vert');
+        vertPoint.initialize(PointVert);
+        const fragPoint = new Shader(this._context, gl.FRAGMENT_SHADER, 'point.frag');
+        fragPoint.initialize(PointFrag);
+
+        this._pointsProgram = new Program(this._context, 'PointProgram');
+        this._pointsProgram.initialize([vertPoint, fragPoint], false);
+
+        this._pointsProgram.attribute('a_vertex', 0);
+        this._pointsProgram.attribute('a_color', 1);
+        this._pointsProgram.attribute('a_data', 2);
+        this._pointsProgram.link();
+        this._pointsProgram.bind();
+
+        this._uPointsViewProjection = this._pointsProgram.uniform('u_viewProjection');
+        this._uPointsNdcOffset = this._pointsProgram.uniform('u_ndcOffset');
 
         this._floor = new NdcFillingRectangle(this._context, 'Floor');
         this._floor.initialize();
@@ -406,8 +476,9 @@ class DatacubesRenderer extends Renderer {
                         datacubePosition = { x: position[0], y: position[2] } as XYPosition;
                     }
 
-                    const translateY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.translateY || 0.5;
-                    const scaleY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.scaleY || 1.0;
+                    const translateY =
+                        this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.translateY || CUBOID_SIZE_Y * 0.5;
+                    const scaleY = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID)?.scaleY || CUBOID_SIZE_Y;
                     const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
 
                     const updatedCuboids = this._cuboids.map((cuboid) => {
@@ -500,6 +571,10 @@ class DatacubesRenderer extends Renderer {
         this._floor?.uninitialize();
         this._floorProgram?.uninitialize();
         this._cuboidsProgram?.uninitialize();
+
+        const gl = this._context.gl;
+        gl.deleteBuffer(this._pointsBuffer);
+        this._pointsProgram?.uninitialize();
 
         this._defaultFBO?.uninitialize();
     }
@@ -688,7 +763,12 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateXZ, translateY, scaleY, colorLAB } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY, colorLAB, idBufferOnly = false } of this
+                .cuboidsSortedByCameraDistance) {
+                if (idBufferOnly) {
+                    continue;
+                }
+
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
@@ -705,6 +785,36 @@ class DatacubesRenderer extends Renderer {
             }
 
             this._cuboidsProgram?.unbind();
+        }
+
+        const cuboidsWithPointData = this._cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
+        const pointsData = [] as number[];
+        if (cuboidsWithPointData.length > 0) {
+            for (const { points, translateXZ, translateY } of cuboidsWithPointData) {
+                pointsData.push(
+                    ...(points
+                        ?.map((point) => [
+                            point.x + translateXZ[0],
+                            point.y + translateY,
+                            point.z + translateXZ[1],
+                            point.r,
+                            point.g,
+                            point.b,
+                            point.size,
+                        ])
+                        .flat() || []),
+                );
+            }
+        }
+        this.points = new Float32Array(pointsData);
+
+        // Render points
+        if (this.points && this.points.length > 0) {
+            gl.disable(gl.CULL_FACE);
+            gl.disable(gl.DEPTH_TEST);
+            this._intermediateFBOs[0].bind();
+            this.renderPoints(ndcOffset || []);
+            gl.enable(gl.DEPTH_TEST);
         }
 
         gl.cullFace(gl.BACK);
@@ -766,6 +876,35 @@ class DatacubesRenderer extends Renderer {
         this._accumulate?.frame(frameNumber);
     }
 
+    protected renderPoints(ndcOffset: number[]): void {
+        const gl = this._context.gl;
+        this._pointsProgram?.bind();
+
+        gl.uniformMatrix4fv(this._uPointsViewProjection, gl.GL_FALSE, this._camera?.viewProjection);
+        gl.uniform2fv(this._uPointsNdcOffset, ndcOffset);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._pointsBuffer);
+
+        // refer to https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer for more information
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 7 * Float32Array.BYTES_PER_ELEMENT, 0);
+        gl.vertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 7 * Float32Array.BYTES_PER_ELEMENT, 3 * Float32Array.BYTES_PER_ELEMENT);
+        gl.vertexAttribPointer(2, 1, gl.FLOAT, gl.FALSE, 7 * Float32Array.BYTES_PER_ELEMENT, 6 * Float32Array.BYTES_PER_ELEMENT);
+        gl.enableVertexAttribArray(0);
+        gl.enableVertexAttribArray(1);
+        gl.enableVertexAttribArray(2);
+
+        if (this._points) {
+            gl.drawArrays(gl.POINTS, 0, this._points.length / 7);
+            gl.bindBuffer(gl.ARRAY_BUFFER, Buffer.DEFAULT_BUFFER);
+        }
+
+        gl.disableVertexAttribArray(0);
+        gl.disableVertexAttribArray(1);
+        gl.disableVertexAttribArray(2);
+
+        this._pointsProgram?.unbind();
+    }
+
     protected distanceToCamera(worldPosition: vec3): number {
         const pos = vec3.fromValues(worldPosition[0] || 0, worldPosition[1] || 0, worldPosition[2] || 0);
         const cameraPos = this._camera?.eye;
@@ -808,6 +947,45 @@ class DatacubesRenderer extends Renderer {
         const DATACUBE_PENDING_SCALE_Y = 0.1;
 
         for (const datacube of datacubes) {
+            let renderCuboidToIdBufferOnly = false;
+            let points = undefined as undefined | PointData[];
+            if (datacube.type === NodeTypes.PointPrimitive && !datacube.isPending) {
+                renderCuboidToIdBufferOnly = true;
+                if (datacube.stateData) {
+                    const stateData = datacube.stateData as PointPrimitiveNodeState;
+                    if (stateData.xColumn && stateData.yColumn && stateData.zColumn) {
+                        points = [];
+
+                        const minX = (stateData.xColumn as NumberColumn).min;
+                        const maxX = (stateData.xColumn as NumberColumn).max;
+                        const minY = (stateData.yColumn as NumberColumn).min;
+                        const maxY = (stateData.yColumn as NumberColumn).max;
+                        const minZ = (stateData.zColumn as NumberColumn).min;
+                        const maxZ = (stateData.zColumn as NumberColumn).max;
+
+                        for (let index = 1; index < stateData.xColumn.length; index++) {
+                            const x = stateData.xColumn.get(index) as number;
+                            const y = stateData.yColumn.get(index) as number;
+                            const z = stateData.zColumn.get(index) as number;
+
+                            const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
+                            const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
+                            const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
+
+                            points.push({
+                                x: normalizedX,
+                                y: normalizedY,
+                                z: normalizedZ,
+                                r: 1,
+                                g: 1,
+                                b: 1,
+                                size: 2.5,
+                            });
+                        }
+                    }
+                }
+            }
+
             const datacubePosition = datacube.position;
             const datacubeId = datacube.id;
             const datacubeIsErroneous = datacube.isErroneous;
@@ -910,9 +1088,11 @@ class DatacubesRenderer extends Renderer {
                 existingCuboid.translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
                 existingCuboid.isErroneous = datacubeIsErroneous;
                 existingCuboid.isPending = datacubeIsPending;
+                existingCuboid.idBufferOnly = renderCuboidToIdBufferOnly;
+                existingCuboid.points = points;
                 updatedCuboids.push(existingCuboid);
             } else {
-                const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [0.5, 1.0, 0.5]);
+                const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [CUBOID_SIZE_X, CUBOID_SIZE_Y, CUBOID_SIZE_Z]);
                 cuboid.initialize();
 
                 const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
@@ -939,6 +1119,8 @@ class DatacubesRenderer extends Renderer {
                     id: 4294967295 - datacubeId,
                     isErroneous: datacubeIsErroneous,
                     isPending: datacubeIsPending,
+                    idBufferOnly: renderCuboidToIdBufferOnly,
+                    points: points,
                 };
 
                 updatedCuboids.push(newCuboid);
@@ -957,6 +1139,24 @@ class DatacubesRenderer extends Renderer {
         }
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         return this._datacubesSubject!.asObservable();
+    }
+
+    set points(points: Float32Array | undefined) {
+        if (JSON.stringify(points) === JSON.stringify(this._points)) {
+            return;
+        }
+        this._points = points;
+
+        const gl = this._context.gl;
+        this._pointsBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._pointsBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this._points, gl.STATIC_DRAW);
+
+        this._altered.alter('points');
+    }
+
+    get points(): Float32Array | undefined {
+        return this._points;
     }
 }
 

@@ -9,6 +9,7 @@ import { DatacubesApplication } from './DatacubesApplication';
 import { isDatasetNode } from '../data/nodes/DatasetNode';
 import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isPointPrimitiveNode } from '../data/nodes/PointPrimitiveNode';
+import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -17,8 +18,10 @@ export interface DatacubeInformation {
     id: number;
     position: XYPosition;
     relativeHeight: number;
+    type: NodeTypes;
     isPending?: boolean;
     isErroneous?: boolean;
+    stateData?: any;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -78,7 +81,15 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     isPending = node.data.state?.isPending;
                 }
             }
-            return { position: node.position, id: parseInt(node.id, 10), relativeHeight, isErroneous, isPending } as DatacubeInformation;
+            return {
+                position: node.position,
+                id: parseInt(node.id, 10),
+                relativeHeight,
+                type: node.type,
+                isErroneous,
+                isPending,
+                stateData: node.data?.state,
+            } as DatacubeInformation;
         });
     });
 
