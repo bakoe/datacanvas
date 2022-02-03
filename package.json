@@ -21,7 +21,7 @@
         "zustand": "^3.6.9"
     },
     "devDependencies": {
-        "@lukaswagner/csv-parser": "^0.2.0",
+        "@lukaswagner/csv-parser": "^0.2.1",
         "@types/animejs": "^3.1.4",
         "@types/d3": "^7.1.0",
         "@types/gl-matrix": "^3.2.0",

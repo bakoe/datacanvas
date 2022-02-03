@@ -79,8 +79,7 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
 
     const rowIndicesInGivenDateRange = [] as number[];
 
-    // TODO: Find out why i = 0 and i = dateColumn.length < 1 do not work!
-    for (let i = 1; i < dateColumn.length - 1; i++) {
+    for (let i = 0; i < dateColumn.length; i++) {
         const date = DateTime.fromFormat(dateColumn.get(i) as string, 'dd.MM.yy HH:mm');
         if (!date.isValid) {
             throw new Error(`The date column "${dateColumn.name}" could not be interpreted as a date: ${date.invalidExplanation}`);
@@ -93,7 +92,7 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
     return columns.map((column) => {
         const values = [];
 
-        for (let i = 1; i < column.length - 1; i++) {
+        for (let i = 0; i < column.length; i++) {
             if (rowIndicesInGivenDateRange.includes(i)) {
                 values.push(column.get(i));
             }
