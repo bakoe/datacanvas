@@ -1,4 +1,4 @@
-import { Node } from 'react-flow-renderer/dist/nocss';
+import { Node } from 'react-flow-renderer/nocss';
 import { DateFilterNodeSourceHandles, DateFilterNodeSourceHandlesDatatypes } from './DateFilterNode';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
