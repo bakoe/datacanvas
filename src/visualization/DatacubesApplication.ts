@@ -949,7 +949,15 @@ class DatacubesRenderer extends Renderer {
         for (const datacube of datacubes) {
             let renderCuboidToIdBufferOnly = false;
             let points = undefined as undefined | PointData[];
-            if (datacube.type === NodeTypes.PointPrimitive && datacube.xColumn && datacube.yColumn && datacube.zColumn) {
+            if (
+                datacube.type === NodeTypes.PointPrimitive &&
+                datacube.xColumn &&
+                datacube.yColumn &&
+                datacube.zColumn &&
+                // Make sure that the points only update after all (subsequently updated) columns were updated
+                datacube.xColumn.length === datacube.yColumn.length &&
+                datacube.xColumn.length === datacube.zColumn.length
+            ) {
                 renderCuboidToIdBufferOnly = true;
 
                 points = [];

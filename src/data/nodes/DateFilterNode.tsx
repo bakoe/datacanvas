@@ -137,11 +137,13 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
 
-    useEffect(() => {
+    const updateFilteredColumns = (dataToFilter: CSVColumn[] | undefined, from: DateTime, to: DateTime) => {
         if (dataToFilter && from && to) {
             try {
                 const filteredColumns = filterColumnsByDate(dataToFilter, from, to);
                 onChangeState({
+                    from: from,
+                    to: to,
                     filteredColumns,
                     isPending: false,
                     errorMessage: undefined,
@@ -149,13 +151,19 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
             } catch (_e: any) {
                 const e: Error = _e;
                 onChangeState({
+                    from: from,
+                    to: to,
                     errorMessage: e.message,
                     isPending: false,
                     filteredColumns: undefined,
                 });
             }
         }
-    }, [JSON.stringify(dataToFilter), from?.toMillis(), to?.toMillis()]);
+    };
+
+    useEffect(() => {
+        updateFilteredColumns(dataToFilter, from, to);
+    }, [JSON.stringify(dataToFilter)]);
 
     const previousElementsHeights = [] as number[];
     for (let index = 0; index < collapsibleHandlesHeights.length; index++) {
@@ -240,7 +248,10 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                     type="date"
                     defaultValue={from.toFormat('yyyy-MM-dd')}
                     max={to.toFormat('yyyy-MM-dd')}
-                    onChange={(event) => onChangeState({ from: DateTime.fromFormat(event.target.value, 'yyyy-MM-dd') })}
+                    onChange={(event) => {
+                        const updatedFrom = DateTime.fromFormat(event.target.value, 'yyyy-MM-dd');
+                        updateFilteredColumns(dataToFilter, updatedFrom, to);
+                    }}
                 ></input>
             </div>
             <div className="handle-wrapper nodrag" style={{ alignItems: 'baseline' }}>
@@ -250,7 +261,10 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                     type="date"
                     defaultValue={to.toFormat('yyyy-MM-dd')}
                     min={from.toFormat('yyyy-MM-dd')}
-                    onChange={(event) => onChangeState({ to: DateTime.fromFormat(event.target.value, 'yyyy-MM-dd') })}
+                    onChange={(event) => {
+                        const updatedTo = DateTime.fromFormat(event.target.value, 'yyyy-MM-dd');
+                        updateFilteredColumns(dataToFilter, from, updatedTo);
+                    }}
                 ></input>
             </div>
 

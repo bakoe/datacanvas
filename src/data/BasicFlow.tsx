@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import { MouseEvent, useMemo, useState, DragEvent, useEffect } from 'react';
+import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback } from 'react';
 
 import ReactFlow, {
     addEdge,
@@ -15,6 +15,8 @@ import ReactFlow, {
     NodeProps,
     NodeTypesType,
     useStoreApi,
+    NodeChange,
+    applyNodeChanges,
 } from 'react-flow-renderer/nocss';
 
 import DatasetNode, {
@@ -35,10 +37,9 @@ import PointPrimitiveNode, {
     PointPrimitiveNodeState,
     PointPrimitiveNodeTargetHandles,
 } from './nodes/PointPrimitiveNode';
-import { sourceHandleDatatype, targetHandleDatatype } from './nodes/sourceHandleDatatype';
 
-const onNodeDragStop = (_: MouseEvent, node: Node) => console.log('drag stop', node);
-const onNodeClick = (_: MouseEvent, node: Node) => console.log('click', node);
+const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
+const onNodeClick = (_: MouseEvent, node: Node) => undefined;
 
 const getFileMimetypes = (dataTransfer: DataTransfer): string[] => {
     const fileMimeTypes = [] as string[];
@@ -113,6 +114,8 @@ export interface NodeWithStateProps<T> extends NodeProps {
 }
 
 const BasicFlow = () => {
+    const store = useStoreApi();
+
     const isValidConnection = (): boolean => {
         return true;
     };
@@ -148,10 +151,19 @@ const BasicFlow = () => {
     ];
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [nodes, setNodes] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [dragInProgress, setDragInProgress] = useState(false);
     const [dragCoords, setDragCoords] = useState<XYPosition | undefined>(undefined);
+
+    const onNodesChange = useCallback((changes: NodeChange[]) => {
+        // TODO: Find out why using the following onNodesChange method apparently does not update the internal state properly
+        // const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+        const { nodeInternals, setNodes } = store.getState();
+        const nodes = Array.from(nodeInternals.values());
+        const updatedNodes = applyNodeChanges(changes, nodes);
+        setNodes(updatedNodes);
+    }, []);
 
     const propagateNodeChanges = (nodeId: string) => {
         // Recursively propagate node changes to all following nodes of a given, updated node
@@ -163,9 +175,11 @@ const BasicFlow = () => {
 
         if (updatedNode && followingNodes.length > 0) {
             for (const followingNode of followingNodes) {
-                const matchingEdge = outgoingEdges.find((edge) => edge.target === followingNode.id);
-                if (matchingEdge) {
-                    onConnect(matchingEdge);
+                const matchingEdges = outgoingEdges.filter((edge) => edge.target === followingNode.id);
+                if (matchingEdges.length > 0) {
+                    for (const matchingEdge of matchingEdges) {
+                        onConnect(matchingEdge);
+                    }
                 }
                 propagateNodeChanges(followingNode.id);
             }
@@ -176,25 +190,27 @@ const BasicFlow = () => {
         nodeId: string,
         newState: NodeStateType,
     ) => {
-        setNodes((nds) => {
-            return nds.map((node) => {
-                if (node.id === nodeId) {
-                    (node as Node<NodePropsType>).data = {
+        const { nodeInternals, setNodes } = store.getState();
+        const nodes = Array.from(nodeInternals.values());
+        const updatedNodes = nodes.map((node) => {
+            if (node.id === nodeId) {
+                // Deep update of the __whole__ node object to trigger react-flow's internal re-rendering
+                (node as Node<NodePropsType>) = {
+                    ...node,
+                    data: {
                         ...(node as Node<NodePropsType>).data,
                         state: {
                             ...(node as Node<NodePropsType>).data.state,
                             ...newState,
                         },
-                    };
-                }
-                return node;
-            });
+                    },
+                };
+            }
+            return node;
         });
-
+        setNodes(updatedNodes);
         propagateNodeChanges(nodeId);
     };
-
-    const store = useStoreApi();
 
     // Count drag events to be able to detect drag event leaving the flow's DOM element
     // See https://github.com/leonadler/drag-and-drop-across-browsers/blob/master/README.md
@@ -206,7 +222,6 @@ const BasicFlow = () => {
 
         const sourceNode = store.getState().nodeInternals.get(params.source);
         const targetNode = store.getState().nodeInternals.get(params.target);
-        console.log(sourceNode, targetNode);
 
         if (!sourceNode || !targetNode) return;
 
