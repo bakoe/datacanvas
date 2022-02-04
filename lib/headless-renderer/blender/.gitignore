@@ -1,0 +1,6 @@
+*.png
+*.blend*
+*.log
+
+!*_default-scene.blend
+#!blender_3.0.1_default-scene.blend
