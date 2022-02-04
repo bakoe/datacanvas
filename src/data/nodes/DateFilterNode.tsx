@@ -136,7 +136,6 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
 
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
-    const [previousElementsHeights, setPreviousElementsHeights] = useState([] as number[]);
 
     useEffect(() => {
         if (dataToFilter && from && to) {
@@ -158,17 +157,14 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
         }
     }, [JSON.stringify(dataToFilter), from?.toMillis(), to?.toMillis()]);
 
-    useEffect(() => {
-        const newPreviousElementsHeights = [] as number[];
-        for (let index = 0; index < collapsibleHandlesHeights.length; index++) {
-            let sumOfPrevElementsHeight = 0;
-            for (let prevIndex = 0; prevIndex < index; prevIndex++) {
-                sumOfPrevElementsHeight += collapsibleHandlesHeights[prevIndex];
-            }
-            newPreviousElementsHeights[index] = sumOfPrevElementsHeight;
+    const previousElementsHeights = [] as number[];
+    for (let index = 0; index < collapsibleHandlesHeights.length; index++) {
+        let sumOfPrevElementsHeight = 0;
+        for (let prevIndex = 0; prevIndex < index; prevIndex++) {
+            sumOfPrevElementsHeight += collapsibleHandlesHeights[prevIndex];
         }
-        setPreviousElementsHeights(previousElementsHeights);
-    }, [JSON.stringify(collapsibleHandlesHeights)]);
+        previousElementsHeights[index] = sumOfPrevElementsHeight;
+    }
 
     const collapsibleHandles = filteredColumns?.map((column, index) => {
         const minMaxString =
