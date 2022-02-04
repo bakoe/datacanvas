@@ -151,15 +151,24 @@ const BasicFlow = () => {
     ];
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
-    const [nodes, setNodes] = useNodesState(initialNodes);
+    const [nodes] = useNodesState(initialNodes);
     const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
     const [dragInProgress, setDragInProgress] = useState(false);
     const [dragCoords, setDragCoords] = useState<XYPosition | undefined>(undefined);
 
-    const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const setNodes = useCallback((payload: Node<any>[] | ((nodes: Node<any>[]) => Node<any>[])) => {
         // TODO: Find out why using the following onNodesChange method apparently does not update the internal state properly
         // const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+
+        // Copied from react-flow: src/hooks/useReactFlow.ts
         const { nodeInternals, setNodes } = store.getState();
+        const nodes = Array.from(nodeInternals.values());
+        const nextNodes = typeof payload === 'function' ? payload(nodes) : payload;
+        setNodes(nextNodes);
+    }, []);
+
+    const onNodesChange = useCallback((changes: NodeChange[]) => {
+        const { nodeInternals } = store.getState();
         const nodes = Array.from(nodeInternals.values());
         const updatedNodes = applyNodeChanges(changes, nodes);
         setNodes(updatedNodes);
@@ -295,6 +304,7 @@ const BasicFlow = () => {
     useEffect(() => {
         if (!dragInProgress || !dragCoords) return;
 
+        // If dragging (a drag-and-dropped file), update the last node's position
         setNodes((nds) => {
             return nds.map((node, index) => {
                 if (index === nds.length - 1) {
