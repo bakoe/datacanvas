@@ -1,4 +1,4 @@
-import { memo, FC, useEffect } from 'react';
+import { memo, FC, useEffect, useState, CSSProperties } from 'react';
 
 import { Node, Handle, Position, Connection } from 'react-flow-renderer/nocss';
 
@@ -7,9 +7,12 @@ import {
     ColumnHeader as CSVColumnHeader,
     Float32Chunk,
     Float32Column,
+    NumberColumn,
     StringChunk,
     StringColumn,
 } from '@lukaswagner/csv-parser';
+
+const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
 export function isDateFilterNode(node: Node<unknown>): node is Node<DateFilterNodeData> {
     return node.type === NodeTypes.DateFilter;
@@ -27,6 +30,9 @@ import { DateTime } from 'luxon';
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
+import CollapsibleHandle from './util/CollapsibleHandle';
+import { prettyPrintDataType } from './util/prettyPrintDataType';
+import { Collapse } from 'react-collapse';
 
 export interface DateFilterNodeState {
     isPending: boolean;
@@ -128,6 +134,10 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     const { state, onChangeState, isValidConnection } = data;
     const { isPending, from, to, filteredColumns, dataToFilter, errorMessage } = { ...defaultState, ...state };
 
+    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
+    const [previousElementsHeights, setPreviousElementsHeights] = useState([] as number[]);
+
     useEffect(() => {
         if (dataToFilter && from && to) {
             try {
@@ -146,10 +156,62 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                 });
             }
         }
-    }, [JSON.stringify(dataToFilter), from, to]);
+    }, [JSON.stringify(dataToFilter), from?.toMillis(), to?.toMillis()]);
+
+    useEffect(() => {
+        const newPreviousElementsHeights = [] as number[];
+        for (let index = 0; index < collapsibleHandlesHeights.length; index++) {
+            let sumOfPrevElementsHeight = 0;
+            for (let prevIndex = 0; prevIndex < index; prevIndex++) {
+                sumOfPrevElementsHeight += collapsibleHandlesHeights[prevIndex];
+            }
+            newPreviousElementsHeights[index] = sumOfPrevElementsHeight;
+        }
+        setPreviousElementsHeights(previousElementsHeights);
+    }, [JSON.stringify(collapsibleHandlesHeights)]);
+
+    const collapsibleHandles = filteredColumns?.map((column, index) => {
+        const minMaxString =
+            column?.type === 'number'
+                ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
+                : undefined;
+
+        return (
+            <CollapsibleHandle
+                key={column.name}
+                handleElement={
+                    <Handle
+                        type="source"
+                        position={Position.Right}
+                        id={column.name}
+                        className="source-handle"
+                        isConnectable={isConnectable}
+                        isValidConnection={isValidConnection}
+                    ></Handle>
+                }
+                onElementHeightChange={(height) => {
+                    collapsibleHandlesHeights[index] = height;
+                    setCollapsibleHandlesHeights(collapsibleHandlesHeights);
+                }}
+                previousElementsHeight={previousElementsHeights[index]}
+                isCollapsed={isCollapsed}
+            >
+                <span className="source-handle-label">
+                    {column.name}
+                    <br />
+                    <small>
+                        <strong>{column && column.length}</strong> {prettyPrintDataType(column.type)} {minMaxString}
+                    </small>
+                </span>
+            </CollapsibleHandle>
+        );
+    });
 
     return (
-        <div className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${errorMessage && 'erroneous'} node`}>
+        <div
+            style={nodeStyleOverrides}
+            className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${errorMessage && 'erroneous'} node`}
+        >
             <div className="title" title={errorMessage}>
                 Filter: Date Range{isPending ? ' …' : ''}
             </div>
@@ -181,6 +243,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                     style={{ fontSize: '0.6rem' }}
                     type="date"
                     defaultValue={from.toFormat('yyyy-MM-dd')}
+                    max={to.toFormat('yyyy-MM-dd')}
                     onChange={(event) => onChangeState({ from: DateTime.fromFormat(event.target.value, 'yyyy-MM-dd') })}
                 ></input>
             </div>
@@ -190,6 +253,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                     style={{ fontSize: '0.6rem' }}
                     type="date"
                     defaultValue={to.toFormat('yyyy-MM-dd')}
+                    min={from.toFormat('yyyy-MM-dd')}
                     onChange={(event) => onChangeState({ to: DateTime.fromFormat(event.target.value, 'yyyy-MM-dd') })}
                 ></input>
             </div>
@@ -207,14 +271,24 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                 ></Handle>
                 <span className="source-handle-label">
                     {filteredColumns ? (
-                        <>
-                            <strong>{filteredColumns[0].length}</strong> Dates
-                        </>
+                        <a
+                            className="nodrag link"
+                            onClick={() => {
+                                setIsCollapsed(!isCollapsed);
+                            }}
+                        >
+                            <strong>
+                                {filteredColumns && filteredColumns[0] ? `${filteredColumns[0].length} Rows | ` : ''}
+                                {filteredColumns?.length}&nbsp;Columns
+                            </strong>{' '}
+                            {isCollapsed ? '↓' : '↑'}
+                        </a>
                     ) : (
                         <em>Filtered data</em>
                     )}
                 </span>
             </div>
+            {filteredColumns && <Collapse isOpened={!isCollapsed}>{collapsibleHandles}</Collapse>}
         </div>
     );
 };

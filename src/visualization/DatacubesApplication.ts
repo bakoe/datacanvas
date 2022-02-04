@@ -949,40 +949,36 @@ class DatacubesRenderer extends Renderer {
         for (const datacube of datacubes) {
             let renderCuboidToIdBufferOnly = false;
             let points = undefined as undefined | PointData[];
-            if (datacube.type === NodeTypes.PointPrimitive && !datacube.isPending) {
+            if (datacube.type === NodeTypes.PointPrimitive && datacube.xColumn && datacube.yColumn && datacube.zColumn) {
                 renderCuboidToIdBufferOnly = true;
-                if (datacube.stateData) {
-                    const stateData = datacube.stateData as PointPrimitiveNodeState;
-                    if (stateData.xColumn && stateData.yColumn && stateData.zColumn) {
-                        points = [];
 
-                        const minX = (stateData.xColumn as NumberColumn).min;
-                        const maxX = (stateData.xColumn as NumberColumn).max;
-                        const minY = (stateData.yColumn as NumberColumn).min;
-                        const maxY = (stateData.yColumn as NumberColumn).max;
-                        const minZ = (stateData.zColumn as NumberColumn).min;
-                        const maxZ = (stateData.zColumn as NumberColumn).max;
+                points = [];
 
-                        for (let index = 1; index < stateData.xColumn.length; index++) {
-                            const x = stateData.xColumn.get(index) as number;
-                            const y = stateData.yColumn.get(index) as number;
-                            const z = stateData.zColumn.get(index) as number;
+                const minX = (datacube.xColumn as NumberColumn).min;
+                const maxX = (datacube.xColumn as NumberColumn).max;
+                const minY = (datacube.yColumn as NumberColumn).min;
+                const maxY = (datacube.yColumn as NumberColumn).max;
+                const minZ = (datacube.zColumn as NumberColumn).min;
+                const maxZ = (datacube.zColumn as NumberColumn).max;
 
-                            const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
-                            const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
-                            const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
+                for (let index = 0; index < datacube.xColumn.length; index++) {
+                    const x = datacube.xColumn.get(index) as number;
+                    const y = datacube.yColumn.get(index) as number;
+                    const z = datacube.zColumn.get(index) as number;
 
-                            points.push({
-                                x: normalizedX,
-                                y: normalizedY,
-                                z: normalizedZ,
-                                r: 1,
-                                g: 1,
-                                b: 1,
-                                size: 2.5,
-                            });
-                        }
-                    }
+                    const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
+                    const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
+                    const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
+
+                    points.push({
+                        x: normalizedX,
+                        y: normalizedY,
+                        z: normalizedZ,
+                        r: 1,
+                        g: 1,
+                        b: 1,
+                        size: 2.5,
+                    });
                 }
             }
 

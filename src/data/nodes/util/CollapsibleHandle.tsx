@@ -1,14 +1,16 @@
-import { FC, useEffect, useState, useRef, cloneElement, ReactElement, memo } from 'react';
+import { FC, useEffect, useState, useRef, cloneElement, ReactElement, memo, PropsWithChildren } from 'react';
 import { useStore } from 'react-flow-renderer/nocss';
 
 import { HandleComponentProps } from 'react-flow-renderer/dist/nocss/components/Handle';
 
-const CollapsibleHandle: FC<{
-    isCollapsed: boolean;
-    onElementHeightChange: (height: number) => void;
-    previousElementsHeight: number;
-    handleElement: ReactElement<HandleComponentProps>;
-}> = ({ isCollapsed, onElementHeightChange, previousElementsHeight, handleElement, children }) => {
+const CollapsibleHandle: FC<
+    PropsWithChildren<{
+        isCollapsed: boolean;
+        onElementHeightChange: (height: number) => void;
+        previousElementsHeight: number;
+        handleElement: ReactElement<HandleComponentProps>;
+    }>
+> = ({ isCollapsed, onElementHeightChange, previousElementsHeight, handleElement, children }) => {
     const [, , zoom] = useStore((state) => state.transform);
     const handleWrapperRef = useRef(null);
     const [yOffsetCompensation, setYOffsetCompensation] = useState(0);

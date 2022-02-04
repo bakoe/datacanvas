@@ -1,6 +1,6 @@
-import { memo, FC, CSSProperties, useEffect, useState, useRef } from 'react';
+import { memo, FC, CSSProperties, useEffect, useState } from 'react';
 
-import { Handle, Position, Node, Connection, Edge, useStore } from 'react-flow-renderer/nocss';
+import { Handle, Position, Node, Connection } from 'react-flow-renderer/nocss';
 
 import { Collapse } from 'react-collapse';
 
@@ -27,6 +27,7 @@ const USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE = false;
 
 import { NodeWithStateProps } from '../BasicFlow';
 import CollapsibleHandle from './util/CollapsibleHandle';
+import { prettyPrintDataType } from './util/prettyPrintDataType';
 
 const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
@@ -50,6 +51,7 @@ export interface DatasetNodeData {
     filename: string;
     onChangeState: (state: Partial<DatasetNodeState>) => void;
     state?: DatasetNodeState;
+    isValidConnection?: (connection: Connection) => boolean;
     columns?: Column[];
     file?: File;
 }
@@ -69,20 +71,8 @@ interface DatasetNodeProps extends NodeWithStateProps<DatasetNodeState> {
     data: DatasetNodeData;
 }
 
-const onConnect = (params: Connection | Edge) => console.log('handle onConnect on DatasetNode', params);
-
-const prettyPrintDataType = (dataType: DataType): string => {
-    switch (dataType.valueOf()) {
-        case 'string':
-            return 'Strings';
-        case 'number':
-            return 'Numbers';
-    }
-    return 'Elements';
-};
-
 const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) => {
-    const { state, onChangeState } = data;
+    const { state, onChangeState, isValidConnection } = data;
 
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
@@ -224,7 +214,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                         id={columnHeader.name}
                         className="source-handle"
                         isConnectable={isConnectable}
-                        onConnect={onConnect}
+                        isValidConnection={isValidConnection}
                     ></Handle>
                 }
                 onElementHeightChange={(height) => {
@@ -251,7 +241,9 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 {data.type?.toUpperCase() + ' '}Dataset{isLoading ? ' …' : ''}
             </div>
             <span className="hyphenate">{data.filename}</span>
+
             <hr className="divider" />
+
             <div className="handle-wrapper">
                 <Handle
                     type="source"
@@ -259,7 +251,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                     id="dataset"
                     className="source-handle handle-dataset"
                     isConnectable={isConnectable}
-                    onConnect={onConnect}
+                    isValidConnection={isValidConnection}
                 />
                 <span className="source-handle-label">
                     <a

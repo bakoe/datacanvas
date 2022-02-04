@@ -113,40 +113,8 @@ export interface NodeWithStateProps<T> extends NodeProps {
 }
 
 const BasicFlow = () => {
-    const updateNodeState = <NodePropsType extends NodeWithStateProps<NodeStateType>, NodeStateType>(
-        nodeId: string,
-        newState: NodeStateType,
-    ) => {
-        setNodes((nds) => {
-            return nds.map((node) => {
-                if (node.id === nodeId) {
-                    (node as Node<NodePropsType>).data = {
-                        ...(node as Node<NodePropsType>).data,
-                        state: {
-                            ...(node as Node<NodePropsType>).data.state,
-                            ...newState,
-                        },
-                    };
-                }
-                return node;
-            });
-        });
-    };
-
-    const isValidConnection = (connection: Connection): boolean => {
-        if (connection.source && connection.target) {
-            const sourceNode = nodes.find((node) => node.id === connection.source);
-            const targetNode = nodes.find((node) => node.id === connection.target);
-
-            if (!targetNode || !connection.targetHandle || !sourceNode || !connection.sourceHandle) {
-                return false;
-            }
-
-            if (targetHandleDatatype(targetNode, connection.targetHandle) === sourceHandleDatatype(sourceNode, connection.sourceHandle)) {
-                return true;
-            }
-        }
-        return false;
+    const isValidConnection = (): boolean => {
+        return true;
     };
 
     const initialNodes: Node[] = [
@@ -185,6 +153,47 @@ const BasicFlow = () => {
     const [dragInProgress, setDragInProgress] = useState(false);
     const [dragCoords, setDragCoords] = useState<XYPosition | undefined>(undefined);
 
+    const propagateNodeChanges = (nodeId: string) => {
+        // Recursively propagate node changes to all following nodes of a given, updated node
+        const updatedNode = store.getState().nodeInternals.get(nodeId);
+        const outgoingEdges = store.getState().edges.filter((edge) => edge.source === nodeId);
+        const followingNodes = Array.from(store.getState().nodeInternals)
+            .filter(([nodeId]) => outgoingEdges?.map((edge) => edge.target).includes(nodeId))
+            .map(([, node]) => node);
+
+        if (updatedNode && followingNodes.length > 0) {
+            for (const followingNode of followingNodes) {
+                const matchingEdge = outgoingEdges.find((edge) => edge.target === followingNode.id);
+                if (matchingEdge) {
+                    onConnect(matchingEdge);
+                }
+                propagateNodeChanges(followingNode.id);
+            }
+        }
+    };
+
+    const updateNodeState = <NodePropsType extends NodeWithStateProps<NodeStateType>, NodeStateType>(
+        nodeId: string,
+        newState: NodeStateType,
+    ) => {
+        setNodes((nds) => {
+            return nds.map((node) => {
+                if (node.id === nodeId) {
+                    (node as Node<NodePropsType>).data = {
+                        ...(node as Node<NodePropsType>).data,
+                        state: {
+                            ...(node as Node<NodePropsType>).data.state,
+                            ...newState,
+                        },
+                    };
+                }
+                return node;
+            });
+        });
+
+        propagateNodeChanges(nodeId);
+    };
+
     const store = useStoreApi();
 
     // Count drag events to be able to detect drag event leaving the flow's DOM element
@@ -193,15 +202,18 @@ const BasicFlow = () => {
     const [draggingInPage, setDraggingInPage] = useState(false);
 
     const onConnect = (params: Edge | Connection) => {
-        const sourceNode = nodes.find((n) => n.id === params.source);
-        const targetNode = nodes.find((n) => n.id === params.target);
+        if (!params.source || !params.target) return;
+
+        const sourceNode = store.getState().nodeInternals.get(params.source);
+        const targetNode = store.getState().nodeInternals.get(params.target);
         console.log(sourceNode, targetNode);
 
         if (!sourceNode || !targetNode) return;
 
         // Disconnect previous connection to target (if one exists)
-        const edgesPreviouslyConnectedToTarget = edges
-            .filter((e) => e.target === targetNode.id && e.targetHandle === params.targetHandle)
+        const edgesPreviouslyConnectedToTarget = store
+            .getState()
+            .edges.filter((e) => e.target === targetNode.id && e.targetHandle === params.targetHandle)
             .map((edge) => edge.id);
         if (edgesPreviouslyConnectedToTarget.length > 0) {
             setEdges((edges) => edges.filter((edge) => !edgesPreviouslyConnectedToTarget.includes(edge.id)));
@@ -236,6 +248,12 @@ const BasicFlow = () => {
                         sourceColumn = (sourceNode as Node<DatasetNodeData>).data.state?.columns?.find(
                             (column) => column.name === params.sourceHandle,
                         );
+                        break;
+                    case NodeTypes.DateFilter:
+                        sourceColumn = (sourceNode as Node<DateFilterNodeData>).data.state?.filteredColumns?.find(
+                            (column) => column.name === params.sourceHandle,
+                        );
+                        break;
                 }
                 if (sourceColumn) {
                     const updatedState = {} as Partial<PointPrimitiveNodeState>;

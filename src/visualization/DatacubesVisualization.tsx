@@ -10,6 +10,7 @@ import { isDatasetNode } from '../data/nodes/DatasetNode';
 import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isPointPrimitiveNode } from '../data/nodes/PointPrimitiveNode';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
+import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -21,7 +22,9 @@ export interface DatacubeInformation {
     type: NodeTypes;
     isPending?: boolean;
     isErroneous?: boolean;
-    stateData?: any;
+    xColumn?: CSVColumn;
+    yColumn?: CSVColumn;
+    zColumn?: CSVColumn;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -57,6 +60,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let relativeHeight = 1.0;
             let isErroneous = false;
             let isPending: undefined | boolean = false;
+            let xColumn = undefined as undefined | CSVColumn;
+            let yColumn = undefined as undefined | CSVColumn;
+            let zColumn = undefined as undefined | CSVColumn;
             if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node)) {
                 if (isDatasetNode(node)) {
                     if (overallMaxRowCount) {
@@ -79,6 +85,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 }
                 if (isPointPrimitiveNode(node)) {
                     isPending = node.data.state?.isPending;
+                    xColumn = node.data.state?.xColumn;
+                    yColumn = node.data.state?.yColumn;
+                    zColumn = node.data.state?.zColumn;
                 }
             }
             return {
@@ -88,7 +97,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 type: node.type,
                 isErroneous,
                 isPending,
-                stateData: node.data?.state,
+                xColumn,
+                yColumn,
+                zColumn,
             } as DatacubeInformation;
         });
     });
