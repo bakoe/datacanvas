@@ -11,5 +11,12 @@ export default defineConfig({
             'Cross-Origin-Opener-Policy': 'same-origin',
             'Cross-Origin-Embedder-Policy': 'require-corp',
         },
+        proxy: {
+            '/api': {
+                target: 'http://haeley-datacubes.bakoe.dev:8000/',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api/, ''),
+            },
+        },
     },
 });
