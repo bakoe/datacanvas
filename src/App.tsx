@@ -26,6 +26,9 @@ const Controls: React.FC<{
 
         const width = (window['renderer'] as Renderer).canvasSize[0];
         const height = (window['renderer'] as Renderer).canvasSize[1];
+        const cameraCenter = Object.values((window['renderer'] as Renderer)._camera.center);
+        const cameraEye = Object.values((window['renderer'] as Renderer)._camera.eye);
+        const cameraFovYDegrees = (window['renderer'] as Renderer)._camera.fovy;
 
         const response = await fetch('/api/renderings/', {
             method: 'POST',
@@ -33,6 +36,9 @@ const Controls: React.FC<{
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+                camera_center: cameraCenter,
+                camera_eye: cameraEye,
+                camera_fov_y_degrees: cameraFovYDegrees,
                 width,
                 height,
             }),
@@ -95,6 +101,7 @@ function App() {
             highQualityRenderingOverlayRef.current.style.backgroundImage = `url(${highQualityRenderingImageBase64})`;
             // Block pointer events to the underlying WebGL canvas
             highQualityRenderingOverlayRef.current.style.pointerEvents = 'all';
+            highQualityRenderingOverlayRef.current.style.backgroundSize = 'contain';
             highQualityRenderingOverlayRef.current.style.display = 'block';
             // Remove the image when the user triggers a pointer-down event on the overlay
             highQualityRenderingOverlayRef.current.onpointerdown = () => {

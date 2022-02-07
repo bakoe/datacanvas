@@ -13,7 +13,12 @@ import uuid
 import subprocess
 import threading
 
+Vector = list[float]
+
 class SceneRenderConfiguration(BaseModel):
+    camera_eye: Vector
+    camera_center: Vector
+    camera_fov_y_degrees: float
     width: Optional[int] = 300
     height: Optional[int] = 200
 
@@ -36,6 +41,9 @@ async def create_rendering(config: SceneRenderConfiguration):
         "--datacubes-blend-file-filename", random_uuid,
         "--datacubes-width", f"{config.width}",
         "--datacubes-height", f"{config.height}",
+        "--datacubes-camera-eye", f"{config.camera_eye}",
+        "--datacubes-camera-center", f"{config.camera_center}",
+        "--datacubes-camera-fov-y-degrees", f"{config.camera_fov_y_degrees}",
     ]))
     render_thread.start()
 
