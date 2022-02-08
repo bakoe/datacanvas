@@ -29,21 +29,34 @@ const Controls: React.FC<{
         const cameraCenter = Object.values((window['renderer'] as Renderer)._camera.center);
         const cameraEye = Object.values((window['renderer'] as Renderer)._camera.eye);
         const cameraFovYDegrees = (window['renderer'] as Renderer)._camera.fovy;
+        const sceneElements = (window['renderer'] as Renderer)._cuboids;
 
-        const response = await fetch('/api/renderings/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                camera_center: cameraCenter,
-                camera_eye: cameraEye,
-                camera_fov_y_degrees: cameraFovYDegrees,
-                width,
-                height,
-            }),
-            signal: usedAbortController.signal,
-        });
+        let response;
+
+        try {
+            response = await fetch('/api/renderings/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    camera_center: cameraCenter,
+                    camera_eye: cameraEye,
+                    camera_fov_y_degrees: cameraFovYDegrees,
+                    width,
+                    height,
+                    scene_elements: sceneElements,
+                }),
+                signal: usedAbortController.signal,
+            });
+            if (!response.ok) {
+                throw new Error(response.statusText);
+            }
+        } catch (error) {
+            onChangeHighQualityRenderingImageBase64(undefined);
+            setFetchAbortController(undefined);
+            return;
+        }
 
         const blob = await response.blob();
 

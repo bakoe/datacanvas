@@ -6,8 +6,10 @@ name = "pypi"
 [packages]
 fastapi = {extras = ["all"], version = "*"}
 uvicorn = {extras = ["standard"], version = "*"}
+colormath = "*"
 
 [dev-packages]
+"fake-bpy-module-3.0" = "*"
 
 [requires]
 python_version = "3.9"
