@@ -15,12 +15,14 @@ export enum PointPrimitiveNodeTargetHandles {
     X = 'x coordinate',
     Y = 'y coordinate',
     Z = 'z coordinate',
+    Size = 'size',
 }
 
 export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTargetHandles, Datatypes> = new Map([
     [PointPrimitiveNodeTargetHandles.X, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Y, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Z, Datatypes.Column],
+    [PointPrimitiveNodeTargetHandles.Size, Datatypes.Column],
 ]);
 
 export interface PointPrimitiveNodeState {
@@ -28,6 +30,7 @@ export interface PointPrimitiveNodeState {
     xColumn?: CSVColumn;
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
+    sizeColumn?: CSVColumn;
 }
 
 export const defaultState = { isPending: true } as PointPrimitiveNodeState;
@@ -44,7 +47,7 @@ const onConnect = (params: Connection | Edge) => console.log('handle onConnect o
 
 const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, selected, data }) => {
     const { state, onChangeState, isValidConnection } = data;
-    const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined } = { ...defaultState, ...state };
+    const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined, sizeColumn = undefined } = { ...defaultState, ...state };
 
     useEffect(() => {
         if (xColumn && yColumn && zColumn) {

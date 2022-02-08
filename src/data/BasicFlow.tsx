@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon';
 import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback } from 'react';
+import { updateEdge } from 'react-flow-renderer';
 
 import ReactFlow, {
     addEdge,
@@ -17,6 +18,7 @@ import ReactFlow, {
     useStoreApi,
     NodeChange,
     applyNodeChanges,
+    StartHandle,
 } from 'react-flow-renderer/nocss';
 
 import DatasetNode, {
@@ -152,9 +154,24 @@ const BasicFlow = () => {
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
     const [nodes] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    const [edges] = useEdgesState(initialEdges);
     const [dragInProgress, setDragInProgress] = useState(false);
     const [dragCoords, setDragCoords] = useState<XYPosition | undefined>(undefined);
+
+    // Triggered if a handle is dragged out of its connection and dropped somewhere outside a handle (i.e., on the blank canvas)
+    const onEdgeUpdateEnd = (_event: any, updatedEdge: Edge) => {
+        onDisconnect(updatedEdge);
+
+        const connectedNodes = Array.from(store.getState().nodeInternals)
+            .filter(([nodeId]) => updatedEdge.target === nodeId || updatedEdge.source === nodeId)
+            .map(([, node]) => node);
+        if (connectedNodes.length > 0) {
+            for (const connectedNode of connectedNodes) {
+                console.log(`Updating node ${connectedNode.id} because of edge disconnection`);
+                propagateNodeChanges(connectedNode.id);
+            }
+        }
+    };
 
     const setNodes = useCallback((payload: Node<any>[] | ((nodes: Node<any>[]) => Node<any>[])) => {
         // TODO: Find out why using the following onNodesChange method apparently does not update the internal state properly
@@ -165,6 +182,12 @@ const BasicFlow = () => {
         const nodes = Array.from(nodeInternals.values());
         const nextNodes = typeof payload === 'function' ? payload(nodes) : payload;
         setNodes(nextNodes);
+    }, []);
+
+    const setEdges = useCallback((payload: Edge<any>[] | ((edges: Edge<any>[]) => Edge<any>[])) => {
+        const { edges = [], setEdges } = store.getState();
+        const nextEdges = typeof payload === 'function' ? payload(edges) : payload;
+        setEdges(nextEdges);
     }, []);
 
     const onNodesChange = useCallback((changes: NodeChange[]) => {
@@ -226,6 +249,56 @@ const BasicFlow = () => {
     const [eventCounter, setEventCounter] = useState(0);
     const [draggingInPage, setDraggingInPage] = useState(false);
 
+    const onDisconnect = (params: Edge | Connection) => {
+        if (!params.source || !params.target) return;
+
+        const sourceNode = store.getState().nodeInternals.get(params.source);
+        const targetNode = store.getState().nodeInternals.get(params.target);
+
+        if (!sourceNode || !targetNode) return;
+
+        // Disconnect previous connection to target (if one exists)
+        const edgesPreviouslyConnectedToTarget = store
+            .getState()
+            .edges.filter((e) => e.target === targetNode.id && e.targetHandle === params.targetHandle)
+            .map((edge) => edge.id);
+        if (edgesPreviouslyConnectedToTarget.length > 0) {
+            setEdges((edges) => edges.filter((edge) => !edgesPreviouslyConnectedToTarget.includes(edge.id)));
+        }
+
+        if (sourceNode.type === 'dataset' && targetNode.type === NodeTypes.DateFilter) {
+            const sourceColumns = (sourceNode as Node<DatasetNodeData>).data.state?.columns;
+            if (sourceColumns) {
+                updateNodeState(targetNode.id, {
+                    dataToFilter: sourceColumns,
+                } as Partial<DateFilterNodeState>);
+            }
+        }
+
+        if (targetNode.type === NodeTypes.PointPrimitive) {
+            let stateKey;
+            switch (params.targetHandle as PointPrimitiveNodeTargetHandles) {
+                case PointPrimitiveNodeTargetHandles.X:
+                    stateKey = 'xColumn';
+                    break;
+                case PointPrimitiveNodeTargetHandles.Y:
+                    stateKey = 'yColumn';
+                    break;
+                case PointPrimitiveNodeTargetHandles.Z:
+                    stateKey = 'zColumn';
+                    break;
+                case PointPrimitiveNodeTargetHandles.Size:
+                    stateKey = 'sizeColumn';
+                    break;
+            }
+            if (stateKey) {
+                const updatedState = {} as Partial<PointPrimitiveNodeState>;
+                (updatedState as any)[stateKey] = undefined;
+                updateNodeState(targetNode.id, updatedState);
+            }
+        }
+    };
+
     const onConnect = (params: Edge | Connection) => {
         if (!params.source || !params.target) return;
 
@@ -263,6 +336,9 @@ const BasicFlow = () => {
                     break;
                 case PointPrimitiveNodeTargetHandles.Z:
                     stateKey = 'zColumn';
+                    break;
+                case PointPrimitiveNodeTargetHandles.Size:
+                    stateKey = 'sizeColumn';
                     break;
             }
             if (stateKey) {
@@ -427,7 +503,9 @@ const BasicFlow = () => {
             onDrop={onDrop}
             onDragLeave={onDragLeave}
             onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            // onEdgeUpdate is set to enable react-flow's support for updating handles (i.e., dragging them off their handles) 
+            onEdgeUpdate={() => undefined}
+            onEdgeUpdateEnd={onEdgeUpdateEnd}
             onInit={onPaneReady}
             onNodeClick={onNodeClick}
             onConnect={onConnect}
@@ -435,6 +513,26 @@ const BasicFlow = () => {
             className="react-flow-basic-example"
             defaultZoom={1.5}
             onPaneClick={() => {
+                if (store.getState().connectionStartHandle) {
+                    // Delete the edge if clicking a connection first and then clicking onto the canvas (pane) background
+                    const connectionStartHandle = store.getState().connectionStartHandle as StartHandle;
+                    const deletedEdge = store.getState().edges.find((edge) => {
+                        if (connectionStartHandle.type === 'source') {
+                            if (connectionStartHandle.handleId) {
+                                return edge.source === connectionStartHandle.nodeId && edge.sourceHandle === connectionStartHandle.handleId;
+                            }
+                            return edge.source === connectionStartHandle.nodeId;
+                        } else {
+                            if (connectionStartHandle.handleId) {
+                                return edge.target === connectionStartHandle.nodeId && edge.targetHandle === connectionStartHandle.handleId;    
+                            }
+                            return edge.target === connectionStartHandle.nodeId;
+                        }
+                    });
+                    if (deletedEdge) {
+                        onDisconnect(deletedEdge);
+                    }
+                }
                 store.setState({ connectionStartHandle: null });
             }}
             minZoom={0.2}
