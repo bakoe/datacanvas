@@ -165,14 +165,14 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
 
     return (
         <div className="canvas-container">
-            <canvas className="canvas" ref={canvasRef} />
+            <canvas className="canvas" ref={canvasRef} data-clear-color="0.20392157, 0.22745098, 0.25098039, 1.0" />
             <div className="spinner" ref={spinnerRef}>
                 <div></div>
                 <div></div>
                 <div></div>
                 <div></div>
             </div>
-            {props.children}
+            <div className="canvas-overlay">{props.children}</div>
         </div>
     );
 };
