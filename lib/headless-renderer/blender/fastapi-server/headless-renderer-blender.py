@@ -5,6 +5,9 @@ import subprocess
 import bpy
 from datetime import datetime
 
+from time import perf_counter
+import logging
+
 import mathutils
 import json
 import math
@@ -13,7 +16,6 @@ from pkg_resources import get_distribution, DistributionNotFound
 
 from colormath.color_objects import LabColor, sRGBColor
 from colormath.color_conversions import convert_color
-
 
 def install_dependency(package_name): 
     # see: https://blender.stackexchange.com/a/219920
@@ -57,6 +59,7 @@ def add_camera(scene, eye, center, fovy_degrees):
 
 
 def add_scene_element(scene, scene_element):
+    t_start = perf_counter()
     id = scene_element['id']
     color_lab = LabColor(scene_element['colorLAB'][0], scene_element['colorLAB'][1], scene_element['colorLAB'][2])
     color_lab.lab_l = color_lab.lab_l * 100.0
@@ -77,20 +80,53 @@ def add_scene_element(scene, scene_element):
     hide = scene_element["idBufferOnly"] == True
     if hide:
         points = scene_element["points"]
-        for point in points:
-            x = point["x"]
-            y = point["y"]
-            z = point["z"]
-            point_location_webgl = mathutils.Vector((x, y, z))
-            point_location_blender = vec3_transform_webgl_to_blender(point_location_webgl)
-            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.01, location=(point_location_blender * scale_blender + translate_blender))
+        logging.info(f"Adding {len(points)} points to scene element {id}")
+        if (len(points) > 0):
+            # TODO: The size is set for all points equally; use their individual size attribute instead! 
+            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.01)
             obj = bpy.context.object
 
             mat = bpy.data.materials.new(f"Material_{id}")
             mat.use_nodes = True
             principled = mat.node_tree.nodes['Principled BSDF']
+            # TODO: The color is set for all points equally; use their individual r, g, and b attributes instead! 
             principled.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
             obj.data.materials.append(mat)
+
+            # Remove object from all collections not used in a scene
+            bpy.ops.collection.objects_remove_all()
+            # add it to our specific collection
+            bpy.data.collections['Foreground'].objects.link(obj)
+
+            # Operation-free object duplication (much more efficient than using Blender ops)
+            # see: https://blender.stackexchange.com/a/7360
+            objects = []
+            
+            for point in points:
+                x = point["x"]
+                y = point["y"]
+                z = point["z"]
+                point_location_webgl = mathutils.Vector((x, y, z))
+                point_location_blender = vec3_transform_webgl_to_blender(point_location_webgl)
+                
+                copy = obj.copy()
+                copy.location = (point_location_blender * scale_blender + translate_blender)
+                # Create linked duplicates instead of duplicated meshes
+                # copy.data = copy.data.copy() # also duplicate mesh, remove for linked duplicate
+                objects.append(copy)
+            
+            for object in objects:
+                # Blender < 2.8
+                # scene.objects.link(object)
+                bpy.context.collection.objects.link(object)
+            
+            # Blender < 2.8
+            # scene.update()
+            dependency_graph = bpy.context.evaluated_depsgraph_get()
+            dependency_graph.update()
+
+        t_end = perf_counter()
+        logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
         return
     
     scale_blender = mathutils.Vector((1, 1, scale_z_blender * 2.0))
@@ -104,8 +140,18 @@ def add_scene_element(scene, scene_element):
     principled.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
     obj.data.materials.append(mat)
 
+    # Remove object from all collections not used in a scene
+    bpy.ops.collection.objects_remove_all()
+    # add it to our specific collection
+    bpy.data.collections['Foreground'].objects.link(obj)
+
+    t_end = perf_counter()
+    logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
+
 
 def main():
+    t_start = perf_counter()
+
     # see: https://stackoverflow.com/a/60029513
     for package in ['colormath']:
         try:
@@ -115,6 +161,18 @@ def main():
 
     argv = sys.argv
     argv = argv[argv.index("--") + 1:]  # get all args after "--"
+
+    file_uuid = ''
+    try:
+        argv_blend_file_index = argv.index('--datacubes-blend-file-filename') 
+        argv_blend_file_name = argv[argv_blend_file_index + 1]
+        file_uuid = f"{argv_blend_file_name}"
+    except ValueError:
+        now = datetime.now()
+        date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+        file_uuid = f"{date_time}"
+    
+    logging.basicConfig(filename=f"{file_uuid}.log", encoding='utf-8', level=logging.INFO)
 
     sample_canvas_size = [2560, 379]
 
@@ -168,16 +226,19 @@ def main():
     except:
         pass
 
-
     sample_scaling_factor = 1.0
-    sample_cycles_sample_count = 10
-    sample_cycles_use_denoising = True
+    sample_cycles_sample_count = 2
+    sample_cycles_use_denoising = False
 
     # Map from WebGL to Blender co-ordinate system
     sample_eye = vec3_transform_webgl_to_blender(sample_eye)
     sample_center = vec3_transform_webgl_to_blender(sample_center)
+    
+    t_scene_creation_start = perf_counter()
 
-    for scene in bpy.data.scenes:
+    logging.info(f"Setting scene content of {len(bpy.data.scenes)} scenes")
+
+    for scene_index, scene in enumerate(bpy.data.scenes):
         scene.render.engine = 'CYCLES'
 
         scene.render.resolution_x = round(sample_canvas_size[0] * sample_scaling_factor)
@@ -186,21 +247,20 @@ def main():
         scene.cycles.use_denoising = sample_cycles_use_denoising
 
         add_camera(scene, sample_eye, sample_center, sample_fovy)
-        
+
         if scene_elements:
+            logging.info(f"Adding {len(scene_elements)} scene elements to scene {scene_index}")
             for scene_element in scene_elements:
                 add_scene_element(scene, scene_element)
+    
+    t_scene_creation_end = perf_counter()
+    logging.info(f"Python-side scene creation took {t_scene_creation_end - t_scene_creation_start:.2f}s")
+    
+    blend_file_name = f"{file_uuid}.blend"
+    bpy.ops.wm.save_as_mainfile(filepath=f"./{blend_file_name}")
 
-    blender_file_name = ''
-    try:
-        argv_blend_file_index = argv.index('--datacubes-blend-file-filename') 
-        argv_blend_file_name = argv[argv_blend_file_index + 1]
-        blender_file_name = f"{argv_blend_file_name}.blend"
-    except ValueError:
-        now = datetime.now()
-        date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-        blender_file_name = f"{date_time}.blend"
-    bpy.ops.wm.save_as_mainfile(filepath=f"./{blender_file_name}")
+    t_end = perf_counter()
+    logging.info(f"Python script inside Blender took {t_end - t_start:.2f}s overall")
 
 
 if __name__ == "__main__":
