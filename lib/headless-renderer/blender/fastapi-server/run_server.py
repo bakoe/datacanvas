@@ -6,6 +6,9 @@ from fastapi.responses import FileResponse
 
 from starlette.background import BackgroundTask
 
+from time import perf_counter
+import logging
+
 from pydantic import BaseModel
 
 import json
@@ -31,6 +34,8 @@ app = FastAPI()
 @app.post("/renderings/")
 async def create_rendering(config: SceneRenderConfiguration):
     random_uuid = str(uuid.uuid4())
+
+    logging.basicConfig(filename=f"{random_uuid}.log", encoding='utf-8', level=logging.INFO)
 
     scene_elements_file = None
     if (config.scene_elements):
@@ -65,8 +70,12 @@ async def create_rendering(config: SceneRenderConfiguration):
 
     print(args)
 
+    t_render_thread_start = perf_counter()
     render_thread.start()
     render_thread.join()
+    t_render_thread_end = perf_counter()
+
+    logging.info(f"Creating and rendering scene in blender took {t_render_thread_end - t_render_thread_start:.2f}s overall")
 
     def cleanup():
         # os.remove(f"{random_uuid}.blend")
