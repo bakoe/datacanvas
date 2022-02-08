@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
@@ -15,13 +15,13 @@ import uuid
 import subprocess
 import threading
 
-Vector = list[float]
+Vector = List[float]
 
 class SceneRenderConfiguration(BaseModel):
     camera_eye: Vector
     camera_center: Vector
     camera_fov_y_degrees: float
-    scene_elements: Optional[list[object]]
+    scene_elements: Optional[List[object]]
     width: Optional[int] = 300
     height: Optional[int] = 200
 
@@ -39,12 +39,12 @@ async def create_rendering(config: SceneRenderConfiguration):
             json.dump(config.scene_elements, f, indent=4, sort_keys=True)
     
     args = [
-        "/Applications/Blender.app/Contents/MacOS/Blender", 
+        "blender", 
         "--background",
-        # "--python-use-system-env",
+        "--python-use-system-env",
         "--python-exit-code", "1",
-        # "--log-level", "1",
-        # "--debug-python",
+        "--log-level", "1",
+        "--debug-python",
         "blender_3.0.1_default-scene.blend",
         "-o", f"{random_uuid}.png",
         "--python", "headless-renderer-blender.py",
@@ -69,9 +69,9 @@ async def create_rendering(config: SceneRenderConfiguration):
     render_thread.join()
 
     def cleanup():
-        os.remove(f"{random_uuid}.blend")
-        os.remove(f"{random_uuid}.png0001.png")
-        os.remove(f"{random_uuid}_scene_elements.json")
+        # os.remove(f"{random_uuid}.blend")
+        # os.remove(f"{random_uuid}.png0001.png")
+        # os.remove(f"{random_uuid}_scene_elements.json")
         pass
 
     return FileResponse(

@@ -2,6 +2,8 @@ import sys
 import os
 import subprocess
 
+from importlib import import_module
+
 import bpy
 from datetime import datetime
 
@@ -12,23 +14,22 @@ import mathutils
 import json
 import math
 
-from pkg_resources import get_distribution, DistributionNotFound
-
-from colormath.color_objects import LabColor, sRGBColor
-from colormath.color_conversions import convert_color
-
 def install_dependency(package_name): 
     # see: https://blender.stackexchange.com/a/219920
     python_bin_dir = sys.exec_prefix
     # TODO: Works only on UNIX systems -- for Windows, python.exe should be used instead(?)
     python_bin = os.path.join(python_bin_dir, 'bin', 'python3.9')
+
+    logging.info(f"Installing missing package {package_name} to Python binary at {python_bin}")
     
     # upgrade pip
     subprocess.call([python_bin, "-m", "ensurepip"])
     subprocess.call([python_bin, "-m", "pip", "install", "--upgrade", "pip"])
+    subprocess.call([python_bin, "-m", "pip", "install", "--upgrade", "setuptools"])
 
     # install required package
-    subprocess.call([python_bin, "-m", "pip", "install", package_name])
+    if package_name:
+        subprocess.call([python_bin, "-m", "pip", "install", package_name])
 
 def vec3_transform_webgl_to_blender(vec3: mathutils.Vector):
     x = vec3[0]
@@ -59,6 +60,9 @@ def add_camera(scene, eye, center, fovy_degrees):
 
 
 def add_scene_element(scene, scene_element):
+    from colormath.color_objects import LabColor, sRGBColor
+    from colormath.color_conversions import convert_color
+
     t_start = perf_counter()
     id = scene_element['id']
     color_lab = LabColor(scene_element['colorLAB'][0], scene_element['colorLAB'][1], scene_element['colorLAB'][2])
@@ -82,8 +86,7 @@ def add_scene_element(scene, scene_element):
         points = scene_element["points"]
         logging.info(f"Adding {len(points)} points to scene element {id}")
         if (len(points) > 0):
-            # TODO: The size is set for all points equally; use their individual size attribute instead! 
-            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.01)
+            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.001)
             obj = bpy.context.object
 
             mat = bpy.data.materials.new(f"Material_{id}")
@@ -106,11 +109,14 @@ def add_scene_element(scene, scene_element):
                 x = point["x"]
                 y = point["y"]
                 z = point["z"]
+                size = point["size"]
                 point_location_webgl = mathutils.Vector((x, y, z))
                 point_location_blender = vec3_transform_webgl_to_blender(point_location_webgl)
                 
                 copy = obj.copy()
                 copy.location = (point_location_blender * scale_blender + translate_blender)
+                if size:
+                    copy.scale = mathutils.Vector((size, size, size))
                 # Create linked duplicates instead of duplicated meshes
                 # copy.data = copy.data.copy() # also duplicate mesh, remove for linked duplicate
                 objects.append(copy)
@@ -152,13 +158,6 @@ def add_scene_element(scene, scene_element):
 def main():
     t_start = perf_counter()
 
-    # see: https://stackoverflow.com/a/60029513
-    for package in ['colormath']:
-        try:
-            get_distribution(package)
-        except DistributionNotFound:
-            install_dependency(package)
-
     argv = sys.argv
     argv = argv[argv.index("--") + 1:]  # get all args after "--"
 
@@ -173,6 +172,16 @@ def main():
         file_uuid = f"{date_time}"
     
     logging.basicConfig(filename=f"{file_uuid}.log", encoding='utf-8', level=logging.INFO)
+
+    # see: https://stackoverflow.com/a/60029513
+    for package in ['colormath']:
+        try:
+            lib = import_module(package)
+        except:
+            logging.info(f"Did not find lib {package} -- installing it now")
+            install_dependency(package)
+        else:
+            logging.info(f"Successfully found lib {package}")
 
     sample_canvas_size = [2560, 379]
 
@@ -265,3 +274,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
