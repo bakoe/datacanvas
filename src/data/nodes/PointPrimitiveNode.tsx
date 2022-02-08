@@ -15,7 +15,7 @@ export enum PointPrimitiveNodeTargetHandles {
     X = 'x coordinate',
     Y = 'y coordinate',
     Z = 'z coordinate',
-    Size = 'size',
+    Size = 'size (optional)',
 }
 
 export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTargetHandles, Datatypes> = new Map([

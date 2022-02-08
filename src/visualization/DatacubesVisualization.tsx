@@ -25,6 +25,7 @@ export interface DatacubeInformation {
     xColumn?: CSVColumn;
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
+    sizeColumn?: CSVColumn;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -63,6 +64,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let xColumn = undefined as undefined | CSVColumn;
             let yColumn = undefined as undefined | CSVColumn;
             let zColumn = undefined as undefined | CSVColumn;
+            let sizeColumn = undefined as undefined | CSVColumn;
             if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node)) {
                 if (isDatasetNode(node)) {
                     if (overallMaxRowCount) {
@@ -88,6 +90,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     xColumn = node.data.state?.xColumn;
                     yColumn = node.data.state?.yColumn;
                     zColumn = node.data.state?.zColumn;
+                    sizeColumn = node.data.state?.sizeColumn;
                 }
             }
             return {
@@ -100,6 +103,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 xColumn,
                 yColumn,
                 zColumn,
+                sizeColumn,
             } as DatacubeInformation;
         });
     });

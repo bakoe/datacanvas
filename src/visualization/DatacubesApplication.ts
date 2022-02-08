@@ -969,14 +969,24 @@ class DatacubesRenderer extends Renderer {
                 const minZ = (datacube.zColumn as NumberColumn).min;
                 const maxZ = (datacube.zColumn as NumberColumn).max;
 
+                let minSize: number;
+                let maxSize: number;
+
+                if (datacube.sizeColumn && datacube.sizeColumn.length === datacube.xColumn.length) {
+                    minSize = (datacube.sizeColumn as NumberColumn).min;
+                    maxSize = (datacube.sizeColumn as NumberColumn).max;
+                }
+
                 for (let index = 0; index < datacube.xColumn.length; index++) {
                     const x = datacube.xColumn.get(index) as number;
                     const y = datacube.yColumn.get(index) as number;
                     const z = datacube.zColumn.get(index) as number;
+                    const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
 
                     const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
                     const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
                     const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
+                    const normalizedSize = datacube.sizeColumn ? (size! - minSize!) / (maxSize! - minSize!) : undefined;
 
                     points.push({
                         x: normalizedX,
@@ -985,7 +995,7 @@ class DatacubesRenderer extends Renderer {
                         r: 1,
                         g: 1,
                         b: 1,
-                        size: 2.5,
+                        size: normalizedSize ? 2.5 * normalizedSize : 2.5,
                     });
                 }
             }
