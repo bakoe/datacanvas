@@ -35,7 +35,7 @@ app = FastAPI()
 async def create_rendering(config: SceneRenderConfiguration):
     random_uuid = str(uuid.uuid4())
 
-    logging.basicConfig(filename=f"{random_uuid}.log", encoding='utf-8', level=logging.INFO)
+    logging.basicConfig(filename=f"{random_uuid}.log", level=logging.INFO)
 
     scene_elements_file = None
     if (config.scene_elements):
