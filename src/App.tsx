@@ -24,12 +24,12 @@ const Controls: React.FC<{
             setFetchAbortController(usedAbortController);
         }
 
-        const width = (window['renderer'] as Renderer).canvasSize[0];
-        const height = (window['renderer'] as Renderer).canvasSize[1];
-        const cameraCenter = Object.values((window['renderer'] as Renderer)._camera.center);
-        const cameraEye = Object.values((window['renderer'] as Renderer)._camera.eye);
-        const cameraFovYDegrees = (window['renderer'] as Renderer)._camera.fovy;
-        const sceneElements = (window['renderer'] as Renderer)._cuboids;
+        const width = (window['renderer'] as any).canvasSize[0];
+        const height = (window['renderer'] as any).canvasSize[1];
+        const cameraCenter = Object.values((window['renderer'] as any)._camera.center);
+        const cameraEye = Object.values((window['renderer'] as any)._camera.eye);
+        const cameraFovYDegrees = (window['renderer'] as any)._camera.fovy;
+        const sceneElements = (window['renderer'] as any)._cuboids;
 
         let response;
 
@@ -138,7 +138,7 @@ function App() {
                     return gutter;
                 }}
             >
-                <BasicFlow reactFlowInstance={reactFlowInstance} onSetReactFlowInstance={setReactFlowInstance} />
+                <BasicFlow />
                 <DatacubesVisualization>
                     <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }} ref={highQualityRenderingOverlayRef}></div>
                     <Controls
