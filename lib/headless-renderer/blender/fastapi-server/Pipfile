@@ -4,12 +4,19 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-fastapi = {extras = ["all"], version = "*"}
-uvicorn = {extras = ["standard"], version = "*"}
 colormath = "*"
+gunicorn = "*"
 
 [dev-packages]
 "fake-bpy-module-3.0" = "*"
 
 [requires]
 python_version = "3.8.10"
+
+[packages.fastapi]
+extras = [ "all",]
+version = "*"
+
+[packages.uvicorn]
+extras = [ "standard",]
+version = "*"
