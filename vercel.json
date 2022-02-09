@@ -13,5 +13,6 @@
                 }
             ]
         }
-    ]
+    ],
+    "rewrites": [{ "source": "/api/:match*", "destination": "http://haeley-datacubes.bakoe.dev:8000/:match*" }]
 }
