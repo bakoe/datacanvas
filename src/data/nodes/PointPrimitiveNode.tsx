@@ -6,6 +6,7 @@ import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
+import { Color } from 'webgl-operate';
 
 export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPrimitiveNodeData> {
     return node.type === NodeTypes.PointPrimitive;
@@ -16,6 +17,7 @@ export enum PointPrimitiveNodeTargetHandles {
     Y = 'y coordinate',
     Z = 'z coordinate',
     Size = 'size (optional)',
+    Color = 'color (optional)',
 }
 
 export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTargetHandles, Datatypes> = new Map([
@@ -23,6 +25,7 @@ export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTar
     [PointPrimitiveNodeTargetHandles.Y, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Z, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Size, Datatypes.Column],
+    [PointPrimitiveNodeTargetHandles.Color, Datatypes.Color],
 ]);
 
 export interface PointPrimitiveNodeState {
@@ -31,6 +34,7 @@ export interface PointPrimitiveNodeState {
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
     sizeColumn?: CSVColumn;
+    colors?: Color[];
 }
 
 export const defaultState = { isPending: true } as PointPrimitiveNodeState;
@@ -47,7 +51,7 @@ const onConnect = (params: Connection | Edge) => console.log('handle onConnect o
 
 const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, selected, data }) => {
     const { state, onChangeState, isValidConnection } = data;
-    const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined, sizeColumn = undefined } = { ...defaultState, ...state };
+    const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined } = { ...defaultState, ...state };
 
     useEffect(() => {
         if (xColumn && yColumn && zColumn) {

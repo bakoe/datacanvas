@@ -1,6 +1,5 @@
 import { DateTime } from 'luxon';
 import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback } from 'react';
-import { updateEdge } from 'react-flow-renderer';
 
 import ReactFlow, {
     addEdge,
@@ -20,6 +19,7 @@ import ReactFlow, {
     applyNodeChanges,
     StartHandle,
 } from 'react-flow-renderer/nocss';
+import ColorMappingNode, { ColorMappingNodeData, defaultState as ColorMappingNodeDefaultState } from './nodes/ColorMappingNode';
 
 import DatasetNode, {
     DatasetNodeData,
@@ -106,7 +106,7 @@ const getFiles = (dataTransfer: DataTransfer): File[] => {
     return files;
 };
 
-let id = 2;
+let id = 3;
 const getId = () => `${id}`;
 
 const initialEdges: Edge[] = [];
@@ -135,20 +135,33 @@ const BasicFlow = () => {
                 onChangeState: (newState) => updateNodeState('0', newState),
                 isValidConnection,
             },
-            position: { x: 400, y: 40 },
+            position: { x: 200, y: 40 },
         } as Node<DateFilterNodeData>,
 
         {
-            type: NodeTypes.PointPrimitive,
+            type: NodeTypes.ColorMapping,
             id: '1',
             data: {
                 state: {
-                    ...PointPrimitiveNodeDefaultState,
+                    ...ColorMappingNodeDefaultState,
                 },
                 onChangeState: (newState) => updateNodeState('1', newState),
                 isValidConnection,
             },
-            position: { x: 700, y: 40 },
+            position: { x: 500, y: 40 },
+        } as Node<ColorMappingNodeData>,
+
+        {
+            type: NodeTypes.PointPrimitive,
+            id: '2',
+            data: {
+                state: {
+                    ...PointPrimitiveNodeDefaultState,
+                },
+                onChangeState: (newState) => updateNodeState('2', newState),
+                isValidConnection,
+            },
+            position: { x: 800, y: 40 },
         } as Node<PointPrimitiveNodeData>,
     ];
 
@@ -374,6 +387,7 @@ const BasicFlow = () => {
         mapping['dataset'] = DatasetNode;
         mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
+        mapping[NodeTypes.ColorMapping] = ColorMappingNode;
         return mapping;
     }, []);
 
@@ -503,7 +517,7 @@ const BasicFlow = () => {
             onDrop={onDrop}
             onDragLeave={onDragLeave}
             onNodesChange={onNodesChange}
-            // onEdgeUpdate is set to enable react-flow's support for updating handles (i.e., dragging them off their handles) 
+            // onEdgeUpdate is set to enable react-flow's support for updating handles (i.e., dragging them off their handles)
             onEdgeUpdate={() => undefined}
             onEdgeUpdateEnd={onEdgeUpdateEnd}
             onInit={onPaneReady}
@@ -524,7 +538,7 @@ const BasicFlow = () => {
                             return edge.source === connectionStartHandle.nodeId;
                         } else {
                             if (connectionStartHandle.handleId) {
-                                return edge.target === connectionStartHandle.nodeId && edge.targetHandle === connectionStartHandle.handleId;    
+                                return edge.target === connectionStartHandle.nodeId && edge.targetHandle === connectionStartHandle.handleId;
                             }
                             return edge.target === connectionStartHandle.nodeId;
                         }
