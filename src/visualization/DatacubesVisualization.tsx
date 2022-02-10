@@ -11,6 +11,7 @@ import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isPointPrimitiveNode } from '../data/nodes/PointPrimitiveNode';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { Column as CSVColumn } from '@lukaswagner/csv-parser';
+import { ColorPalette } from '../data/nodes/util/EditableColorGradient';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -26,6 +27,10 @@ export interface DatacubeInformation {
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
     sizeColumn?: CSVColumn;
+    colors?: {
+        column: CSVColumn;
+        colorPalette: ColorPalette;
+    };
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -65,6 +70,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let yColumn = undefined as undefined | CSVColumn;
             let zColumn = undefined as undefined | CSVColumn;
             let sizeColumn = undefined as undefined | CSVColumn;
+            let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
             if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node)) {
                 if (isDatasetNode(node)) {
                     if (overallMaxRowCount) {
@@ -91,6 +97,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     yColumn = node.data.state?.yColumn;
                     zColumn = node.data.state?.zColumn;
                     sizeColumn = node.data.state?.sizeColumn;
+                    colors = node.data.state?.colors;
                 }
             }
             return {
@@ -104,6 +111,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 yColumn,
                 zColumn,
                 sizeColumn,
+                colors,
             } as DatacubeInformation;
         });
     });
@@ -125,7 +133,26 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     } as DatacubeInformation),
             );
         }
-    }, [application, JSON.stringify(nodeInformations)]);
+    }, [
+        application,
+        JSON.stringify(
+            nodeInformations.map((nodeInfo) => ({
+                id: nodeInfo.id,
+                isErroneous: nodeInfo.isErroneous,
+                isPending: nodeInfo.isPending,
+                position: nodeInfo.position,
+                relativeHeight: nodeInfo.relativeHeight,
+
+                xColumnLength: nodeInfo.xColumn?.length,
+                yColumnLength: nodeInfo.yColumn?.length,
+                zColumnLength: nodeInfo.zColumn?.length,
+                sizeColumnLength: nodeInfo.sizeColumn?.length,
+                colorsLengthAndPalette: nodeInfo.colors
+                    ? `${nodeInfo.colors.column.length}_${JSON.stringify(nodeInfo.colors.colorPalette)}`
+                    : undefined,
+            })),
+        ),
+    ]);
 
     React.useEffect(() => {
         if (canvasRef.current) {

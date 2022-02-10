@@ -54,6 +54,7 @@ import anime, { AnimeInstance } from 'animejs';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { PointPrimitiveNodeState } from '../data/nodes/PointPrimitiveNode';
 import { NumberColumn } from '@lukaswagner/csv-parser';
+import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 
 /* spellchecker: enable */
 
@@ -977,24 +978,43 @@ class DatacubesRenderer extends Renderer {
                     maxSize = (datacube.sizeColumn as NumberColumn).max;
                 }
 
+                let minColorValue: number;
+                let maxColorValue: number;
+
+                if (datacube.colors && datacube.colors.column.length === datacube.xColumn.length) {
+                    minColorValue = (datacube.colors.column as NumberColumn).min;
+                    maxColorValue = (datacube.colors.column as NumberColumn).max;
+                }
+
                 for (let index = 0; index < datacube.xColumn.length; index++) {
                     const x = datacube.xColumn.get(index) as number;
                     const y = datacube.yColumn.get(index) as number;
                     const z = datacube.zColumn.get(index) as number;
                     const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
+                    const colorValue = datacube.colors?.column ? (datacube.colors.column.get(index) as number) : undefined;
 
                     const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
                     const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
                     const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
                     const normalizedSize = datacube.sizeColumn ? (size! - minSize!) / (maxSize! - minSize!) : undefined;
+                    const normalizedColorValue = datacube.colors?.column
+                        ? (colorValue! - minColorValue!) / (maxColorValue! - minColorValue!)
+                        : undefined;
+
+                    let r = 1;
+                    let g = 1;
+                    let b = 1;
+                    if (normalizedColorValue !== undefined) {
+                        [r, g, b] = getColorForNormalizedValue(normalizedColorValue, datacube.colors!.colorPalette);
+                    }
 
                     points.push({
                         x: normalizedX,
                         y: normalizedY,
                         z: normalizedZ,
-                        r: 1,
-                        g: 1,
-                        b: 1,
+                        r,
+                        g,
+                        b,
                         size: normalizedSize ? 2.5 * normalizedSize : 2.5,
                     });
                 }

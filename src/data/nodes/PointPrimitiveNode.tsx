@@ -7,6 +7,7 @@ import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
 import { Color } from 'webgl-operate';
+import { ColorPalette } from './util/EditableColorGradient';
 
 export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPrimitiveNodeData> {
     return node.type === NodeTypes.PointPrimitive;
@@ -34,7 +35,10 @@ export interface PointPrimitiveNodeState {
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
     sizeColumn?: CSVColumn;
-    colors?: Color[];
+    colors?: {
+        column: CSVColumn;
+        colorPalette: ColorPalette;
+    };
 }
 
 export const defaultState = { isPending: true } as PointPrimitiveNodeState;

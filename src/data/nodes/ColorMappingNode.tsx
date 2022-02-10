@@ -1,13 +1,13 @@
-import { FC, memo, useEffect } from 'react';
+import { FC, memo, useCallback, useEffect } from 'react';
 import { Connection, Edge, Handle, Node, Position } from 'react-flow-renderer/nocss';
 
-import { Column as CSVColumn } from '@lukaswagner/csv-parser';
+import { Column as CSVColumn, Float32Column, NumberColumn } from '@lukaswagner/csv-parser';
 
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
-import { Color } from 'webgl-operate';
-import EditableColorGradient from './util/EditableColorGradient';
+import { Color, ColorScale } from 'webgl-operate';
+import EditableColorGradient, { ColorPalette } from './util/EditableColorGradient';
 
 export function isColorMappingNode(node: Node<unknown>): node is Node<ColorMappingNodeData> {
     return node.type === NodeTypes.ColorMapping;
@@ -31,6 +31,7 @@ export const ColorMappingNodeSourceHandlesDatatypes: Map<ColorMappingNodeSourceH
 
 export interface ColorMappingNodeState {
     isPending: boolean;
+    colorPalette?: ColorPalette;
     column?: CSVColumn;
 }
 
@@ -48,19 +49,39 @@ const onConnect = (params: Connection | Edge) => console.log('handle onConnect o
 
 const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, data }) => {
     const { state, onChangeState, isValidConnection } = data;
-    const { isPending = true, column = undefined } = { ...defaultState, ...state };
+    const { isPending = true, colorPalette = undefined as undefined | ColorPalette, column = undefined } = { ...defaultState, ...state };
 
     useEffect(() => {
-        if (column) {
+        ColorScale.fromPreset('/colorbrewer.json', 'YlGnBu', 5).then((colorScale) => {
+            const colorPalette = colorScale.colors.map((color, index) => {
+                const rgbaUint8 = color.rgbaUI8;
+                const r = rgbaUint8[0];
+                const g = rgbaUint8[1];
+                const b = rgbaUint8[2];
+                const a = rgbaUint8[3] / 255.0;
+                return {
+                    offset: `${index / (colorScale.length - 1)}`,
+                    color: `rgb(${r}, ${g}, ${b}, ${a})`,
+                };
+            });
+
+            onChangeState({
+                colorPalette,
+            });
+        });
+    }, []);
+
+    useEffect(() => {
+        if (column && colorPalette) {
             onChangeState({
                 isPending: false,
             });
         }
-    }, [column]);
+    }, [column, colorPalette]);
 
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
-            <div className="title">Color Mapping</div>
+            <div className="title">Color Mapping{isPending && ' …'}</div>
             {Array.from(ColorMappingNodeTargetHandlesDatatypes).map(([targetHandle, datatype]) => {
                 return (
                     <div className="handle-wrapper" key={targetHandle}>
@@ -82,7 +103,12 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
             <hr className="divider" />
 
             <div className="nodrag">
-                <EditableColorGradient />
+                <EditableColorGradient
+                    palette={colorPalette || []}
+                    onChangePalette={(palette) => {
+                        onChangeState({ colorPalette: palette });
+                    }}
+                />
             </div>
 
             <hr className="divider" />
