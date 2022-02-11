@@ -124,35 +124,7 @@ const BasicFlow = () => {
         return true;
     };
 
-    const initialNodes: Node[] = [
-        {
-            type: NodeTypes.DateFilter,
-            id: '0',
-            data: {
-                state: {
-                    ...DateFilterNodeDefaultState,
-                    from: DateTime.fromISO('2021-11-15'),
-                    to: DateTime.fromISO('2021-12-19'),
-                },
-                onChangeState: (newState) => updateNodeState('0', newState),
-                isValidConnection,
-            },
-            position: { x: 400, y: 40 },
-        } as Node<DateFilterNodeData>,
-
-        {
-            type: NodeTypes.PointPrimitive,
-            id: '1',
-            data: {
-                state: {
-                    ...PointPrimitiveNodeDefaultState,
-                },
-                onChangeState: (newState) => updateNodeState('1', newState),
-                isValidConnection,
-            },
-            position: { x: 700, y: 40 },
-        } as Node<PointPrimitiveNodeData>,
-    ];
+    const initialNodes: Node[] = [];
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
     const [nodes] = useNodesState(initialNodes);
@@ -805,7 +777,12 @@ const BasicFlow = () => {
                     document.querySelector('#context-menu-destination')!,
                 )}
 
-            <div style={{ position: 'absolute', right: 10, top: 10, zIndex: 4 }}></div>
+            {store.getState().nodeInternals.size === 0 && (
+                <div style={{ position: 'absolute', top: 0, marginLeft: '1rem', marginTop: '1rem', zIndex: 4 }}>
+                    Right-click (or long-press on a mobile device) on the canvas to add a new node. You can also drag-and-drop datasets
+                    (e.g., CSV files) here.
+                </div>
+            )}
         </ReactFlow>
     );
 };
