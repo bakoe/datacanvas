@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon';
 import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 import ReactFlow, {
     addEdge,
@@ -19,6 +20,8 @@ import ReactFlow, {
     applyNodeChanges,
     StartHandle,
 } from 'react-flow-renderer/nocss';
+
+import { usePopper } from 'react-popper';
 
 import DatasetNode, {
     DatasetNodeData,
@@ -248,6 +251,8 @@ const BasicFlow = () => {
     const [eventCounter, setEventCounter] = useState(0);
     const [draggingInPage, setDraggingInPage] = useState(false);
 
+    const [pointerDownStart, setPointerDownStart] = useState(undefined as undefined | number);
+
     const onDisconnect = (params: Edge | Connection) => {
         if (!params.source || !params.target) return;
 
@@ -438,6 +443,8 @@ const BasicFlow = () => {
         });
 
         setDragInProgress(true);
+
+        id++;
     };
 
     const onDragEnter = (event: DragEvent) => {
@@ -492,6 +499,103 @@ const BasicFlow = () => {
         id++;
     };
 
+    const [contextMenuPopperElement, setContextMenuPopperElement] = useState(null as HTMLElement | null);
+    const [contextMenuVirtualReference, setContextMenuVirtualReference] = useState(null as any);
+
+    const { styles, attributes } = usePopper(contextMenuVirtualReference, contextMenuPopperElement, {
+        placement: 'right-start',
+    });
+
+    const onContextMenuOpen = useCallback((event: MouseEvent) => {
+        event.preventDefault();
+
+        const virtualReference = {
+            getBoundingClientRect() {
+                return {
+                    top: event.clientY,
+                    left: event.clientX,
+                    bottom: event.clientY,
+                    right: event.clientX,
+                    width: 0,
+                    height: 0,
+                };
+            },
+        };
+
+        setContextMenuVirtualReference(virtualReference);
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                onContextMenuClose();
+            }
+        });
+    }, []);
+
+    const onContextMenuClose = useCallback(() => {
+        setContextMenuVirtualReference(null);
+    }, []);
+
+    const addNodeFromContextMenu = useCallback(
+        (nodeType: NodeTypes) => {
+            if (!contextMenuVirtualReference) return;
+            if (!reactFlowInstance) return;
+
+            onContextMenuClose();
+
+            const { top, left } = contextMenuVirtualReference.getBoundingClientRect();
+
+            const xyPosition = reactFlowInstance.project({ x: left, y: top });
+
+            onAddNode(nodeType, xyPosition);
+        },
+        [contextMenuVirtualReference],
+    );
+
+    const onAddNode = useCallback((nodeType: NodeTypes, xyPosition: XYPosition) => {
+        let nodeData: any;
+        const nodeId = getId();
+
+        switch (nodeType) {
+            case 'filter-date':
+                nodeData = {
+                    state: {
+                        ...DateFilterNodeDefaultState,
+                        from: DateTime.fromISO('2021-11-15'),
+                        to: DateTime.fromISO('2021-12-19'),
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    isValidConnection,
+                } as DateFilterNodeData;
+                break;
+            case 'point-primitive':
+                nodeData = {
+                    state: {
+                        ...PointPrimitiveNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    isValidConnection,
+                } as PointPrimitiveNodeData;
+                break;
+            case 'dataset':
+                return;
+            default:
+                return;
+        }
+
+        id++;
+
+        setNodes((nds) =>
+            nds.concat({
+                type: nodeType,
+                id: `${nodeId}`,
+                position: xyPosition,
+                data: nodeData,
+            }),
+        );
+    }, []);
+
+    const nodesThatCanBeAddedViaContextMenu = [NodeTypes.DateFilter, NodeTypes.PointPrimitive];
+
     return (
         <ReactFlow
             nodes={nodes}
@@ -502,7 +606,7 @@ const BasicFlow = () => {
             onDrop={onDrop}
             onDragLeave={onDragLeave}
             onNodesChange={onNodesChange}
-            // onEdgeUpdate is set to enable react-flow's support for updating handles (i.e., dragging them off their handles) 
+            // onEdgeUpdate is set to enable react-flow's support for updating handles (i.e., dragging them off their handles)
             onEdgeUpdate={() => undefined}
             onEdgeUpdateEnd={onEdgeUpdateEnd}
             onInit={onPaneReady}
@@ -511,7 +615,33 @@ const BasicFlow = () => {
             onNodeDragStop={onNodeDragStop}
             className="react-flow-basic-example"
             defaultZoom={1.5}
+            onPaneContextMenu={onContextMenuOpen}
+            onPointerDown={() => {
+                setPointerDownStart(new Date().getTime());
+            }}
+            onPointerUp={(event) => {
+                const LONG_PRESS_MIN_DURATION_IN_MILLISECONDS = 300;
+                if (pointerDownStart !== undefined) {
+                    setPointerDownStart(undefined);
+                    const pointerDownEnd = new Date().getTime();
+                    if (pointerDownEnd - pointerDownStart >= LONG_PRESS_MIN_DURATION_IN_MILLISECONDS) {
+                        onContextMenuOpen(event);
+                    }
+                }
+            }}
+            onPointerMove={() => {
+                // Long-press detection: If the pointer is moved after pointer-down and before pointer-up, cancel the long-press recording
+                // TODO: Keep track of the start position and allow for a small delta offset in moving the pointer before cancelling the long-press recording
+                if (pointerDownStart !== undefined) {
+                    setPointerDownStart(undefined);
+                }
+            }}
+            onMoveStart={() => {
+                if (contextMenuVirtualReference) onContextMenuClose();
+            }}
             onPaneClick={() => {
+                if (contextMenuVirtualReference) onContextMenuClose();
+
                 if (store.getState().connectionStartHandle) {
                     // Delete the edge if clicking a connection first and then clicking onto the canvas (pane) background
                     const connectionStartHandle = store.getState().connectionStartHandle as StartHandle;
@@ -523,7 +653,7 @@ const BasicFlow = () => {
                             return edge.source === connectionStartHandle.nodeId;
                         } else {
                             if (connectionStartHandle.handleId) {
-                                return edge.target === connectionStartHandle.nodeId && edge.targetHandle === connectionStartHandle.handleId;    
+                                return edge.target === connectionStartHandle.nodeId && edge.targetHandle === connectionStartHandle.handleId;
                             }
                             return edge.target === connectionStartHandle.nodeId;
                         }
@@ -539,6 +669,24 @@ const BasicFlow = () => {
             attributionPosition="top-right"
         >
             <Background variant={BackgroundVariant.Lines} />
+            {contextMenuVirtualReference &&
+                createPortal(
+                    <div ref={setContextMenuPopperElement} style={styles.popper} {...attributes.popper}>
+                        <div className="context-menu">
+                            <h4>Add node</h4>
+                            <ul className="dropdown-list">
+                                {nodesThatCanBeAddedViaContextMenu.map((nodeType, index) => (
+                                    <li key={index}>
+                                        <a className="link" onClick={() => addNodeFromContextMenu(nodeType as any)}>
+                                            {nodeType}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>,
+                    document.querySelector('#context-menu-destination')!,
+                )}
 
             <div style={{ position: 'absolute', right: 10, top: 10, zIndex: 4 }}></div>
         </ReactFlow>

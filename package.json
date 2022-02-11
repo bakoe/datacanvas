@@ -9,12 +9,14 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@popperjs/core": "^2.11.2",
         "animejs": "^3.2.1",
         "luxon": "^2.3.0",
         "react": "^17.0.2",
         "react-collapse": "^5.1.1",
         "react-dom": "^17.0.2",
-        "react-flow-renderer": "^10.0.0-next.38",
+        "react-flow-renderer": "^10.0.0-next.39",
+        "react-popper": "^2.2.5",
         "react-split": "^2.0.14",
         "rxjs": "^6.6.7",
         "webgl-operate": "^0.7.5",
