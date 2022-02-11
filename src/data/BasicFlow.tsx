@@ -1,6 +1,5 @@
 import { DateTime } from 'luxon';
 import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback } from 'react';
-import { updateEdge } from 'react-flow-renderer';
 
 import ReactFlow, {
     addEdge,

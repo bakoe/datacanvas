@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { ReactFlowInstance, ReactFlowProvider } from 'react-flow-renderer/nocss';
+import React, { useEffect } from 'react';
+import { ReactFlowProvider } from 'react-flow-renderer/nocss';
 
 import Split from 'react-split';
-import { Renderer } from 'webgl-operate';
 
 import BasicFlow from './data/BasicFlow';
 import { DatacubesVisualization } from './visualization/DatacubesVisualization';
@@ -105,7 +104,6 @@ const Controls: React.FC<{
 };
 
 function App() {
-    const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
     const highQualityRenderingOverlayRef = React.useRef<HTMLDivElement | null>(null);
     const [highQualityRenderingImageBase64, setHighQualityRenderingImageBase64] = React.useState(undefined as string | undefined);
 
