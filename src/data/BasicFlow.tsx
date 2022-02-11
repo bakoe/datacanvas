@@ -594,7 +594,10 @@ const BasicFlow = () => {
         );
     }, []);
 
-    const nodesThatCanBeAddedViaContextMenu = [NodeTypes.DateFilter, NodeTypes.PointPrimitive];
+    const nodesThatCanBeAddedViaContextMenu = [
+        { nodeType: NodeTypes.DateFilter, label: 'Filtering: Date Filter' },
+        { nodeType: NodeTypes.PointPrimitive, label: 'Rendering: Point Primitive' },
+    ];
 
     return (
         <ReactFlow
@@ -673,12 +676,11 @@ const BasicFlow = () => {
                 createPortal(
                     <div ref={setContextMenuPopperElement} style={styles.popper} {...attributes.popper}>
                         <div className="context-menu">
-                            <h4>Add node</h4>
                             <ul className="dropdown-list">
-                                {nodesThatCanBeAddedViaContextMenu.map((nodeType, index) => (
+                                {nodesThatCanBeAddedViaContextMenu.map(({ nodeType, label }, index) => (
                                     <li key={index}>
                                         <a className="link" onClick={() => addNodeFromContextMenu(nodeType as any)}>
-                                            {nodeType}
+                                            {label}
                                         </a>
                                     </li>
                                 ))}
