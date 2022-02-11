@@ -33,6 +33,7 @@ import { NodeTypes } from './enums/NodeTypes';
 import CollapsibleHandle from './util/CollapsibleHandle';
 import { prettyPrintDataType } from './util/prettyPrintDataType';
 import { Collapse } from 'react-collapse';
+import { serializeColumnInfo } from './util/serializeColumnInfo';
 
 export interface DateFilterNodeState {
     isPending: boolean;
@@ -163,7 +164,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
 
     useEffect(() => {
         updateFilteredColumns(dataToFilter, from, to);
-    }, [JSON.stringify(dataToFilter)]);
+    }, [JSON.stringify(dataToFilter ? `${dataToFilter.map(serializeColumnInfo)}` : '')]);
 
     const previousElementsHeights = [] as number[];
     for (let index = 0; index < collapsibleHandlesHeights.length; index++) {
