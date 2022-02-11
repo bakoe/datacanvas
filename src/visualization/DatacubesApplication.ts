@@ -186,6 +186,7 @@ class DatacubesRenderer extends Renderer {
         clearColor: boolean;
         debugTexture: boolean;
 
+        cuboids: boolean;
         points: boolean;
     };
 
@@ -204,6 +205,7 @@ class DatacubesRenderer extends Renderer {
 
         this._altered = Object.assign(this._altered, {
             points: false,
+            cuboids: false,
         });
 
         // prettier-ignore
@@ -506,6 +508,7 @@ class DatacubesRenderer extends Renderer {
                     );
 
                     this._cuboids = updatedCuboids;
+                    this._altered.alter('cuboids');
                     this._invalidate(true);
                 }
             }
@@ -602,6 +605,36 @@ class DatacubesRenderer extends Renderer {
      * camera-updates.
      */
     protected onPrepare(): void {
+        if (this._altered.cuboids) {
+            const cuboidsWithPointData = this._cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
+            const pointsData = [] as number[];
+            if (cuboidsWithPointData.length > 0) {
+                for (let cuboidIndex = 0; cuboidIndex < cuboidsWithPointData.length; cuboidIndex++) {
+                    const { points, translateXZ, translateY } = cuboidsWithPointData[cuboidIndex];
+                    if (points) {
+                        for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+                            const point = points[pointIndex];
+                            pointsData.push(
+                                point.x + translateXZ[0],
+                                point.y + translateY,
+                                point.z + translateXZ[1],
+                                point.r,
+                                point.g,
+                                point.b,
+                                point.size,
+                            );
+                        }
+                    }
+                }
+            }
+            this.points = new Float32Array(pointsData);
+        }
+        if (this._altered.points) {
+            const gl = this._context.gl;
+            this._pointsBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, this._pointsBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, this._points, gl.STATIC_DRAW);
+        }
         if (this._altered.frameSize) {
             this._intermediateFBOs.forEach((fbo) => {
                 if (fbo.initialized) {
@@ -696,11 +729,13 @@ class DatacubesRenderer extends Renderer {
         this._floor?.draw();
         this._floor?.unbind();
 
+        const cuboidsSortedByCameraDistance = this.cuboidsSortedByCameraDistance;
+
         // Draw cuboids
         if (this._cuboids.length > 0) {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
-            for (const { geometry, translateXZ, translateY, scaleY } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY } of cuboidsSortedByCameraDistance) {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
@@ -763,8 +798,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateXZ, translateY, scaleY, colorLAB, idBufferOnly = false } of this
-                .cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY, colorLAB, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
                 if (idBufferOnly) {
                     continue;
                 }
@@ -786,27 +820,6 @@ class DatacubesRenderer extends Renderer {
 
             this._cuboidsProgram?.unbind();
         }
-
-        const cuboidsWithPointData = this._cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
-        const pointsData = [] as number[];
-        if (cuboidsWithPointData.length > 0) {
-            for (const { points, translateXZ, translateY } of cuboidsWithPointData) {
-                pointsData.push(
-                    ...(points
-                        ?.map((point) => [
-                            point.x + translateXZ[0],
-                            point.y + translateY,
-                            point.z + translateXZ[1],
-                            point.r,
-                            point.g,
-                            point.b,
-                            point.size,
-                        ])
-                        .flat() || []),
-                );
-            }
-        }
-        this.points = new Float32Array(pointsData);
 
         // Render points
         if (this.points && this.points.length > 0) {
@@ -836,7 +849,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateXZ, translateY, scaleY, id } of this.cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateXZ, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
@@ -1090,6 +1103,7 @@ class DatacubesRenderer extends Renderer {
                             existingCuboid.translateY = translateY;
                             existingCuboid.scaleY = scaleY;
                             existingCuboid.colorLAB = colorLAB as [number, number, number];
+                            this._altered.alter('cuboids');
                             this._invalidate(true);
                         },
                         complete: () => {
@@ -1142,6 +1156,7 @@ class DatacubesRenderer extends Renderer {
         }
 
         this._cuboids = updatedCuboids;
+        this._altered.alter('cuboids');
 
         // TODO: Use this._altered instead!
         this._invalidate(true);
@@ -1156,16 +1171,7 @@ class DatacubesRenderer extends Renderer {
     }
 
     set points(points: Float32Array | undefined) {
-        if (JSON.stringify(points) === JSON.stringify(this._points)) {
-            return;
-        }
         this._points = points;
-
-        const gl = this._context.gl;
-        this._pointsBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, this._pointsBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, this._points, gl.STATIC_DRAW);
-
         this._altered.alter('points');
     }
 
