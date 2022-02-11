@@ -6,8 +6,7 @@ import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
-import { Color } from 'webgl-operate';
-import { ColorPalette } from './util/EditableColorGradient';
+import { serializeColumnInfo } from './util/serializeColumnInfo';
 
 export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPrimitiveNodeData> {
     return node.type === NodeTypes.PointPrimitive;
@@ -63,7 +62,7 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
                 isPending: false,
             });
         }
-    }, [xColumn, yColumn, zColumn]);
+    }, [serializeColumnInfo(xColumn), serializeColumnInfo(yColumn), serializeColumnInfo(zColumn)]);
 
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
