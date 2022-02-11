@@ -1,5 +1,5 @@
 import { DateTime } from 'luxon';
-import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback } from 'react';
+import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 import ReactFlow, {
@@ -532,7 +532,9 @@ const BasicFlow = () => {
     }, []);
 
     const onContextMenuClose = useCallback(() => {
+        setFilteredNodesThatCanBeAddedViaContextMenu(nodesThatCanBeAddedViaContextMenu);
         setContextMenuVirtualReference(null);
+        setFocusedContextMenuEntry(0);
     }, []);
 
     const addNodeFromContextMenu = useCallback(
@@ -595,9 +597,30 @@ const BasicFlow = () => {
     }, []);
 
     const nodesThatCanBeAddedViaContextMenu = [
-        { nodeType: NodeTypes.DateFilter, label: 'Filtering: Date Filter' },
-        { nodeType: NodeTypes.PointPrimitive, label: 'Rendering: Point Primitive' },
+        {
+            nodeType: NodeTypes.DateFilter,
+            label: 'Filtering: Date Filter',
+            highlightString: undefined as undefined | string,
+        },
+        {
+            nodeType: NodeTypes.PointPrimitive,
+            label: 'Rendering: Point Primitive',
+            highlightString: undefined as undefined | string,
+        },
     ];
+
+    const [filteredNodesThatCanBeAddedViaContextMenu, setFilteredNodesThatCanBeAddedViaContextMenu] =
+        useState(nodesThatCanBeAddedViaContextMenu);
+
+    const [focusedContextMenuEntry, setFocusedContextMenuEntry] = useState(0);
+
+    const contextMenuEntriesRef = useRef<Array<HTMLLIElement | null>>([]);
+
+    // List of refs that works inside a loop
+    // see: https://stackoverflow.com/a/56063129
+    useEffect(() => {
+        contextMenuEntriesRef.current = contextMenuEntriesRef.current.splice(0, filteredNodesThatCanBeAddedViaContextMenu.length);
+    }, [filteredNodesThatCanBeAddedViaContextMenu]);
 
     return (
         <ReactFlow
@@ -676,11 +699,102 @@ const BasicFlow = () => {
                 createPortal(
                     <div ref={setContextMenuPopperElement} style={styles.popper} {...attributes.popper}>
                         <div className="context-menu">
-                            <ul className="dropdown-list">
-                                {nodesThatCanBeAddedViaContextMenu.map(({ nodeType, label }, index) => (
-                                    <li key={index}>
-                                        <a className="link" onClick={() => addNodeFromContextMenu(nodeType as any)}>
-                                            {label}
+                            <input
+                                type="text"
+                                defaultValue={''}
+                                placeholder={'Filter nodes …'}
+                                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                                    let filterText = event.target.value;
+                                    filterText = filterText.toLowerCase();
+                                    if (filterText !== '') {
+                                        const filteredNodes = nodesThatCanBeAddedViaContextMenu
+                                            .filter(({ label }) => label.toLowerCase().includes(filterText))
+                                            .map((node) => {
+                                                // See: https://bitsofco.de/a-one-line-solution-to-highlighting-search-matches/
+                                                const highlightString = node.label.replace(
+                                                    new RegExp(filterText, 'gi'),
+                                                    (match) => `<mark>${match}</mark>`,
+                                                );
+                                                return {
+                                                    ...node,
+                                                    highlightString,
+                                                };
+                                            });
+                                        setFilteredNodesThatCanBeAddedViaContextMenu(filteredNodes);
+                                    } else {
+                                        setFilteredNodesThatCanBeAddedViaContextMenu(nodesThatCanBeAddedViaContextMenu);
+                                    }
+                                }}
+                                autoFocus={true}
+                                onKeyDown={(event) => {
+                                    switch (event.key) {
+                                        case 'ArrowDown':
+                                            event.preventDefault();
+                                            if (filteredNodesThatCanBeAddedViaContextMenu.length === 1) {
+                                                setFocusedContextMenuEntry(0);
+                                                contextMenuEntriesRef.current[0]?.focus();
+                                            } else if (filteredNodesThatCanBeAddedViaContextMenu.length > 1) {
+                                                setFocusedContextMenuEntry(1);
+                                                contextMenuEntriesRef.current[1]?.focus();
+                                            }
+                                            break;
+                                        case 'Enter':
+                                            event.preventDefault();
+                                            addNodeFromContextMenu(
+                                                filteredNodesThatCanBeAddedViaContextMenu[focusedContextMenuEntry].nodeType,
+                                            );
+                                    }
+                                }}
+                            />
+                            <ul
+                                className="dropdown-list"
+                                role="toolbar"
+                                onKeyDown={(event) => {
+                                    let focusedEntryIndex = undefined;
+                                    switch (event.key) {
+                                        case 'ArrowDown':
+                                            event.preventDefault();
+                                            focusedEntryIndex = Math.min(
+                                                focusedContextMenuEntry + 1,
+                                                filteredNodesThatCanBeAddedViaContextMenu.length - 1,
+                                            );
+                                            break;
+                                        case 'ArrowUp':
+                                            event.preventDefault();
+                                            focusedEntryIndex = Math.max(focusedContextMenuEntry - 1, 0);
+                                            break;
+                                    }
+                                    if (focusedEntryIndex !== undefined) {
+                                        setFocusedContextMenuEntry(focusedEntryIndex);
+                                        contextMenuEntriesRef.current[focusedEntryIndex]?.focus();
+                                    }
+                                }}
+                            >
+                                {filteredNodesThatCanBeAddedViaContextMenu.map(({ nodeType, label, highlightString }, index) => (
+                                    <li
+                                        key={index}
+                                        // Use "roving tabindex" for accessibility
+                                        // see: https://web.dev/control-focus-with-tabindex/#create-accessible-components-with-%22roving-tabindex%22
+                                        tabIndex={focusedContextMenuEntry !== undefined ? (index === focusedContextMenuEntry ? 0 : -1) : 0}
+                                        ref={(element) => (contextMenuEntriesRef.current[index] = element)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                addNodeFromContextMenu(nodeType);
+                                            }
+                                        }}
+                                    >
+                                        <a
+                                            id={`${index}`}
+                                            className="link"
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    addNodeFromContextMenu(nodeType);
+                                                }
+                                            }}
+                                            onClick={() => addNodeFromContextMenu(nodeType)}
+                                            dangerouslySetInnerHTML={highlightString ? { __html: highlightString } : undefined}
+                                        >
+                                            {!highlightString ? label : undefined}
                                         </a>
                                     </li>
                                 ))}
