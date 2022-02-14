@@ -8,6 +8,7 @@ import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
 import { ColorScale } from 'webgl-operate';
 import EditableColorGradient, { ColorPalette } from './util/EditableColorGradient';
+import { serializeColumnInfo } from './util/serializeColumnInfo';
 
 export function isColorMappingNode(node: Node<unknown>): node is Node<ColorMappingNodeData> {
     return node.type === NodeTypes.ColorMapping;
@@ -142,7 +143,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                 isPending: false,
             });
         }
-    }, [column, colorPalette]);
+    }, [serializeColumnInfo(column), JSON.stringify(colorPalette)]);
 
     const availableColorScaleTypes = availableColorScales.reduce(
         (types, colorScale) => (!types.includes(colorScale.type) ? types.concat(colorScale.type) : types),
