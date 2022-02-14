@@ -165,11 +165,14 @@ $handle-clickable-area-size: 0.7rem;
     background: black;
     color: white;
     hyphens: auto;
+    font-weight: bold;
+    z-index: 1;
+}
+
+.hyphenate {
     -webkit-hyphens: auto;
     -moz-hyphens: auto;
     -ms-hyphens: auto;
-    font-weight: bold;
-    z-index: 1;
 }
 
 .title-actions {

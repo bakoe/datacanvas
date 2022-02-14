@@ -239,7 +239,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     return (
         <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node`}>
             <div className="title-wrapper">
-                <div className="title">
+                <div className="title hyphenate">
                     {data.type?.toUpperCase() + ' '}Dataset{isLoading ? ' …' : ''}
                 </div>
                 <div className="title-actions">
