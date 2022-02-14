@@ -1,0 +1,30 @@
+version: "3.0"
+
+services:
+  service:
+    env_file:
+      - ".docker-compose-env"
+    build:
+      context: '.'
+      dockerfile: 'Dockerfile'
+    command: [ "pipenv", "run", "uvicorn", "--host", "0.0.0.0", "--port", "9000", "run_server:app" ]
+    volumes:
+      - ./blender-temp-data/:/opt/blender-render-service/blender-temp-data/
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  test:
+    image: nvidia/cuda:10.2-base
+    command: nvidia-smi
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
