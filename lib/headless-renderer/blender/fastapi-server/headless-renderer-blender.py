@@ -16,9 +16,9 @@ import math
 
 def install_dependency(package_name): 
     # see: https://blender.stackexchange.com/a/219920
-    python_bin_dir = sys.exec_prefix
+    # python_bin_dir = sys.exec_prefix
     # TODO: Works only on UNIX systems -- for Windows, python.exe should be used instead(?)
-    python_bin = os.path.join(python_bin_dir, 'bin', 'python3.9')
+    python_bin = sys.executable
 
     logging.info(f"Installing missing package {package_name} to Python binary at {python_bin}")
     
@@ -173,15 +173,16 @@ def main():
     
     logging.basicConfig(filename=f"{file_uuid}.log", encoding='utf-8', level=logging.INFO)
 
+    # Assume colormath is installed
     # see: https://stackoverflow.com/a/60029513
-    for package in ['colormath']:
-        try:
-            lib = import_module(package)
-        except:
-            logging.info(f"Did not find lib {package} -- installing it now")
-            install_dependency(package)
-        else:
-            logging.info(f"Successfully found lib {package}")
+    # for package in ['colormath']:
+    #     try:
+    #         lib = import_module(package)
+    #     except:
+    #         logging.info(f"Did not find lib {package} -- installing it now")
+    #         install_dependency(package)
+    #     else:
+    #         logging.info(f"Successfully found lib {package}")
 
     sample_canvas_size = [2560, 379]
 
@@ -249,6 +250,19 @@ def main():
 
     for scene_index, scene in enumerate(bpy.data.scenes):
         scene.render.engine = 'CYCLES'
+        scene.cycles.device = 'GPU'
+
+        logging.info(f"Enable CYCLES and GPU")
+
+        cpref = bpy.context.preferences.addons['cycles'].preferences
+        cpref.compute_device_type = 'CUDA'
+
+        logging.info(f"Enable CUDA")
+
+        # Use GPU devices only
+        cpref.get_devices()
+        for device in cpref.devices:
+            device.use = True if device.type == 'CUDA' else False
 
         scene.render.resolution_x = round(sample_canvas_size[0] * sample_scaling_factor)
         scene.render.resolution_y = round(sample_canvas_size[1] * sample_scaling_factor)
@@ -265,8 +279,8 @@ def main():
     t_scene_creation_end = perf_counter()
     logging.info(f"Python-side scene creation took {t_scene_creation_end - t_scene_creation_start:.2f}s")
     
-    blend_file_name = f"{file_uuid}.blend"
-    bpy.ops.wm.save_as_mainfile(filepath=f"./{blend_file_name}")
+    blend_file_name = os.path.join(os.getcwd(), f"{file_uuid}.blend")
+    bpy.ops.wm.save_as_mainfile(filepath=blend_file_name)
 
     t_end = perf_counter()
     logging.info(f"Python script inside Blender took {t_end - t_start:.2f}s overall")

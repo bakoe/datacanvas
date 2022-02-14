@@ -35,28 +35,29 @@ app = FastAPI()
 async def create_rendering(config: SceneRenderConfiguration):
     random_uuid = str(uuid.uuid4())
 
-    logging.basicConfig(filename=f"{random_uuid}.log", level=logging.INFO)
+    logging.basicConfig(filename=f"./blender-temp-data/{random_uuid}.log", level=logging.INFO)
 
     scene_elements_file = None
     if (config.scene_elements):
-        scene_elements_file = f"{random_uuid}_scene_elements.json"
+        scene_elements_file = f"./blender-temp-data/{random_uuid}_scene_elements.json"
         with open(scene_elements_file, 'w') as f:
             json.dump(config.scene_elements, f, indent=4, sort_keys=True)
     
     args = [
-        "blender", 
+        os.environ.get('BLENDER_PATH', '') + "blender", 
         "--background",
-        "--python-use-system-env",
+        "--addons", "cycles",
+        # "--python-use-system-env",
         "--python-exit-code", "1",
         "--log-level", "1",
-        "--debug-python",
+        # "--debug-python",
         "blender_3.0.1_default-scene.blend",
-        "-o", f"{random_uuid}.png",
+        "-o", f"./blender-temp-data/{random_uuid}.png",
         "--python", "headless-renderer-blender.py",
         "-f", "1",
         "--",
-        "--cycles-device", "CUDA+CPU",
-        "--datacubes-blend-file-filename", random_uuid,
+        "--cycles-device", "CUDA",
+        "--datacubes-blend-file-filename", f"./blender-temp-data/{random_uuid}",
         "--datacubes-width", f"{config.width}",
         "--datacubes-height", f"{config.height}",
         "--datacubes-camera-eye", f"{config.camera_eye}",
@@ -66,9 +67,15 @@ async def create_rendering(config: SceneRenderConfiguration):
         scene_elements_file if scene_elements_file else "",
     ]
 
-    render_thread = threading.Thread(target=lambda: subprocess.check_output(args))
+    env = os.environ.copy()
+    blender_python_path = os.environ.get('BLENDER_PYTHON_PATH', '')
+    if blender_python_path:
+        env['PYTHONPATH'] = blender_python_path
+
+    render_thread = threading.Thread(target=lambda: subprocess.check_output(args, env=env))
 
     print(args)
+    print(env)
 
     t_render_thread_start = perf_counter()
     render_thread.start()
@@ -78,12 +85,12 @@ async def create_rendering(config: SceneRenderConfiguration):
     logging.info(f"Creating and rendering scene in blender took {t_render_thread_end - t_render_thread_start:.2f}s overall")
 
     def cleanup():
-        # os.remove(f"{random_uuid}.blend")
-        # os.remove(f"{random_uuid}.png0001.png")
-        # os.remove(f"{random_uuid}_scene_elements.json")
+        # os.remove(f"./blender-temp-data/{random_uuid}.blend")
+        # os.remove(f"./blender-temp-data/{random_uuid}.png0001.png")
+        # os.remove(f"./blender-temp-data/{random_uuid}_scene_elements.json")
         pass
 
     return FileResponse(
-        f"{random_uuid}.png0001.png",
+        f"./blender-temp-data/{random_uuid}.png0001.png",
         background=BackgroundTask(cleanup)
     )
