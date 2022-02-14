@@ -56,6 +56,7 @@ const onConnect = (params: Connection | Edge) => console.log('handle onConnect o
 interface ColorScaleConfig {
     type: string;
     identifier: string;
+    interpolate: boolean;
 }
 
 const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, data }) => {
@@ -84,6 +85,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                 colorScales[presetIndex] = {
                     identifier: preset.identifier,
                     type: preset.type,
+                    interpolate: preset.type !== 'qualitative',
                 };
             }
             setAvailableColorScales(colorScales);
@@ -94,7 +96,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
 
     useEffect(() => {
         ColorScale.fromPreset('/colorbrewer.json', colorScaleConfig.identifier, numberOfStops).then((colorScale) => {
-            const colorPalette = colorScale.colors.map((color, index) => {
+            let colorPalette = colorScale.colors.map((color, index) => {
                 const rgbaUint8 = color.rgbaUI8;
                 const r = rgbaUint8[0];
                 const g = rgbaUint8[1];
@@ -106,10 +108,27 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                 };
             });
 
-            // TODO: Add intermediate steps to simulate non-interpolated color scale with hard stops
-            // if (colorScaleConfig.interpolate === false) {
-            // ...
-            // }
+            if (colorScaleConfig.interpolate === false) {
+                const extendedColorPalette = [] as ColorPalette;
+                for (let stopIndex = 0; stopIndex < colorPalette.length; stopIndex++) {
+                    const stop = colorPalette[stopIndex];
+                    if (stopIndex !== 0 && stopIndex !== colorPalette.length - 1) {
+                        // For all non-start and non-end elements, add one element before and one after the stop
+                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) - 0.5 / (colorScale.length - 1) + 1e-5}` });
+                        extendedColorPalette.push(stop);
+                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) + 0.5 / (colorScale.length - 1) - 1e-5}` });
+                    } else if (stopIndex === 0) {
+                        // For the start element, add only one element after it
+                        extendedColorPalette.push(stop);
+                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) + 0.5 / (colorScale.length - 1) - 1e-5}` });
+                    } else if (stopIndex === colorPalette.length - 1) {
+                        // For the end element, add only one element before it
+                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) - 0.5 / (colorScale.length - 1) + 1e-5}` });
+                        extendedColorPalette.push(stop);
+                    }
+                }
+                colorPalette = extendedColorPalette;
+            }
 
             onChangeState({
                 colorPalette,
