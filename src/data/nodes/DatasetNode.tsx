@@ -244,7 +244,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 </div>
                 <div className="title-actions">
                     <span>
-                        <a onClick={onDeleteNode}>Delete</a>
+                        <a onPointerUp={onDeleteNode}>Delete</a>
                     </span>
                 </div>
             </div>

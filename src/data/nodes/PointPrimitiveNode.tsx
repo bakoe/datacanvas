@@ -65,7 +65,7 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
                 <div className="title">Point Primitive</div>
                 <div className="title-actions">
                     <span>
-                        <a onClick={onDeleteNode}>Delete</a>
+                        <a onPointerUp={onDeleteNode}>Delete</a>
                     </span>
                 </div>
             </div>
