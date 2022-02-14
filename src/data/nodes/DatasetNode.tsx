@@ -50,6 +50,7 @@ export interface DatasetNodeData {
     type: DatasetNodeValidTypes;
     filename: string;
     onChangeState: (state: Partial<DatasetNodeState>) => void;
+    onDeleteNode: () => void;
     state?: DatasetNodeState;
     isValidConnection?: (connection: Connection) => boolean;
     columns?: Column[];
@@ -72,7 +73,7 @@ interface DatasetNodeProps extends NodeWithStateProps<DatasetNodeState> {
 }
 
 const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) => {
-    const { state, onChangeState, isValidConnection } = data;
+    const { state, onChangeState, onDeleteNode, isValidConnection } = data;
 
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
@@ -237,8 +238,15 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
 
     return (
         <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node`}>
-            <div className="title">
-                {data.type?.toUpperCase() + ' '}Dataset{isLoading ? ' …' : ''}
+            <div className="title-wrapper">
+                <div className="title">
+                    {data.type?.toUpperCase() + ' '}Dataset{isLoading ? ' …' : ''}
+                </div>
+                <div className="title-actions">
+                    <span>
+                        <a onClick={onDeleteNode}>Delete</a>
+                    </span>
+                </div>
             </div>
             <span className="hyphenate">{data.filename}</span>
 

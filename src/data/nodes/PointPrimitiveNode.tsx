@@ -38,6 +38,7 @@ export const defaultState = { isPending: true } as PointPrimitiveNodeState;
 
 export interface PointPrimitiveNodeData {
     onChangeState: (state: Partial<PointPrimitiveNodeState>) => void;
+    onDeleteNode: () => void;
     state?: PointPrimitiveNodeState;
     isValidConnection?: (connection: Connection) => boolean;
 }
@@ -47,7 +48,7 @@ type PointPrimitiveNodeProps = NodeWithStateProps<PointPrimitiveNodeData>;
 const onConnect = (params: Connection | Edge) => console.log('handle onConnect on PointPrimitiveNode', params);
 
 const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, selected, data }) => {
-    const { state, onChangeState, isValidConnection } = data;
+    const { state, onChangeState, onDeleteNode, isValidConnection } = data;
     const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined } = { ...defaultState, ...state };
 
     useEffect(() => {
@@ -60,7 +61,14 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
 
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
-            <div className="title">Point Primitive</div>
+            <div className="title-wrapper">
+                <div className="title">Point Primitive</div>
+                <div className="title-actions">
+                    <span>
+                        <a onClick={onDeleteNode}>Delete</a>
+                    </span>
+                </div>
+            </div>
             {Array.from(PointPrimitiveNodeTargetHandlesDatatypes).map(([targetHandle, datatype]) => {
                 return (
                     <div className="handle-wrapper" key={targetHandle}>

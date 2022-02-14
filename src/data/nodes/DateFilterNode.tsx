@@ -46,6 +46,7 @@ export interface DateFilterNodeState {
 
 export interface DateFilterNodeData {
     onChangeState: (state: Partial<DateFilterNodeState>) => void;
+    onDeleteNode: () => void;
     state?: DateFilterNodeState;
     isValidConnection?: (connection: Connection) => boolean;
 }
@@ -132,7 +133,7 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
 export const defaultState = { isPending: true } as DateFilterNodeState;
 
 const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable }) => {
-    const { state, onChangeState, isValidConnection } = data;
+    const { state, onChangeState, onDeleteNode, isValidConnection } = data;
     const { isPending, from, to, filteredColumns, dataToFilter, errorMessage } = { ...defaultState, ...state };
 
     const [isCollapsed, setIsCollapsed] = useState(true);
@@ -217,8 +218,15 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
             style={nodeStyleOverrides}
             className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${errorMessage && 'erroneous'} node`}
         >
-            <div className="title" title={errorMessage}>
-                Filter: Date Range{isPending ? ' …' : ''}
+            <div className="title-wrapper">
+                <div className="title" title={errorMessage}>
+                    Filter: Date Range{isPending ? ' …' : ''}
+                </div>
+                <div className="title-actions">
+                    <span>
+                        <a onClick={onDeleteNode}>Delete</a>
+                    </span>
+                </div>
             </div>
             <div className="handle-wrapper">
                 <Handle
