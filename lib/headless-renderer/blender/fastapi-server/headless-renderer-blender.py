@@ -5,6 +5,7 @@ import subprocess
 from importlib import import_module
 
 import bpy
+import bmesh
 from datetime import datetime
 
 from time import perf_counter
@@ -86,8 +87,15 @@ def add_scene_element(scene, scene_element):
         points = scene_element["points"]
         logging.info(f"Adding {len(points)} points to scene element {id}")
         if (len(points) > 0):
-            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.001)
-            obj = bpy.context.object
+            # bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.001)
+            # obj = bpy.context.object
+
+            # see: https://blender.stackexchange.com/a/159185
+            mesh = bpy.data.meshes.new(f"scene_element_{id}")  # add the new mesh
+            obj = bpy.data.objects.new(mesh.name, mesh)
+            # col = bpy.data.collections.get("Foreground")
+            # col.objects.link(obj)
+            # bpy.context.view_layer.objects.active = obj
 
             mat = bpy.data.materials.new(f"Material_{id}")
             mat.use_nodes = True
@@ -103,28 +111,62 @@ def add_scene_element(scene, scene_element):
 
             # Operation-free object duplication (much more efficient than using Blender ops)
             # see: https://blender.stackexchange.com/a/7360
-            objects = []
+            # objects = []
+
+            verts = []
+            edges = []
+            faces = []
             
-            for point in points:
+            for point_index, point in enumerate(points):
+                t_point_start = perf_counter()
                 x = point["x"]
                 y = point["y"]
                 z = point["z"]
-                size = point["size"]
                 point_location_webgl = mathutils.Vector((x, y, z))
                 point_location_blender = vec3_transform_webgl_to_blender(point_location_webgl)
+
+                verts.append((point_location_blender))
                 
-                copy = obj.copy()
-                copy.location = (point_location_blender * scale_blender + translate_blender)
-                if size:
-                    copy.scale = mathutils.Vector((size, size, size))
-                # Create linked duplicates instead of duplicated meshes
-                # copy.data = copy.data.copy() # also duplicate mesh, remove for linked duplicate
-                objects.append(copy)
+                # copy = obj.copy()
+                # copy.location = (point_location_blender * scale_blender + translate_blender)
+                # if size:
+                #     copy.scale = mathutils.Vector((size, size, size))
+                # # Create linked duplicates instead of duplicated meshes
+                # # copy.data = copy.data.copy() # also duplicate mesh, remove for linked duplicate
+                # objects.append(copy)
+                t_point_end = perf_counter()
+                logging.info(f"Took {t_point_end - t_point_start:.8f} s for adding point {point_index} of {len(points)} points to scene element {id}")
             
-            for object in objects:
-                # Blender < 2.8
-                # scene.objects.link(object)
-                bpy.context.collection.objects.link(object)
+            # for object in objects:
+            #     # Blender < 2.8
+            #     # scene.objects.link(object)
+            #     bpy.context.collection.objects.link(object)
+            
+            mesh.from_pydata(verts, edges, faces)
+
+            # Add and fill custom attribute
+
+            # bm = bmesh.from_edit_mesh(obj.data)
+            #or
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+
+            bm.verts.ensure_lookup_table()
+
+            #create custom data layers
+            size_attribute = bm.verts.layers.float.new('size')
+
+            #get the custom data layer by its name
+            size_attribute = bm.verts.layers.float['size']
+
+            for point_index, point in enumerate(points):
+                size = point["size"]
+                bm.verts[point_index][size_attribute] = size
+
+            #apply the changes
+            # bmesh.update_edit_mesh(obj.data)
+            #or
+            bm.to_mesh(obj.data)
             
             # Blender < 2.8
             # scene.update()
