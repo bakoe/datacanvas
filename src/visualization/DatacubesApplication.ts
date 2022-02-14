@@ -825,7 +825,7 @@ class DatacubesRenderer extends Renderer {
         // Render points
         if (this.points && this.points.length > 0) {
             gl.disable(gl.CULL_FACE);
-            gl.disable(gl.DEPTH_TEST);
+            gl.enable(gl.DEPTH_TEST);
             this._intermediateFBOs[0].bind();
             this.renderPoints(ndcOffset || []);
             gl.enable(gl.DEPTH_TEST);
