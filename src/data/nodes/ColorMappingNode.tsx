@@ -1,12 +1,12 @@
-import { FC, memo, useCallback, useEffect } from 'react';
+import { FC, memo, useEffect } from 'react';
 import { Connection, Edge, Handle, Node, Position } from 'react-flow-renderer/nocss';
 
-import { Column as CSVColumn, Float32Column, NumberColumn } from '@lukaswagner/csv-parser';
+import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
-import { Color, ColorScale } from 'webgl-operate';
+import { ColorScale } from 'webgl-operate';
 import EditableColorGradient, { ColorPalette } from './util/EditableColorGradient';
 
 export function isColorMappingNode(node: Node<unknown>): node is Node<ColorMappingNodeData> {
