@@ -144,32 +144,37 @@ def add_scene_element(scene, scene_element):
             
             mesh.from_pydata(verts, edges, faces)
 
-            # Add and fill custom attribute
+            # Add and fill custom attribute(s)
 
-            # bm = bmesh.from_edit_mesh(obj.data)
-            #or
             bm = bmesh.new()
             bm.from_mesh(obj.data)
 
             bm.verts.ensure_lookup_table()
 
-            #create custom data layers
+            # Create custom data layers
             size_attribute = bm.verts.layers.float.new('size')
+            color_r_attribute = bm.verts.layers.float.new('color-r')
+            color_g_attribute = bm.verts.layers.float.new('color-g')
+            color_b_attribute = bm.verts.layers.float.new('color-b')
 
-            #get the custom data layer by its name
+            # Get the custom data layer by its name
             size_attribute = bm.verts.layers.float['size']
+            color_r_attribute = bm.verts.layers.float['color-r']
+            color_g_attribute = bm.verts.layers.float['color-g']
+            color_b_attribute = bm.verts.layers.float['color-b']
 
             for point_index, point in enumerate(points):
                 size = point["size"]
+                r = point["r"]
+                g = point["g"]
+                b = point["b"]
                 bm.verts[point_index][size_attribute] = size
+                bm.verts[point_index][color_r_attribute] = r
+                bm.verts[point_index][color_g_attribute] = g
+                bm.verts[point_index][color_b_attribute] = b
 
-            #apply the changes
-            # bmesh.update_edit_mesh(obj.data)
-            #or
             bm.to_mesh(obj.data)
             
-            # Blender < 2.8
-            # scene.update()
             dependency_graph = bpy.context.evaluated_depsgraph_get()
             dependency_graph.update()
 
