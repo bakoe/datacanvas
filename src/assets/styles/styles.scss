@@ -17,7 +17,30 @@
     padding: 0.2rem 0.25rem;
     cursor: pointer;
 
-    &:focus, &:hover {
+    &:focus,
+    &:hover {
         box-shadow: 0 0 0 1px #32c99b;
+    }
+}
+
+select,
+input {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+        'Helvetica Neue', sans-serif;
+    font-size: 1em;
+}
+
+select::-ms-expand {
+    display: none;
+}
+
+table {
+    select,
+    input {
+        margin-right: -1px;
+        width: 100%;
+        width: -moz-available; /* WebKit-based browsers will ignore this. */
+        width: -webkit-fill-available; /* Mozilla-based browsers will ignore this. */
+        width: fill-available;
     }
 }
