@@ -7,6 +7,7 @@ import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
 import { serializeColumnInfo } from './util/serializeColumnInfo';
+import { ColorPalette } from './util/EditableColorGradient';
 
 export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPrimitiveNodeData> {
     return node.type === NodeTypes.PointPrimitive;
