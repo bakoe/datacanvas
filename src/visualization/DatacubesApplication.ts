@@ -447,7 +447,13 @@ class DatacubesRenderer extends Renderer {
         });
 
         eventProvider.pointerEventProvider.move$.subscribe((value) => {
-            if (this._draggedCuboidID && this._depthTexture?.valid && this._readbackPass?.initialized && value.target) {
+            if (
+                this._draggedCuboidID &&
+                this._dragStartPosition &&
+                this._depthTexture?.valid &&
+                this._readbackPass?.initialized &&
+                value.target
+            ) {
                 const elementBoundingRect = (value.target as any).getBoundingClientRect() as DOMRect;
                 const xOffset = elementBoundingRect.x;
                 const yOffset = elementBoundingRect.y;
@@ -467,12 +473,16 @@ class DatacubesRenderer extends Renderer {
                 clickedAtWorldVec4[2] /= clickedAtWorldVec4[3];
 
                 const clickedAtWorld = vec3.fromValues(clickedAtWorldVec4[0], clickedAtWorldVec4[1], clickedAtWorldVec4[2]);
-                const coordsAt = ray_math.rayPlaneIntersection(this._camera?.eye as vec3, clickedAtWorld);
+                const coordsAt = ray_math.rayPlaneIntersection(
+                    this._camera?.eye as vec3,
+                    clickedAtWorld,
+                    vec3.fromValues(this._dragStartPosition[0], this._dragStartPosition[1], this._dragStartPosition[2]),
+                );
 
                 if (coordsAt) {
                     let datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
 
-                    if (this._dragStartPosition && this._draggedCuboidStartPosition) {
+                    if (this._draggedCuboidStartPosition) {
                         const offset = vec3.subtract(v3(), coordsAt, this._dragStartPosition);
                         const position = vec3.add(v3(), this._draggedCuboidStartPosition, offset);
                         datacubePosition = { x: position[0], y: position[2] } as XYPosition;
@@ -663,7 +673,7 @@ class DatacubesRenderer extends Renderer {
             }
         }
         if (this._altered.clearColor) {
-            this._preDepthFBO?.clearColor([0.9999999403953552, 0.9999999403953552, 0.9999999403953552, 1.0]);
+            this._preDepthFBO?.clearColor([0.9999999403953552, 0.9999999403953552, 0.9999999403953552, 0.9999999403953552]);
             this._intermediateFBOs[0].clearColor(this._clearColor);
             if (this._defaultFBO && this._floorProgram) {
                 this._defaultFBO.clearColor(this._clearColor);
