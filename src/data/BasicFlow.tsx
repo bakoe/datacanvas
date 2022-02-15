@@ -47,6 +47,10 @@ import PointPrimitiveNode, {
     PointPrimitiveNodeTargetHandles,
 } from './nodes/PointPrimitiveNode';
 import { vec2 } from 'webgl-operate';
+import SyncToScatterplotViewerNode, {
+    defaultState as SyncToScatterplotViewerNodeDefaultState,
+    SyncToScatterplotViewerNodeData,
+} from './nodes/SyncToScatterplotViewerNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
 const onNodeClick = (_: MouseEvent, node: Node) => undefined;
@@ -183,18 +187,18 @@ const BasicFlow = () => {
         } as Node<ColorMappingNodeData>,
 
         {
-            type: NodeTypes.PointPrimitive,
+            type: NodeTypes.SyncToScatterplotViewer,
             id: '2',
             data: {
                 state: {
-                    ...PointPrimitiveNodeDefaultState,
+                    ...SyncToScatterplotViewerNodeDefaultState,
                 },
                 onChangeState: (newState) => updateNodeState('2', newState),
                 onDeleteNode: () => deleteNode('2'),
                 isValidConnection,
             },
             position: { x: 800, y: 40 },
-        } as Node<PointPrimitiveNodeData>,
+        } as Node<SyncToScatterplotViewerNodeData>,
 
         {
             type: NodeTypes.PointPrimitive,
@@ -441,6 +445,7 @@ const BasicFlow = () => {
         mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
         mapping[NodeTypes.ColorMapping] = ColorMappingNode;
+        mapping[NodeTypes.SyncToScatterplotViewer] = SyncToScatterplotViewerNode;
         return mapping;
     }, []);
 
@@ -654,6 +659,16 @@ const BasicFlow = () => {
                     isValidConnection,
                 } as ColorMappingNodeData;
                 break;
+            case 'sync-to-scatterplot-viewer':
+                nodeData = {
+                    state: {
+                        ...SyncToScatterplotViewerNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as SyncToScatterplotViewerNodeData;
+                break;
             case 'dataset':
                 return;
             default:
@@ -679,13 +694,18 @@ const BasicFlow = () => {
             highlightString: undefined as undefined | string,
         },
         {
+            nodeType: NodeTypes.ColorMapping,
+            label: 'Mapping: Color Mapping',
+            highlightString: undefined as undefined | string,
+        },
+        {
             nodeType: NodeTypes.PointPrimitive,
             label: 'Rendering: Point Primitive',
             highlightString: undefined as undefined | string,
         },
         {
-            nodeType: NodeTypes.ColorMapping,
-            label: 'Mapping: Color Mapping',
+            nodeType: NodeTypes.SyncToScatterplotViewer,
+            label: 'Rendering: Sync to Scatterplot Viewer',
             highlightString: undefined as undefined | string,
         },
     ];
