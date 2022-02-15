@@ -100,9 +100,30 @@ def add_scene_element(scene, scene_element):
 
             mat = bpy.data.materials.new(f"Material_{id}")
             mat.use_nodes = True
-            principled = mat.node_tree.nodes['Principled BSDF']
-            # TODO: The color is set for all points equally; use their individual r, g, and b attributes instead! 
-            principled.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
+            
+            attrib_node_color_r: bpy.types.ShaderNodeAttribute = mat.node_tree.nodes.new(type='ShaderNodeAttribute')
+            attrib_node_color_r.attribute_type = 'GEOMETRY'
+            attrib_node_color_r.attribute_name = 'color-r'
+            attrib_node_color_g: bpy.types.ShaderNodeAttribute = mat.node_tree.nodes.new(type='ShaderNodeAttribute')
+            attrib_node_color_g.attribute_type = 'GEOMETRY'
+            attrib_node_color_g.attribute_name = 'color-g'
+            attrib_node_color_b: bpy.types.ShaderNodeAttribute = mat.node_tree.nodes.new(type='ShaderNodeAttribute')
+            attrib_node_color_b.attribute_type = 'GEOMETRY'
+            attrib_node_color_b.attribute_name = 'color-b'
+
+            combine_rgb_node: bpy.types.ShaderNodeCombineRGB = mat.node_tree.nodes.new(type='ShaderNodeCombineRGB')
+
+            principled_bsdf_node = mat.node_tree.nodes['Principled BSDF']
+
+            mat.node_tree.links.new(attrib_node_color_r.outputs['Fac'], combine_rgb_node.inputs['R'])
+            mat.node_tree.links.new(attrib_node_color_g.outputs['Fac'], combine_rgb_node.inputs['G'])
+            mat.node_tree.links.new(attrib_node_color_b.outputs['Fac'], combine_rgb_node.inputs['B'])
+
+            mat.node_tree.links.new(combine_rgb_node.outputs['Image'], principled_bsdf_node.inputs['Base Color'])
+            
+            # TODO: Auto-arrange nodes based on Blender's Node Arrange plug-in
+            # TODO: see https://docs.blender.org/manual/en/latest/addons/node/node_arrange.html
+
             obj.data.materials.append(mat)
 
             # Remove object from all collections not used in a scene
@@ -154,6 +175,7 @@ def add_scene_element(scene, scene_element):
 
             # Create custom data layers
             size_attribute = bm.verts.layers.float.new('size')
+
             color_r_attribute = bm.verts.layers.float.new('color-r')
             color_g_attribute = bm.verts.layers.float.new('color-g')
             color_b_attribute = bm.verts.layers.float.new('color-b')
@@ -192,8 +214,8 @@ def add_scene_element(scene, scene_element):
 
     mat = bpy.data.materials.new(f"Material_{id}")
     mat.use_nodes = True
-    principled = mat.node_tree.nodes['Principled BSDF']
-    principled.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
+    principled_bsdf_node = mat.node_tree.nodes['Principled BSDF']
+    principled_bsdf_node.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
     obj.data.materials.append(mat)
 
     # Remove object from all collections not used in a scene
