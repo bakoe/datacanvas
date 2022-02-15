@@ -56,6 +56,17 @@
     padding-top: 0.4rem;
     padding-bottom: 0.4rem;
 
+    &:hover {
+        & li {
+            &[tabindex='0']:not(:hover) {
+                & .link {
+                    background-color: black;
+                    color: white;
+                }
+            }
+        }
+    }
+
     & li {
         width: 100%;
 
