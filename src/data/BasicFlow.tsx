@@ -360,6 +360,9 @@ const BasicFlow = () => {
                 case PointPrimitiveNodeTargetHandles.Size:
                     stateKey = 'sizeColumn';
                     break;
+                case PointPrimitiveNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
             }
             if (stateKey) {
                 const updatedState = {} as Partial<PointPrimitiveNodeState>;
