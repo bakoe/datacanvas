@@ -2,8 +2,6 @@ import sys
 import os
 import subprocess
 
-from importlib import import_module
-
 import bpy
 import bmesh
 from datetime import datetime
@@ -97,6 +95,9 @@ def add_scene_element(scene, scene_element):
             # col.objects.link(obj)
             # bpy.context.view_layer.objects.active = obj
 
+            obj.scale = scale_blender
+            obj.location = translate_blender
+
             mat = bpy.data.materials.new(f"Material_{id}")
             mat.use_nodes = True
             principled = mat.node_tree.nodes['Principled BSDF']
@@ -174,9 +175,11 @@ def add_scene_element(scene, scene_element):
                 bm.verts[point_index][color_b_attribute] = b
 
             bm.to_mesh(obj.data)
-            
+
             dependency_graph = bpy.context.evaluated_depsgraph_get()
             dependency_graph.update()
+            
+            add_point_rendering_geometry_nodes(obj, mat)
 
         t_end = perf_counter()
         logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
@@ -200,6 +203,50 @@ def add_scene_element(scene, scene_element):
 
     t_end = perf_counter()
     logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
+
+
+def add_point_rendering_geometry_nodes(object: bpy.types.Object, material: bpy.types.Material, size_attr_name = 'size'):
+    # Setup a geometry node tree for spheres instanced at vertex positions
+    modifier: bpy.types.NodesModifier = object.modifiers.new('Geometry Nodes Modifier', type='NODES')
+    geometry_node_tree: bpy.types.GeometryNodeTree = modifier.node_group
+    geometry_node_tree.name = "Geometry Nodes"
+
+    # Clean up existing node set-up
+    for node in geometry_node_tree.nodes:
+        geometry_node_tree.nodes.remove(node)
+    
+    # Available types: https://docs.blender.org/api/3.1/bpy.types.html
+    input_node: bpy.types.NodeGroupInput = geometry_node_tree.nodes.new(type='NodeGroupInput')
+    
+    ico_sphere_node: bpy.types.GeometryNodeMeshIcoSphere = geometry_node_tree.nodes.new(type='GeometryNodeMeshIcoSphere')
+    ico_sphere_node.inputs['Radius'].default_value = 0.001
+    ico_sphere_node.inputs['Subdivisions'].default_value = 1
+    
+    instance_on_points_node: bpy.types.GeometryNodeInstanceOnPoints = geometry_node_tree.nodes.new(type='GeometryNodeInstanceOnPoints')
+
+    realize_instances_node: bpy.types.GeometryNodeRealizeInstances = geometry_node_tree.nodes.new(type='GeometryNodeRealizeInstances')
+
+    set_material_node: bpy.types.GeometryNodeSetMaterial = geometry_node_tree.nodes.new(type='GeometryNodeSetMaterial')
+    set_material_node.inputs['Material'].default_value = material
+    
+    output_node: bpy.types.NodeGroupOutput = geometry_node_tree.nodes.new(type='NodeGroupOutput')
+
+    geometry_node_tree.links.new(ico_sphere_node.outputs['Mesh'], instance_on_points_node.inputs['Instance'])
+    geometry_node_tree.links.new(input_node.outputs['Geometry'], instance_on_points_node.inputs['Points'])
+    geometry_node_tree.links.new(instance_on_points_node.outputs['Instances'], realize_instances_node.inputs['Geometry'])
+    geometry_node_tree.links.new(realize_instances_node.outputs['Geometry'], set_material_node.inputs['Geometry'])
+    geometry_node_tree.links.new(set_material_node.outputs['Geometry'], output_node.inputs['Geometry'])
+
+    # https://docs.blender.org/api/3.1/bpy.types.NodeSocket.html#bpy.types.NodeSocket.type
+    input_node.outputs.new("VECTOR", "Scale", identifier="Scale")
+    geometry_node_tree.links.new(input_node.outputs["Scale"], instance_on_points_node.inputs['Scale'])
+    modifier["Input_2_use_attribute"] = 1
+    modifier["Input_2_attribute_name"] = size_attr_name
+
+    # TODO: Auto-arrange nodes based on Blender's Node Arrange plug-in
+    # TODO: see https://docs.blender.org/manual/en/latest/addons/node/node_arrange.html
+    
+    return modifier
 
 
 def main():
