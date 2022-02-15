@@ -2,9 +2,8 @@ import sys
 import os
 import subprocess
 
-from importlib import import_module
-
 import bpy
+import bmesh
 from datetime import datetime
 
 from time import perf_counter
@@ -16,9 +15,9 @@ import math
 
 def install_dependency(package_name): 
     # see: https://blender.stackexchange.com/a/219920
-    python_bin_dir = sys.exec_prefix
+    # python_bin_dir = sys.exec_prefix
     # TODO: Works only on UNIX systems -- for Windows, python.exe should be used instead(?)
-    python_bin = os.path.join(python_bin_dir, 'bin', 'python3.9')
+    python_bin = sys.executable
 
     logging.info(f"Installing missing package {package_name} to Python binary at {python_bin}")
     
@@ -60,6 +59,10 @@ def add_camera(scene, eye, center, fovy_degrees):
 
 
 def add_scene_element(scene, scene_element):
+    # Deselect all scene elements
+    for obj in bpy.context.selected_objects:
+        obj.select_set(False)
+
     from colormath.color_objects import LabColor, sRGBColor
     from colormath.color_conversions import convert_color
 
@@ -86,14 +89,45 @@ def add_scene_element(scene, scene_element):
         points = scene_element["points"]
         logging.info(f"Adding {len(points)} points to scene element {id}")
         if (len(points) > 0):
-            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.001)
-            obj = bpy.context.object
+            # bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.001)
+            # obj = bpy.context.object
+
+            # see: https://blender.stackexchange.com/a/159185
+            mesh = bpy.data.meshes.new(f"scene_element_{id}")  # add the new mesh
+            obj = bpy.data.objects.new(mesh.name, mesh)
+            # col = bpy.data.collections.get("Foreground")
+            # col.objects.link(obj)
+            # bpy.context.view_layer.objects.active = obj
+
+            obj.scale = scale_blender
+            obj.location = translate_blender
 
             mat = bpy.data.materials.new(f"Material_{id}")
             mat.use_nodes = True
-            principled = mat.node_tree.nodes['Principled BSDF']
-            # TODO: The color is set for all points equally; use their individual r, g, and b attributes instead! 
-            principled.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
+            
+            attrib_node_color_r: bpy.types.ShaderNodeAttribute = mat.node_tree.nodes.new(type='ShaderNodeAttribute')
+            attrib_node_color_r.attribute_type = 'GEOMETRY'
+            attrib_node_color_r.attribute_name = 'color-r'
+            attrib_node_color_g: bpy.types.ShaderNodeAttribute = mat.node_tree.nodes.new(type='ShaderNodeAttribute')
+            attrib_node_color_g.attribute_type = 'GEOMETRY'
+            attrib_node_color_g.attribute_name = 'color-g'
+            attrib_node_color_b: bpy.types.ShaderNodeAttribute = mat.node_tree.nodes.new(type='ShaderNodeAttribute')
+            attrib_node_color_b.attribute_type = 'GEOMETRY'
+            attrib_node_color_b.attribute_name = 'color-b'
+
+            combine_rgb_node: bpy.types.ShaderNodeCombineRGB = mat.node_tree.nodes.new(type='ShaderNodeCombineRGB')
+
+            principled_bsdf_node = mat.node_tree.nodes['Principled BSDF']
+
+            mat.node_tree.links.new(attrib_node_color_r.outputs['Fac'], combine_rgb_node.inputs['R'])
+            mat.node_tree.links.new(attrib_node_color_g.outputs['Fac'], combine_rgb_node.inputs['G'])
+            mat.node_tree.links.new(attrib_node_color_b.outputs['Fac'], combine_rgb_node.inputs['B'])
+
+            mat.node_tree.links.new(combine_rgb_node.outputs['Image'], principled_bsdf_node.inputs['Base Color'])
+            
+            # TODO: Auto-arrange nodes based on Blender's Node Arrange plug-in
+            # TODO: see https://docs.blender.org/manual/en/latest/addons/node/node_arrange.html
+
             obj.data.materials.append(mat)
 
             # Remove object from all collections not used in a scene
@@ -103,33 +137,72 @@ def add_scene_element(scene, scene_element):
 
             # Operation-free object duplication (much more efficient than using Blender ops)
             # see: https://blender.stackexchange.com/a/7360
-            objects = []
+            # objects = []
+
+            verts = []
+            edges = []
+            faces = []
             
-            for point in points:
+            for point_index, point in enumerate(points):
                 x = point["x"]
                 y = point["y"]
                 z = point["z"]
-                size = point["size"]
                 point_location_webgl = mathutils.Vector((x, y, z))
                 point_location_blender = vec3_transform_webgl_to_blender(point_location_webgl)
+
+                verts.append((point_location_blender))
                 
-                copy = obj.copy()
-                copy.location = (point_location_blender * scale_blender + translate_blender)
-                if size:
-                    copy.scale = mathutils.Vector((size, size, size))
-                # Create linked duplicates instead of duplicated meshes
-                # copy.data = copy.data.copy() # also duplicate mesh, remove for linked duplicate
-                objects.append(copy)
+                # copy = obj.copy()
+                # copy.location = (point_location_blender * scale_blender + translate_blender)
+                # if size:
+                #     copy.scale = mathutils.Vector((size, size, size))
+                # # Create linked duplicates instead of duplicated meshes
+                # # copy.data = copy.data.copy() # also duplicate mesh, remove for linked duplicate
+                # objects.append(copy)
             
-            for object in objects:
-                # Blender < 2.8
-                # scene.objects.link(object)
-                bpy.context.collection.objects.link(object)
+            # for object in objects:
+            #     # Blender < 2.8
+            #     # scene.objects.link(object)
+            #     bpy.context.collection.objects.link(object)
             
-            # Blender < 2.8
-            # scene.update()
+            mesh.from_pydata(verts, edges, faces)
+
+            # Add and fill custom attribute(s)
+
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+
+            bm.verts.ensure_lookup_table()
+
+            # Create custom data layers
+            size_attribute = bm.verts.layers.float.new('size')
+
+            color_r_attribute = bm.verts.layers.float.new('color-r')
+            color_g_attribute = bm.verts.layers.float.new('color-g')
+            color_b_attribute = bm.verts.layers.float.new('color-b')
+
+            # Get the custom data layer by its name
+            size_attribute = bm.verts.layers.float['size']
+            color_r_attribute = bm.verts.layers.float['color-r']
+            color_g_attribute = bm.verts.layers.float['color-g']
+            color_b_attribute = bm.verts.layers.float['color-b']
+
+            for point_index, point in enumerate(points):
+                size = point["size"]
+                r = point["r"]
+                g = point["g"]
+                b = point["b"]
+                bm.verts[point_index][size_attribute] = size
+                bm.verts[point_index][color_r_attribute] = r
+                bm.verts[point_index][color_g_attribute] = g
+                bm.verts[point_index][color_b_attribute] = b
+
+            bm.to_mesh(obj.data)
+
             dependency_graph = bpy.context.evaluated_depsgraph_get()
             dependency_graph.update()
+            
+            add_point_rendering_geometry_nodes(obj, mat)
 
         t_end = perf_counter()
         logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
@@ -142,8 +215,8 @@ def add_scene_element(scene, scene_element):
 
     mat = bpy.data.materials.new(f"Material_{id}")
     mat.use_nodes = True
-    principled = mat.node_tree.nodes['Principled BSDF']
-    principled.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
+    principled_bsdf_node = mat.node_tree.nodes['Principled BSDF']
+    principled_bsdf_node.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
     obj.data.materials.append(mat)
 
     # Remove object from all collections not used in a scene
@@ -153,6 +226,50 @@ def add_scene_element(scene, scene_element):
 
     t_end = perf_counter()
     logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
+
+
+def add_point_rendering_geometry_nodes(object: bpy.types.Object, material: bpy.types.Material, size_attr_name = 'size'):
+    # Setup a geometry node tree for spheres instanced at vertex positions
+    modifier: bpy.types.NodesModifier = object.modifiers.new('Geometry Nodes Modifier', type='NODES')
+    geometry_node_tree: bpy.types.GeometryNodeTree = modifier.node_group
+    geometry_node_tree.name = "Geometry Nodes"
+
+    # Clean up existing node set-up
+    for node in geometry_node_tree.nodes:
+        geometry_node_tree.nodes.remove(node)
+    
+    # Available types: https://docs.blender.org/api/3.1/bpy.types.html
+    input_node: bpy.types.NodeGroupInput = geometry_node_tree.nodes.new(type='NodeGroupInput')
+    
+    ico_sphere_node: bpy.types.GeometryNodeMeshIcoSphere = geometry_node_tree.nodes.new(type='GeometryNodeMeshIcoSphere')
+    ico_sphere_node.inputs['Radius'].default_value = 0.001
+    ico_sphere_node.inputs['Subdivisions'].default_value = 1
+    
+    instance_on_points_node: bpy.types.GeometryNodeInstanceOnPoints = geometry_node_tree.nodes.new(type='GeometryNodeInstanceOnPoints')
+
+    realize_instances_node: bpy.types.GeometryNodeRealizeInstances = geometry_node_tree.nodes.new(type='GeometryNodeRealizeInstances')
+
+    set_material_node: bpy.types.GeometryNodeSetMaterial = geometry_node_tree.nodes.new(type='GeometryNodeSetMaterial')
+    set_material_node.inputs['Material'].default_value = material
+    
+    output_node: bpy.types.NodeGroupOutput = geometry_node_tree.nodes.new(type='NodeGroupOutput')
+
+    geometry_node_tree.links.new(ico_sphere_node.outputs['Mesh'], instance_on_points_node.inputs['Instance'])
+    geometry_node_tree.links.new(input_node.outputs['Geometry'], instance_on_points_node.inputs['Points'])
+    geometry_node_tree.links.new(instance_on_points_node.outputs['Instances'], realize_instances_node.inputs['Geometry'])
+    geometry_node_tree.links.new(realize_instances_node.outputs['Geometry'], set_material_node.inputs['Geometry'])
+    geometry_node_tree.links.new(set_material_node.outputs['Geometry'], output_node.inputs['Geometry'])
+
+    # https://docs.blender.org/api/3.1/bpy.types.NodeSocket.html#bpy.types.NodeSocket.type
+    input_node.outputs.new("VECTOR", "Scale", identifier="Scale")
+    geometry_node_tree.links.new(input_node.outputs["Scale"], instance_on_points_node.inputs['Scale'])
+    modifier["Input_2_use_attribute"] = 1
+    modifier["Input_2_attribute_name"] = size_attr_name
+
+    # TODO: Auto-arrange nodes based on Blender's Node Arrange plug-in
+    # TODO: see https://docs.blender.org/manual/en/latest/addons/node/node_arrange.html
+    
+    return modifier
 
 
 def main():
@@ -173,15 +290,16 @@ def main():
     
     logging.basicConfig(filename=f"{file_uuid}.log", encoding='utf-8', level=logging.INFO)
 
+    # Assume colormath is installed
     # see: https://stackoverflow.com/a/60029513
-    for package in ['colormath']:
-        try:
-            lib = import_module(package)
-        except:
-            logging.info(f"Did not find lib {package} -- installing it now")
-            install_dependency(package)
-        else:
-            logging.info(f"Successfully found lib {package}")
+    # for package in ['colormath']:
+    #     try:
+    #         lib = import_module(package)
+    #     except:
+    #         logging.info(f"Did not find lib {package} -- installing it now")
+    #         install_dependency(package)
+    #     else:
+    #         logging.info(f"Successfully found lib {package}")
 
     sample_canvas_size = [2560, 379]
 
@@ -249,6 +367,19 @@ def main():
 
     for scene_index, scene in enumerate(bpy.data.scenes):
         scene.render.engine = 'CYCLES'
+        scene.cycles.device = 'GPU'
+
+        logging.info(f"Enable CYCLES and GPU")
+
+        cpref = bpy.context.preferences.addons['cycles'].preferences
+        cpref.compute_device_type = 'CUDA'
+
+        logging.info(f"Enable CUDA")
+
+        # Use GPU devices only
+        cpref.get_devices()
+        for device in cpref.devices:
+            device.use = True if device.type == 'CUDA' else False
 
         scene.render.resolution_x = round(sample_canvas_size[0] * sample_scaling_factor)
         scene.render.resolution_y = round(sample_canvas_size[1] * sample_scaling_factor)
@@ -265,8 +396,8 @@ def main():
     t_scene_creation_end = perf_counter()
     logging.info(f"Python-side scene creation took {t_scene_creation_end - t_scene_creation_start:.2f}s")
     
-    blend_file_name = f"{file_uuid}.blend"
-    bpy.ops.wm.save_as_mainfile(filepath=f"./{blend_file_name}")
+    blend_file_name = os.path.join(os.getcwd(), f"{file_uuid}.blend")
+    bpy.ops.wm.save_as_mainfile(filepath=blend_file_name)
 
     t_end = perf_counter()
     logging.info(f"Python script inside Blender took {t_end - t_start:.2f}s overall")

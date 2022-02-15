@@ -13,6 +13,8 @@ precision lowp float;
 #endif
 
 uniform mat4 u_viewProjection;
+uniform mat4 u_model;
+
 uniform vec2 u_ndcOffset;
 
 varying vec4 v_color;
@@ -21,7 +23,8 @@ void main()
 {
     v_color = vec4(a_color, 1.0);
 
-    vec4 vertex = u_viewProjection * vec4(a_vertex, 1.0);
+    vec4 vertex = u_model * vec4(a_vertex, 1.0);
+    vertex = u_viewProjection * vertex;
     vertex.xy = u_ndcOffset * vec2(vertex.w) + vertex.xy;
 
     gl_Position = vertex;
