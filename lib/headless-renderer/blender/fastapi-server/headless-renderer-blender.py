@@ -144,7 +144,6 @@ def add_scene_element(scene, scene_element):
             faces = []
             
             for point_index, point in enumerate(points):
-                t_point_start = perf_counter()
                 x = point["x"]
                 y = point["y"]
                 z = point["z"]
@@ -160,8 +159,6 @@ def add_scene_element(scene, scene_element):
                 # # Create linked duplicates instead of duplicated meshes
                 # # copy.data = copy.data.copy() # also duplicate mesh, remove for linked duplicate
                 # objects.append(copy)
-                t_point_end = perf_counter()
-                logging.info(f"Took {t_point_end - t_point_start:.8f} s for adding point {point_index} of {len(points)} points to scene element {id}")
             
             # for object in objects:
             #     # Blender < 2.8
