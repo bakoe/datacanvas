@@ -71,7 +71,9 @@ const CUBOID_SIZE_X = 0.5;
 const CUBOID_SIZE_Y = 1.0;
 const CUBOID_SIZE_Z = 0.5;
 
-interface Cuboid {
+const DEBUG_SHOW_POINTS_ON_INTERACTION = true;
+
+export interface Cuboid {
     geometry: CuboidGeometry;
     translateXZ: vec2;
     translateY: number;
@@ -176,6 +178,13 @@ class DatacubesRenderer extends Renderer {
     protected _dragStartPosition: vec3 | undefined;
     protected _draggedCuboidStartPosition: vec3 | undefined;
 
+    protected _debugPoints: Float32Array | undefined; // x, y, z, r, g, b, data=size
+    protected _debugPointsBuffer: any;
+    protected _debugPointsProgram: Program | undefined;
+    protected _debugUPointsViewProjection: WebGLUniformLocation | undefined;
+    protected _debugUPointsNdcOffset: WebGLUniformLocation | undefined;
+    protected _debugUPointsModel: WebGLUniformLocation | undefined;
+
     protected declare _altered: ChangeLookup & {
         // eslint-disable-next-line id-blacklist
         any: boolean;
@@ -188,6 +197,8 @@ class DatacubesRenderer extends Renderer {
 
         cuboids: boolean;
         points: boolean;
+
+        debugPoints: boolean;
     };
 
     /**
@@ -206,10 +217,19 @@ class DatacubesRenderer extends Renderer {
         this._altered = Object.assign(this._altered, {
             points: false,
             cuboids: false,
+            datacubes: false,
+            datacubePositions: false,
+            debugPoints: false,
         });
 
         // prettier-ignore
         this.points = new Float32Array([
+            // x, y, z, r, g, b, data,
+            // 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0
+        ]);
+
+        // prettier-ignore
+        this.debugPoints = new Float32Array([
             // x, y, z, r, g, b, data,
             // 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0
         ]);
@@ -256,6 +276,19 @@ class DatacubesRenderer extends Renderer {
 
         this._uPointsViewProjection = this._pointsProgram.uniform('u_viewProjection');
         this._uPointsNdcOffset = this._pointsProgram.uniform('u_ndcOffset');
+
+        this._debugPointsProgram = new Program(this._context, 'PointProgram');
+        this._debugPointsProgram.initialize([vertPoint, fragPoint], false);
+
+        this._debugPointsProgram.attribute('a_vertex', 0);
+        this._debugPointsProgram.attribute('a_color', 1);
+        this._debugPointsProgram.attribute('a_data', 2);
+        this._debugPointsProgram.link();
+        this._debugPointsProgram.bind();
+
+        this._debugUPointsViewProjection = this._debugPointsProgram.uniform('u_viewProjection');
+        this._debugUPointsNdcOffset = this._debugPointsProgram.uniform('u_ndcOffset');
+        this._debugUPointsModel = this._debugPointsProgram.uniform('u_model');
 
         this._floor = new NdcFillingRectangle(this._context, 'Floor');
         this._floor.initialize();
@@ -432,6 +465,22 @@ class DatacubesRenderer extends Renderer {
                         const coordsAt = this._readbackPass.coordsAt(x, y, undefined, this._camera?.viewProjectionInverse as mat4);
 
                         if (coordsAt) {
+                            if (DEBUG_SHOW_POINTS_ON_INTERACTION) {
+                                const debugPoint = [
+                                    // prettier-ignore
+                                    coordsAt[0],
+                                    coordsAt[1],
+                                    coordsAt[2],
+                                    1,
+                                    0,
+                                    0,
+                                    15,
+                                ];
+                                this.debugPoints = this._debugPoints
+                                    ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
+                                    : new Float32Array([debugPoint].flat());
+                            }
+
                             this._dragStartPosition = coordsAt;
                             const cuboid = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID);
                             const cuboidPosition = vec3.fromValues(
@@ -480,6 +529,22 @@ class DatacubesRenderer extends Renderer {
                 );
 
                 if (coordsAt) {
+                    if (DEBUG_SHOW_POINTS_ON_INTERACTION) {
+                        const debugPoint = [
+                            // prettier-ignore
+                            coordsAt[0],
+                            coordsAt[1],
+                            coordsAt[2],
+                            0,
+                            1,
+                            0,
+                            5,
+                        ];
+                        this.debugPoints = this._debugPoints
+                            ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
+                            : new Float32Array([debugPoint].flat());
+                    }
+
                     let datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
 
                     if (this._draggedCuboidStartPosition) {
@@ -588,6 +653,8 @@ class DatacubesRenderer extends Renderer {
         const gl = this._context.gl;
         gl.deleteBuffer(this._pointsBuffer);
         this._pointsProgram?.uninitialize();
+        gl.deleteBuffer(this._debugPointsBuffer);
+        this._debugPointsProgram?.uninitialize();
 
         this._defaultFBO?.uninitialize();
     }
@@ -644,6 +711,12 @@ class DatacubesRenderer extends Renderer {
             this._pointsBuffer = gl.createBuffer();
             gl.bindBuffer(gl.ARRAY_BUFFER, this._pointsBuffer);
             gl.bufferData(gl.ARRAY_BUFFER, this._points, gl.STATIC_DRAW);
+        }
+        if (this._altered.debugPoints) {
+            const gl = this._context.gl;
+            this._debugPointsBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, this._debugPointsBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, this._debugPoints, gl.STATIC_DRAW);
         }
         if (this._altered.frameSize) {
             this._intermediateFBOs.forEach((fbo) => {
@@ -840,6 +913,19 @@ class DatacubesRenderer extends Renderer {
             gl.enable(gl.DEPTH_TEST);
         }
 
+        if (DEBUG_SHOW_POINTS_ON_INTERACTION) {
+            // Render debug points
+            if (this.debugPoints && this.debugPoints.length > 0) {
+                gl.disable(gl.CULL_FACE);
+                gl.disable(gl.DEPTH_TEST);
+                this._intermediateFBOs[0].bind();
+
+                this.renderDebugPoints(ndcOffset || []);
+
+                gl.enable(gl.DEPTH_TEST);
+            }
+        }
+
         gl.cullFace(gl.BACK);
         gl.disable(gl.CULL_FACE);
 
@@ -926,6 +1012,36 @@ class DatacubesRenderer extends Renderer {
         gl.disableVertexAttribArray(2);
 
         this._pointsProgram?.unbind();
+    }
+
+    protected renderDebugPoints(ndcOffset: number[]): void {
+        const gl = this._context.gl;
+        this._debugPointsProgram?.bind();
+
+        gl.uniformMatrix4fv(this._debugUPointsViewProjection, gl.GL_FALSE, this._camera?.viewProjection);
+        gl.uniformMatrix4fv(this._debugUPointsModel, gl.GL_FALSE, m4());
+        gl.uniform2fv(this._debugUPointsNdcOffset, ndcOffset);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._debugPointsBuffer);
+
+        // refer to https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer for more information
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 7 * Float32Array.BYTES_PER_ELEMENT, 0);
+        gl.vertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, 7 * Float32Array.BYTES_PER_ELEMENT, 3 * Float32Array.BYTES_PER_ELEMENT);
+        gl.vertexAttribPointer(2, 1, gl.FLOAT, gl.FALSE, 7 * Float32Array.BYTES_PER_ELEMENT, 6 * Float32Array.BYTES_PER_ELEMENT);
+        gl.enableVertexAttribArray(0);
+        gl.enableVertexAttribArray(1);
+        gl.enableVertexAttribArray(2);
+
+        if (this._debugPoints) {
+            gl.drawArrays(gl.POINTS, 0, this._debugPoints.length / 7);
+            gl.bindBuffer(gl.ARRAY_BUFFER, Buffer.DEFAULT_BUFFER);
+        }
+
+        gl.disableVertexAttribArray(0);
+        gl.disableVertexAttribArray(1);
+        gl.disableVertexAttribArray(2);
+
+        this._debugPointsProgram?.unbind();
     }
 
     protected distanceToCamera(worldPosition: vec3): number {
@@ -1187,6 +1303,15 @@ class DatacubesRenderer extends Renderer {
 
     get points(): Float32Array | undefined {
         return this._points;
+    }
+
+    set debugPoints(debugPoints: Float32Array | undefined) {
+        this._debugPoints = debugPoints;
+        this._altered.alter('debugPoints');
+    }
+
+    get debugPoints(): Float32Array | undefined {
+        return this._debugPoints;
     }
 }
 
