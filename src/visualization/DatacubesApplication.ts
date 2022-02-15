@@ -809,7 +809,7 @@ class DatacubesRenderer extends Renderer {
         // Draw floor
         this._floor?.bind();
         gl.uniformMatrix4fv(this._uDepthModel, false, this._floorTransform);
-        gl.cullFace(gl.FRONT);
+        gl.cullFace(gl.BACK);
         this._floor?.draw();
         this._floor?.unbind();
 
