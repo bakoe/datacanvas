@@ -1,5 +1,5 @@
 
-precision lowp float;
+precision highp float;
 
 #include ./lib/facade-vert;
 #include ./lib/ndcoffset;

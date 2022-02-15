@@ -1,6 +1,6 @@
 
-precision lowp float;
-precision highp int;
+precision highp float;
+precision lowp int;
 
 #include ./lib/facade-frag;
 
