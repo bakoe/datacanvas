@@ -11,6 +11,7 @@ import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isPointPrimitiveNode } from '../data/nodes/PointPrimitiveNode';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { Column as CSVColumn } from '@lukaswagner/csv-parser';
+import { ColorPalette } from '../data/nodes/util/EditableColorGradient';
 import { serializeColumnInfo } from '../data/nodes/util/serializeColumnInfo';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -18,7 +19,7 @@ interface DatacubesProps {}
 
 export interface DatacubeInformation {
     id: number;
-    position: XYPosition;
+    position?: XYPosition;
     relativeHeight: number;
     type: NodeTypes;
     isPending?: boolean;
@@ -27,6 +28,10 @@ export interface DatacubeInformation {
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
     sizeColumn?: CSVColumn;
+    colors?: {
+        column: CSVColumn;
+        colorPalette: ColorPalette;
+    };
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -55,7 +60,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 nodeInternals.forEach((node) => {
                     const id = parseInt(node.id, 10);
                     const datacube = datacubes.find((dc) => dc.id === id);
-                    if (datacube) {
+                    if (datacube && datacube.position) {
                         const newX = datacube.position.x * REACT_FLOW_CANVAS_STEP + REACT_FLOW_CANVAS_MIN_X;
                         const newY = datacube.position.y * REACT_FLOW_CANVAS_STEP + REACT_FLOW_CANVAS_MIN_Y;
 
@@ -107,6 +112,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let yColumn = undefined as undefined | CSVColumn;
             let zColumn = undefined as undefined | CSVColumn;
             let sizeColumn = undefined as undefined | CSVColumn;
+            let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
             if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node)) {
                 if (isDatasetNode(node)) {
                     if (overallMaxRowCount) {
@@ -133,6 +139,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     yColumn = node.data.state?.yColumn;
                     zColumn = node.data.state?.zColumn;
                     sizeColumn = node.data.state?.sizeColumn;
+                    colors = node.data.state?.colors;
                 }
             }
             return {
@@ -146,6 +153,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 yColumn,
                 zColumn,
                 sizeColumn,
+                colors,
             } as DatacubeInformation;
         });
     });
@@ -156,26 +164,48 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
 
     React.useEffect(() => {
         if (application) {
-            (application as DatacubesApplication).datacubes = nodeInformations.map(
-                ({ position, ...data }) =>
-                    ({
-                        ...data,
-                        position: {
-                            x: (position.x - REACT_FLOW_CANVAS_MIN_X) / REACT_FLOW_CANVAS_STEP,
-                            y: (position.y - REACT_FLOW_CANVAS_MIN_Y) / REACT_FLOW_CANVAS_STEP,
-                        },
-                    } as DatacubeInformation),
-            );
+            (application as DatacubesApplication).datacubes = nodeInformations;
         }
     }, [
         application,
         JSON.stringify(
             nodeInformations.map((nodeInfo) => ({
-                ...nodeInfo,
+                // Caution: No nodeInfo.position here -> this update is handled in 2nd useEffect hook below!
+                id: nodeInfo.id,
+                relativeHeight: nodeInfo.relativeHeight,
+                type: nodeInfo.type,
+                isErroneous: nodeInfo.isErroneous,
+                isPending: nodeInfo.isPending,
                 xColumn: serializeColumnInfo(nodeInfo.xColumn),
                 yColumn: serializeColumnInfo(nodeInfo.yColumn),
                 zColumn: serializeColumnInfo(nodeInfo.zColumn),
                 sizeColumn: serializeColumnInfo(nodeInfo.sizeColumn),
+                colorsLengthAndPalette: nodeInfo.colors
+                    ? `${serializeColumnInfo(nodeInfo.colors.column)}_${JSON.stringify(nodeInfo.colors.colorPalette)}`
+                    : undefined,
+            })),
+        ),
+    ]);
+
+    React.useEffect(() => {
+        if (application) {
+            const nodeIdToPositionMap = new Map<number, XYPosition>();
+            for (const { position, id } of nodeInformations) {
+                if (position) {
+                    nodeIdToPositionMap.set(id, {
+                        x: (position.x - REACT_FLOW_CANVAS_MIN_X) / REACT_FLOW_CANVAS_STEP,
+                        y: (position.y - REACT_FLOW_CANVAS_MIN_Y) / REACT_FLOW_CANVAS_STEP,
+                    });
+                }
+            }
+            (application as DatacubesApplication).datacubePositions = nodeIdToPositionMap;
+        }
+    }, [
+        application,
+        JSON.stringify(
+            nodeInformations.map((nodeInfo) => ({
+                id: nodeInfo.id,
+                position: nodeInfo.position,
             })),
         ),
     ]);

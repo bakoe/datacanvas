@@ -7,6 +7,7 @@ import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
 import { NodeTypes } from './enums/NodeTypes';
 import { serializeColumnInfo } from './util/serializeColumnInfo';
+import { ColorPalette } from './util/EditableColorGradient';
 
 export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPrimitiveNodeData> {
     return node.type === NodeTypes.PointPrimitive;
@@ -17,6 +18,7 @@ export enum PointPrimitiveNodeTargetHandles {
     Y = 'y coordinate',
     Z = 'z coordinate',
     Size = 'size (optional)',
+    Color = 'color (optional)',
 }
 
 export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTargetHandles, Datatypes> = new Map([
@@ -24,6 +26,7 @@ export const PointPrimitiveNodeTargetHandlesDatatypes: Map<PointPrimitiveNodeTar
     [PointPrimitiveNodeTargetHandles.Y, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Z, Datatypes.Column],
     [PointPrimitiveNodeTargetHandles.Size, Datatypes.Column],
+    [PointPrimitiveNodeTargetHandles.Color, Datatypes.Color],
 ]);
 
 export interface PointPrimitiveNodeState {
@@ -32,6 +35,10 @@ export interface PointPrimitiveNodeState {
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
     sizeColumn?: CSVColumn;
+    colors?: {
+        column: CSVColumn;
+        colorPalette: ColorPalette;
+    };
 }
 
 export const defaultState = { isPending: true } as PointPrimitiveNodeState;
