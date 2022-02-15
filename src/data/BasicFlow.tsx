@@ -628,6 +628,7 @@ const BasicFlow = () => {
                         to: DateTime.fromISO('2021-12-19'),
                     },
                     onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
                     isValidConnection,
                 } as DateFilterNodeData;
                 break;
@@ -637,8 +638,19 @@ const BasicFlow = () => {
                         ...PointPrimitiveNodeDefaultState,
                     },
                     onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
                     isValidConnection,
                 } as PointPrimitiveNodeData;
+                break;
+            case 'color-mapping':
+                nodeData = {
+                    state: {
+                        ...ColorMappingNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as ColorMappingNodeData;
                 break;
             case 'dataset':
                 return;
@@ -667,6 +679,11 @@ const BasicFlow = () => {
         {
             nodeType: NodeTypes.PointPrimitive,
             label: 'Rendering: Point Primitive',
+            highlightString: undefined as undefined | string,
+        },
+        {
+            nodeType: NodeTypes.ColorMapping,
+            label: 'Mapping: Color Mapping',
             highlightString: undefined as undefined | string,
         },
     ];
