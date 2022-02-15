@@ -158,6 +158,7 @@ const BasicFlow = () => {
                     to: DateTime.fromISO('2021-12-19'),
                 },
                 onChangeState: (newState) => updateNodeState('0', newState),
+                onDeleteNode: () => deleteNode('0'),
                 isValidConnection,
             },
             position: { x: 200, y: 40 },
@@ -171,6 +172,7 @@ const BasicFlow = () => {
                     ...ColorMappingNodeDefaultState,
                 },
                 onChangeState: (newState) => updateNodeState('1', newState),
+                onDeleteNode: () => deleteNode('1'),
                 isValidConnection,
             },
             position: { x: 500, y: 40 },
@@ -184,6 +186,7 @@ const BasicFlow = () => {
                     ...PointPrimitiveNodeDefaultState,
                 },
                 onChangeState: (newState) => updateNodeState('2', newState),
+                onDeleteNode: () => deleteNode('2'),
                 isValidConnection,
             },
             position: { x: 800, y: 40 },
@@ -197,9 +200,10 @@ const BasicFlow = () => {
                     ...PointPrimitiveNodeDefaultState,
                 },
                 onChangeState: (newState) => updateNodeState('3', newState),
+                onDeleteNode: () => deleteNode('3'),
                 isValidConnection,
             },
-            position: { x: 800, y: 200 },
+            position: { x: 800, y: 240 },
         } as Node<PointPrimitiveNodeData>,
     ];
 
@@ -268,6 +272,10 @@ const BasicFlow = () => {
             }
         }
     };
+
+    const deleteNode = useCallback((nodeId: string) => {
+        setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    }, []);
 
     const updateNodeState = <NodePropsType extends NodeWithStateProps<NodeStateType>, NodeStateType>(
         nodeId: string,
@@ -472,6 +480,7 @@ const BasicFlow = () => {
                 columns: [],
                 filename: `Loading ${type?.toUpperCase() ?? ''}…`,
                 onChangeState: (newState: DatasetNodeState) => updateNodeState(nodeId, newState),
+                onDeleteNode: () => deleteNode(nodeId),
                 state: {
                     ...DatasetNodeDefaultState,
                 },
