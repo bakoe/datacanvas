@@ -149,6 +149,7 @@ function App() {
 
     return (
         <ReactFlowProvider>
+            <div id="context-menu-destination"></div>
             <Split
                 sizes={[50, 50]}
                 className="split"
