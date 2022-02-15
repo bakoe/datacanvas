@@ -71,7 +71,7 @@ const CUBOID_SIZE_X = 0.5;
 const CUBOID_SIZE_Y = 1.0;
 const CUBOID_SIZE_Z = 0.5;
 
-interface Cuboid {
+export interface Cuboid {
     geometry: CuboidGeometry;
     translateY: number;
     scaleY: number;
