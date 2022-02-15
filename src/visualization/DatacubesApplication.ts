@@ -71,8 +71,8 @@ const CUBOID_SIZE_X = 0.5;
 const CUBOID_SIZE_Y = 1.0;
 const CUBOID_SIZE_Z = 0.5;
 
-const DEBUG_SHOW_POINTS_ON_INTERACTION = true;
-const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
+const DEBUG_SHOW_POINTS_ON_INTERACTION = false;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
 
 export interface Cuboid {
     geometry: CuboidGeometry;
