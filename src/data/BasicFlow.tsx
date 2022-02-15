@@ -20,6 +20,11 @@ import ReactFlow, {
     applyNodeChanges,
     StartHandle,
 } from 'react-flow-renderer/nocss';
+import ColorMappingNode, {
+    ColorMappingNodeData,
+    ColorMappingNodeState,
+    defaultState as ColorMappingNodeDefaultState,
+} from './nodes/ColorMappingNode';
 
 import { usePopper } from 'react-popper';
 
@@ -44,6 +49,27 @@ import PointPrimitiveNode, {
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
 const onNodeClick = (_: MouseEvent, node: Node) => undefined;
+
+const findSourceColumn = (sourceNode: Node<any>, params: Edge<any> | Connection) => {
+    let sourceColumn;
+    switch (sourceNode.type as NodeTypes) {
+        case NodeTypes.Dataset:
+            sourceColumn = (sourceNode as Node<DatasetNodeData>).data.state?.columns?.find((column) => column.name === params.sourceHandle);
+            break;
+        case NodeTypes.DateFilter:
+            sourceColumn = (sourceNode as Node<DateFilterNodeData>).data.state?.filteredColumns?.find(
+                (column) => column.name === params.sourceHandle,
+            );
+            break;
+        case NodeTypes.ColorMapping:
+            sourceColumn = {
+                column: (sourceNode as Node<ColorMappingNodeData>).data.state?.column,
+                colorPalette: (sourceNode as Node<ColorMappingNodeData>).data.state?.colorPalette,
+            };
+            break;
+    }
+    return sourceColumn;
+};
 
 const getFileMimetypes = (dataTransfer: DataTransfer): string[] => {
     const fileMimeTypes = [] as string[];
@@ -108,7 +134,7 @@ const getFiles = (dataTransfer: DataTransfer): File[] => {
     return files;
 };
 
-let id = 2;
+let id = 4;
 const getId = () => `${id}`;
 
 const initialEdges: Edge[] = [];
@@ -124,7 +150,65 @@ const BasicFlow = () => {
         return true;
     };
 
-    const initialNodes: Node[] = [];
+    const initialNodes: Node[] = [
+        {
+            type: NodeTypes.DateFilter,
+            id: '0',
+            data: {
+                state: {
+                    ...DateFilterNodeDefaultState,
+                    from: DateTime.fromISO('2021-11-15'),
+                    to: DateTime.fromISO('2021-12-19'),
+                },
+                onChangeState: (newState) => updateNodeState('0', newState),
+                onDeleteNode: () => deleteNode('0'),
+                isValidConnection,
+            },
+            position: { x: 200, y: 40 },
+        } as Node<DateFilterNodeData>,
+
+        {
+            type: NodeTypes.ColorMapping,
+            id: '1',
+            data: {
+                state: {
+                    ...ColorMappingNodeDefaultState,
+                },
+                onChangeState: (newState) => updateNodeState('1', newState),
+                onDeleteNode: () => deleteNode('1'),
+                isValidConnection,
+            },
+            position: { x: 500, y: 40 },
+        } as Node<ColorMappingNodeData>,
+
+        {
+            type: NodeTypes.PointPrimitive,
+            id: '2',
+            data: {
+                state: {
+                    ...PointPrimitiveNodeDefaultState,
+                },
+                onChangeState: (newState) => updateNodeState('2', newState),
+                onDeleteNode: () => deleteNode('2'),
+                isValidConnection,
+            },
+            position: { x: 800, y: 40 },
+        } as Node<PointPrimitiveNodeData>,
+
+        {
+            type: NodeTypes.PointPrimitive,
+            id: '3',
+            data: {
+                state: {
+                    ...PointPrimitiveNodeDefaultState,
+                },
+                onChangeState: (newState) => updateNodeState('3', newState),
+                onDeleteNode: () => deleteNode('3'),
+                isValidConnection,
+            },
+            position: { x: 800, y: 240 },
+        } as Node<PointPrimitiveNodeData>,
+    ];
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
     const [nodes] = useNodesState(initialNodes);
@@ -191,6 +275,10 @@ const BasicFlow = () => {
             }
         }
     };
+
+    const deleteNode = useCallback((nodeId: string) => {
+        setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    }, []);
 
     const updateNodeState = <NodePropsType extends NodeWithStateProps<NodeStateType>, NodeStateType>(
         nodeId: string,
@@ -301,6 +389,15 @@ const BasicFlow = () => {
             }
         }
 
+        if (targetNode.type === NodeTypes.ColorMapping) {
+            const sourceColumn = findSourceColumn(sourceNode, params);
+            if (sourceColumn) {
+                updateNodeState(targetNode.id, {
+                    column: sourceColumn,
+                } as Partial<ColorMappingNodeState>);
+            }
+        }
+
         if (targetNode.type === NodeTypes.PointPrimitive) {
             let stateKey;
             switch (params.targetHandle as PointPrimitiveNodeTargetHandles) {
@@ -316,21 +413,12 @@ const BasicFlow = () => {
                 case PointPrimitiveNodeTargetHandles.Size:
                     stateKey = 'sizeColumn';
                     break;
+                case PointPrimitiveNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
             }
             if (stateKey) {
-                let sourceColumn;
-                switch (sourceNode.type as NodeTypes) {
-                    case NodeTypes.Dataset:
-                        sourceColumn = (sourceNode as Node<DatasetNodeData>).data.state?.columns?.find(
-                            (column) => column.name === params.sourceHandle,
-                        );
-                        break;
-                    case NodeTypes.DateFilter:
-                        sourceColumn = (sourceNode as Node<DateFilterNodeData>).data.state?.filteredColumns?.find(
-                            (column) => column.name === params.sourceHandle,
-                        );
-                        break;
-                }
+                const sourceColumn = findSourceColumn(sourceNode, params);
                 if (sourceColumn) {
                     const updatedState = {} as Partial<PointPrimitiveNodeState>;
                     (updatedState as any)[stateKey] = sourceColumn;
@@ -350,6 +438,7 @@ const BasicFlow = () => {
         mapping['dataset'] = DatasetNode;
         mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
+        mapping[NodeTypes.ColorMapping] = ColorMappingNode;
         return mapping;
     }, []);
 
@@ -396,6 +485,7 @@ const BasicFlow = () => {
                 columns: [],
                 filename: `Loading ${type?.toUpperCase() ?? ''}…`,
                 onChangeState: (newState: DatasetNodeState) => updateNodeState(nodeId, newState),
+                onDeleteNode: () => deleteNode(nodeId),
                 state: {
                     ...DatasetNodeDefaultState,
                 },

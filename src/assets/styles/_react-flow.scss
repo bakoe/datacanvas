@@ -141,23 +141,67 @@ $handle-clickable-area-size: 0.7rem;
     width: 100%;
 }
 
-.title {
-    display: inline;
-    hyphens: auto;
-    -webkit-hyphens: auto;
-    -moz-hyphens: auto;
-    -ms-hyphens: auto;
+.title-wrapper {
+    display: flex;
+    align-items: flex-end;
     background: white;
     position: absolute;
-    top: calc(-1.2rem - 1px);
+    width: calc(100% - 0.5rem);
+    bottom: 100%;
     left: 0;
-    background: black;
+    background: transparent;
     color: white;
-    font-weight: bold;
+}
+
+.title,
+.title-actions {
     padding: 0.2rem;
     padding-right: 0.8rem;
     padding-left: 0.8rem;
     border-radius: 0 0.5rem 0 0;
+}
+
+.title {
+    background: black;
+    color: white;
+    hyphens: auto;
+    font-weight: bold;
+    z-index: 1;
+}
+
+.hyphenate {
+    -webkit-hyphens: auto;
+    -moz-hyphens: auto;
+    -ms-hyphens: auto;
+}
+
+.title-actions {
+    margin-left: -0.5rem;
+    padding-left: 0.5rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-right: 0;
+    background: gray;
+    opacity: 0.7;
+
+    &:hover {
+        opacity: 1;
+    }
+
+    & > span a {
+        display: block;
+        opacity: 1;
+        padding-top: 0.2rem;
+        padding-bottom: 0.2rem;
+        padding-left: 0.4rem;
+        padding-right: 0.4rem;
+        cursor: pointer;
+
+        &:hover,
+        &:focus {
+            opacity: 1;
+        }
+    }
 }
 
 .divider {

@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
-import { ReactFlowProvider } from 'react-flow-renderer/nocss';
+import { ReactFlowProvider, XYPosition } from 'react-flow-renderer/nocss';
 
 import Split from 'react-split';
 
 import BasicFlow from './data/BasicFlow';
+import { Cuboid } from './visualization/DatacubesApplication';
 import { DatacubesVisualization } from './visualization/DatacubesVisualization';
 
 const Controls: React.FC<{
@@ -28,7 +29,29 @@ const Controls: React.FC<{
         const cameraCenter = Object.values((window['renderer'] as any)._camera.center);
         const cameraEye = Object.values((window['renderer'] as any)._camera.eye);
         const cameraFovYDegrees = (window['renderer'] as any)._camera.fovy;
-        const sceneElements = (window['renderer'] as any)._cuboids;
+        let sceneElements = (window['renderer'] as any)._cuboids as Array<Partial<Cuboid>>;
+        const datacubePositions = (window['renderer'] as any).datacubePositions as Map<number, XYPosition>;
+
+        // Keep this in sync with headless-renderer-blender.py, but use as few properties as possible (to reduce size of serialized data)
+        sceneElements = sceneElements.map((cuboid) => {
+            const id = cuboid.id;
+            let translateXZ;
+            if (id !== undefined) {
+                translateXZ = datacubePositions.get(4294967295 - id);
+            }
+            return {
+                id: cuboid.id,
+                colorLAB: cuboid.colorLAB,
+                translateXZ: {
+                    '0': translateXZ?.x || 0,
+                    '1': translateXZ?.y || 0,
+                },
+                translateY: cuboid.translateY,
+                scaleY: cuboid.scaleY,
+                idBufferOnly: cuboid.idBufferOnly,
+                points: cuboid.points,
+            };
+        });
 
         let response;
 
