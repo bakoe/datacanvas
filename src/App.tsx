@@ -36,7 +36,7 @@ const Controls: React.FC<{
         sceneElements = sceneElements.map((cuboid) => {
             const id = cuboid.id;
             let translateXZ;
-            if (id) {
+            if (id !== undefined) {
                 translateXZ = datacubePositions.get(4294967295 - id);
             }
             return {

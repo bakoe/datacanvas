@@ -980,7 +980,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
             for (const { geometry, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
-                if (!id) {
+                if (id === undefined) {
                     continue;
                 }
 
@@ -1126,7 +1126,7 @@ class DatacubesRenderer extends Renderer {
             gl.cullFace(gl.BACK);
 
             for (const { geometry, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
-                if (!id) {
+                if (id === undefined) {
                     continue;
                 }
 
