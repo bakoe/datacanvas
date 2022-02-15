@@ -186,6 +186,7 @@ const BasicFlow = () => {
                     ...PointPrimitiveNodeDefaultState,
                 },
                 onChangeState: (newState) => updateNodeState('2', newState),
+                onDeleteNode: () => deleteNode('2'),
                 isValidConnection,
             },
             position: { x: 800, y: 40 },
@@ -199,9 +200,10 @@ const BasicFlow = () => {
                     ...PointPrimitiveNodeDefaultState,
                 },
                 onChangeState: (newState) => updateNodeState('3', newState),
+                onDeleteNode: () => deleteNode('3'),
                 isValidConnection,
             },
-            position: { x: 800, y: 200 },
+            position: { x: 800, y: 240 },
         } as Node<PointPrimitiveNodeData>,
     ];
 

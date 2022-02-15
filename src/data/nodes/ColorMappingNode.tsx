@@ -61,7 +61,7 @@ interface ColorScaleConfig {
 }
 
 const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, data }) => {
-    const { state, onChangeState, isValidConnection } = data;
+    const { state, onChangeState, onDeleteNode, isValidConnection } = data;
     const {
         isPending = defaultState.isPending,
         colorPalette = undefined as undefined | ColorPalette,
@@ -170,7 +170,14 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
 
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
-            <div className="title">Color Mapping{isPending && ' …'}</div>
+            <div className="title-wrapper">
+                <div className="title">Color Mapping{isPending && ' …'}</div>
+                <div className="title-actions">
+                    <span>
+                        <a onPointerUp={onDeleteNode}>Delete</a>
+                    </span>
+                </div>
+            </div>
             {Array.from(ColorMappingNodeTargetHandlesDatatypes).map(([targetHandle, datatype]) => {
                 return (
                     <div className="handle-wrapper" key={targetHandle}>
