@@ -59,6 +59,10 @@ def add_camera(scene, eye, center, fovy_degrees):
 
 
 def add_scene_element(scene, scene_element):
+    # Deselect all scene elements
+    for obj in bpy.context.selected_objects:
+        obj.select_set(False)
+
     from colormath.color_objects import LabColor, sRGBColor
     from colormath.color_conversions import convert_color
 
