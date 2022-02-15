@@ -74,9 +74,9 @@ const CUBOID_SIZE_Z = 0.5;
 
 interface Cuboid {
     geometry: CuboidGeometry;
-    translateXZ: vec2;
     translateY: number;
     scaleY: number;
+    translateXZ?: vec2;
     runningAnimeJSAnimation?: AnimeInstance;
     colorLAB?: [number, number, number];
     id?: number;
@@ -112,6 +112,9 @@ class DatacubesRenderer extends Renderer {
 
     protected _cuboidsProgram: Program | undefined;
     protected _cuboids: Array<Cuboid> = [];
+
+    protected _datacubePositions: Map<number, XYPosition> = new Map();
+    protected _datacubes: Array<DatacubeInformation> = [];
 
     protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
     protected _uModelCuboids: WebGLUniformLocation | undefined;
@@ -187,6 +190,9 @@ class DatacubesRenderer extends Renderer {
         clearColor: boolean;
         debugTexture: boolean;
 
+        datacubes: boolean;
+        datacubePositions: boolean;
+
         cuboids: boolean;
         points: boolean;
     };
@@ -207,6 +213,8 @@ class DatacubesRenderer extends Renderer {
         this._altered = Object.assign(this._altered, {
             points: false,
             cuboids: false,
+            datacubes: false,
+            datacubePositions: false,
         });
 
         // prettier-ignore
@@ -435,12 +443,14 @@ class DatacubesRenderer extends Renderer {
                         if (coordsAt) {
                             this._dragStartPosition = coordsAt;
                             const cuboid = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID);
-                            const cuboidPosition = vec3.fromValues(
-                                cuboid?.translateXZ[0] || 0,
-                                cuboid?.translateY || 0,
-                                cuboid?.translateXZ[1] || 0,
-                            );
-                            this._draggedCuboidStartPosition = cuboidPosition;
+                            if (cuboid?.translateXZ) {
+                                const cuboidPosition = vec3.fromValues(
+                                    cuboid?.translateXZ[0] || 0,
+                                    cuboid?.translateY || 0,
+                                    cuboid?.translateXZ[1] || 0,
+                                );
+                                this._draggedCuboidStartPosition = cuboidPosition;
+                            }
                         }
                     }
                 }
@@ -606,13 +616,250 @@ class DatacubesRenderer extends Renderer {
      * camera-updates.
      */
     protected onPrepare(): void {
+        if (this._altered.datacubes) {
+            const updatedCuboids = [];
+
+            const DATACUBE_PENDING_SCALE_Y = 0.1;
+
+            for (const datacube of this.datacubes) {
+                let renderCuboidToIdBufferOnly = false;
+                let points = undefined as undefined | PointData[];
+                if (
+                    datacube.type === NodeTypes.PointPrimitive &&
+                    datacube.xColumn &&
+                    datacube.yColumn &&
+                    datacube.zColumn &&
+                    // Make sure that the points only update after all (subsequently updated) columns were updated
+                    datacube.xColumn.length === datacube.yColumn.length &&
+                    datacube.xColumn.length === datacube.zColumn.length
+                ) {
+                    renderCuboidToIdBufferOnly = true;
+
+                    points = [];
+
+                    const minX = (datacube.xColumn as NumberColumn).min;
+                    const maxX = (datacube.xColumn as NumberColumn).max;
+                    const minY = (datacube.yColumn as NumberColumn).min;
+                    const maxY = (datacube.yColumn as NumberColumn).max;
+                    const minZ = (datacube.zColumn as NumberColumn).min;
+                    const maxZ = (datacube.zColumn as NumberColumn).max;
+
+                    let minSize: number;
+                    let maxSize: number;
+
+                    if (datacube.sizeColumn && datacube.sizeColumn.length === datacube.xColumn.length) {
+                        minSize = (datacube.sizeColumn as NumberColumn).min;
+                        maxSize = (datacube.sizeColumn as NumberColumn).max;
+                    }
+
+                    let minColorValue: number;
+                    let maxColorValue: number;
+
+                    if (datacube.colors && datacube.colors.column.length === datacube.xColumn.length) {
+                        minColorValue = (datacube.colors.column as NumberColumn).min;
+                        maxColorValue = (datacube.colors.column as NumberColumn).max;
+                    }
+
+                    for (let index = 0; index < datacube.xColumn.length; index++) {
+                        const x = datacube.xColumn.get(index) as number;
+                        const y = datacube.yColumn.get(index) as number;
+                        const z = datacube.zColumn.get(index) as number;
+                        const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
+                        const colorValue = datacube.colors?.column ? (datacube.colors.column.get(index) as number) : undefined;
+
+                        const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
+                        const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
+                        const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
+                        const normalizedSize = datacube.sizeColumn ? (size! - minSize!) / (maxSize! - minSize!) : undefined;
+                        const normalizedColorValue = datacube.colors?.column
+                            ? (colorValue! - minColorValue!) / (maxColorValue! - minColorValue!)
+                            : undefined;
+
+                        let r = 1;
+                        let g = 1;
+                        let b = 1;
+                        if (normalizedColorValue !== undefined) {
+                            [r, g, b] = getColorForNormalizedValue(normalizedColorValue, datacube.colors!.colorPalette);
+                        }
+
+                        points.push({
+                            x: normalizedX,
+                            y: normalizedY,
+                            z: normalizedZ,
+                            r,
+                            g,
+                            b,
+                            size: normalizedSize ? 2.5 * normalizedSize : 2.5,
+                        });
+                    }
+                }
+
+                const datacubeId = datacube.id;
+                const datacubeIsErroneous = datacube.isErroneous;
+                const datacubeIsPending = datacube.isPending;
+                const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
+                if (existingCuboid) {
+                    const from = {
+                        translateY: existingCuboid.translateY * 1000,
+                        scaleY: existingCuboid.scaleY * 1000,
+                        colorLAB0: existingCuboid.colorLAB ? existingCuboid.colorLAB[0] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
+                        colorLAB1: existingCuboid.colorLAB ? existingCuboid.colorLAB[1] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
+                        colorLAB2: existingCuboid.colorLAB ? existingCuboid.colorLAB[2] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
+                    };
+
+                    const to = datacubeIsPending
+                        ? {
+                              translateY: DATACUBE_PENDING_SCALE_Y * 0.5 * 1000,
+                              scaleY: DATACUBE_PENDING_SCALE_Y * 1000,
+                              colorLAB0: DATACUBE_PENDING_COLOR_LAB[0] * 1000,
+                              colorLAB1: DATACUBE_PENDING_COLOR_LAB[1] * 1000,
+                              colorLAB2: DATACUBE_PENDING_COLOR_LAB[2] * 1000,
+                          }
+                        : datacubeIsErroneous
+                        ? {
+                              translateY: datacube.relativeHeight * 0.5 * 1000,
+                              scaleY: datacube.relativeHeight * 1000,
+                              colorLAB0: DATACUBE_ERROR_COLOR_LAB[0] * 1000,
+                              colorLAB1: DATACUBE_ERROR_COLOR_LAB[1] * 1000,
+                              colorLAB2: DATACUBE_ERROR_COLOR_LAB[2] * 1000,
+                          }
+                        : {
+                              translateY: datacube.relativeHeight * 0.5 * 1000,
+                              scaleY: datacube.relativeHeight * 1000,
+                              colorLAB0: DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
+                              colorLAB1: DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
+                              colorLAB2: DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
+                          };
+
+                    // Round the scaled target values to 0 decimals (i.e., the unscaled target values to 3 decimals)
+                    // This is done to avoid unnecessary animation triggering due to numerical precision errors
+                    to.scaleY = parseFloat(to.scaleY.toFixed(0));
+                    to.translateY = parseFloat(to.translateY.toFixed(0));
+                    to.colorLAB0 = parseFloat(to.colorLAB0.toFixed(0));
+                    to.colorLAB1 = parseFloat(to.colorLAB1.toFixed(0));
+                    to.colorLAB2 = parseFloat(to.colorLAB2.toFixed(0));
+
+                    // https://animejs.com/documentation/#springPhysicsEasing
+                    const springParams = {
+                        // default: 1, min: 0, max: 100
+                        mass: 1,
+                        // default: 100, min: 0, max: 100
+                        stiffness: 80,
+                        // default: 10, min: 10, max: 100
+                        damping: 80,
+                        // default: 0, min: 0, max: 100
+                        velocity: 0,
+                    };
+
+                    const changedSignificantly = (fromLocal: any, toLocal: any) => {
+                        return (
+                            Math.abs(fromLocal.translateY - toLocal.translateY) > 1.0 ||
+                            Math.abs(fromLocal.scaleY - toLocal.scaleY) > 1.0 ||
+                            Math.abs(fromLocal.colorLAB0 - toLocal.colorLAB0) > 1.0 ||
+                            Math.abs(fromLocal.colorLAB1 - toLocal.colorLAB1) > 1.0 ||
+                            Math.abs(fromLocal.colorLAB2 - toLocal.colorLAB2) > 1.0
+                        );
+                    };
+
+                    if (changedSignificantly(from, to)) {
+                        if (existingCuboid.runningAnimeJSAnimation) {
+                            existingCuboid.runningAnimeJSAnimation.pause();
+                            delete existingCuboid.runningAnimeJSAnimation;
+                        }
+                        const animeInstance = anime({
+                            targets: from,
+                            translateY: to.translateY,
+                            scaleY: to.scaleY,
+                            colorLAB0: to.colorLAB0,
+                            colorLAB1: to.colorLAB1,
+                            colorLAB2: to.colorLAB2,
+                            round: 1,
+                            easing: `spring(${springParams.mass}, ${springParams.stiffness}, ${springParams.damping}, ${springParams.velocity})`,
+                            update: () => {
+                                const translateY = from.translateY / 1000;
+                                const scaleY = from.scaleY / 1000;
+                                const colorLAB = [from.colorLAB0 / 1000, from.colorLAB1 / 1000, from.colorLAB2 / 1000];
+
+                                existingCuboid.translateY = translateY;
+                                existingCuboid.scaleY = scaleY;
+                                existingCuboid.colorLAB = colorLAB as [number, number, number];
+                                this._altered.alter('cuboids');
+                                this._invalidate(true);
+                            },
+                            complete: () => {
+                                delete existingCuboid.runningAnimeJSAnimation;
+                            },
+                        });
+                        existingCuboid.runningAnimeJSAnimation = animeInstance;
+                    }
+
+                    existingCuboid.isErroneous = datacubeIsErroneous;
+                    existingCuboid.isPending = datacubeIsPending;
+                    existingCuboid.idBufferOnly = renderCuboidToIdBufferOnly;
+                    existingCuboid.points = points;
+                    updatedCuboids.push(existingCuboid);
+                } else {
+                    const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [CUBOID_SIZE_X, CUBOID_SIZE_Y, CUBOID_SIZE_Z]);
+                    cuboid.initialize();
+
+                    let translateY = datacube.relativeHeight * 0.5;
+                    let scaleY = datacube.relativeHeight;
+                    let colorLAB = DATACUBE_DEFAULT_COLOR_LAB;
+
+                    if (datacubeIsPending) {
+                        translateY = DATACUBE_PENDING_SCALE_Y * 0.5;
+                        scaleY = DATACUBE_PENDING_SCALE_Y;
+                        colorLAB = DATACUBE_PENDING_COLOR_LAB;
+                    }
+
+                    if (datacubeIsErroneous) {
+                        colorLAB = DATACUBE_ERROR_COLOR_LAB;
+                    }
+
+                    const newCuboid = {
+                        geometry: cuboid,
+                        translateY,
+                        scaleY,
+                        colorLAB,
+                        id: 4294967295 - datacubeId,
+                        isErroneous: datacubeIsErroneous,
+                        isPending: datacubeIsPending,
+                        idBufferOnly: renderCuboidToIdBufferOnly,
+                        points: points,
+                    };
+
+                    updatedCuboids.push(newCuboid);
+                }
+            }
+
+            this.cuboids = updatedCuboids;
+        }
+        if (this._altered.datacubePositions) {
+            const positions = this.datacubePositions;
+            for (const datacube of this._datacubes) {
+                const id = datacube.id;
+                const position = positions.get(id);
+                if (position) {
+                    const matchingCuboidIndex = this.cuboids.findIndex((cuboid) => cuboid.id === 4294967295 - id);
+                    if (matchingCuboidIndex !== -1) {
+                        const matchingCuboid = this.cuboids[matchingCuboidIndex];
+                        matchingCuboid.translateXZ = vec2.fromValues(position.x, position.y);
+                        this.cuboids.splice(matchingCuboidIndex, 1, matchingCuboid);
+                        // const updatedCuboids = this.cuboids;
+                        // updatedCuboids.splice(matchingCuboidIndex, 1, matchingCuboid);
+                        // this.cuboids = updatedCuboids;
+                        // this._altered.alter('points');
+                    }
+                }
+            }
+        }
         if (this._altered.cuboids) {
-            const cuboidsWithPointData = this._cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
+            const cuboidsWithPointData = this.cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
             const pointsData = [] as number[];
             if (cuboidsWithPointData.length > 0) {
                 for (let cuboidIndex = 0; cuboidIndex < cuboidsWithPointData.length; cuboidIndex++) {
                     const { points, translateXZ, translateY } = cuboidsWithPointData[cuboidIndex];
-                    if (points) {
+                    if (points && translateXZ) {
                         for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
                             const point = points[pointIndex];
                             pointsData.push(
@@ -737,6 +984,9 @@ class DatacubesRenderer extends Renderer {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
             for (const { geometry, translateXZ, translateY, scaleY } of cuboidsSortedByCameraDistance) {
+                if (!translateXZ) {
+                    continue;
+                }
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
@@ -800,7 +1050,7 @@ class DatacubesRenderer extends Renderer {
             gl.cullFace(gl.BACK);
 
             for (const { geometry, translateXZ, translateY, scaleY, colorLAB, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
-                if (idBufferOnly) {
+                if (idBufferOnly || !translateXZ) {
                     continue;
                 }
 
@@ -851,6 +1101,10 @@ class DatacubesRenderer extends Renderer {
             gl.cullFace(gl.BACK);
 
             for (const { geometry, translateXZ, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
+                if (!translateXZ) {
+                    continue;
+                }
+
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
@@ -931,11 +1185,13 @@ class DatacubesRenderer extends Renderer {
     }
 
     get cuboidsSortedByCameraDistance(): Cuboid[] {
-        return this._cuboids.sort(
-            (a, b) =>
-                this.distanceToCamera(vec3.fromValues(b.translateXZ[0], b.translateY, b.translateXZ[1])) -
-                this.distanceToCamera(vec3.fromValues(a.translateXZ[0], a.translateY, a.translateXZ[1])),
-        );
+        return this._cuboids
+            .filter((cuboid) => cuboid.translateXZ !== undefined)
+            .sort(
+                (a, b) =>
+                    this.distanceToCamera(vec3.fromValues(b.translateXZ![0], b.translateY, b.translateXZ![1])) -
+                    this.distanceToCamera(vec3.fromValues(a.translateXZ![0], a.translateY, a.translateXZ![1])),
+            );
     }
 
     protected onSwap(): void {
@@ -950,236 +1206,62 @@ class DatacubesRenderer extends Renderer {
         }
     }
 
+    set datacubePositions(datacubePositions: Map<number, XYPosition>) {
+        this._datacubePositions = datacubePositions;
+        this._altered.alter('datacubePositions');
+        this._invalidate(true);
+    }
+
+    get datacubePositions(): Map<number, XYPosition> {
+        return this._datacubePositions;
+    }
+
     set datacubes(datacubes: Array<DatacubeInformation>) {
         if (this._draggedCuboidID) {
             // Block updates from outside while the internal state is being updated
             return;
         }
 
-        const updatedCuboids = [];
+        const datacubesNotDeleted = [] as number[];
 
-        const DATACUBE_PENDING_SCALE_Y = 0.1;
-
-        for (const datacube of datacubes) {
-            let renderCuboidToIdBufferOnly = false;
-            let points = undefined as undefined | PointData[];
-            if (
-                datacube.type === NodeTypes.PointPrimitive &&
-                datacube.xColumn &&
-                datacube.yColumn &&
-                datacube.zColumn &&
-                // Make sure that the points only update after all (subsequently updated) columns were updated
-                datacube.xColumn.length === datacube.yColumn.length &&
-                datacube.xColumn.length === datacube.zColumn.length
-            ) {
-                renderCuboidToIdBufferOnly = true;
-
-                points = [];
-
-                const minX = (datacube.xColumn as NumberColumn).min;
-                const maxX = (datacube.xColumn as NumberColumn).max;
-                const minY = (datacube.yColumn as NumberColumn).min;
-                const maxY = (datacube.yColumn as NumberColumn).max;
-                const minZ = (datacube.zColumn as NumberColumn).min;
-                const maxZ = (datacube.zColumn as NumberColumn).max;
-
-                let minSize: number;
-                let maxSize: number;
-
-                if (datacube.sizeColumn && datacube.sizeColumn.length === datacube.xColumn.length) {
-                    minSize = (datacube.sizeColumn as NumberColumn).min;
-                    maxSize = (datacube.sizeColumn as NumberColumn).max;
+        let updatedDatacubes = this._datacubes;
+        for (let datacubeIndex = 0; datacubeIndex < datacubes.length; datacubeIndex++) {
+            const datacube = datacubes[datacubeIndex];
+            const id = datacube.id;
+            if (id !== undefined) {
+                const matchingExistingDatacubeIndex = updatedDatacubes.findIndex((datacube) => datacube.id === id);
+                if (matchingExistingDatacubeIndex !== -1) {
+                    let matchingExistingDatacube = updatedDatacubes[matchingExistingDatacubeIndex];
+                    matchingExistingDatacube = {
+                        ...matchingExistingDatacube,
+                        ...datacube,
+                    };
+                    updatedDatacubes.splice(matchingExistingDatacubeIndex, 1, matchingExistingDatacube);
+                } else {
+                    updatedDatacubes.push(datacube);
                 }
-
-                let minColorValue: number;
-                let maxColorValue: number;
-
-                if (datacube.colors && datacube.colors.column.length === datacube.xColumn.length) {
-                    minColorValue = (datacube.colors.column as NumberColumn).min;
-                    maxColorValue = (datacube.colors.column as NumberColumn).max;
-                }
-
-                for (let index = 0; index < datacube.xColumn.length; index++) {
-                    const x = datacube.xColumn.get(index) as number;
-                    const y = datacube.yColumn.get(index) as number;
-                    const z = datacube.zColumn.get(index) as number;
-                    const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
-                    const colorValue = datacube.colors?.column ? (datacube.colors.column.get(index) as number) : undefined;
-
-                    const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
-                    const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
-                    const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
-                    const normalizedSize = datacube.sizeColumn ? (size! - minSize!) / (maxSize! - minSize!) : undefined;
-                    const normalizedColorValue = datacube.colors?.column
-                        ? (colorValue! - minColorValue!) / (maxColorValue! - minColorValue!)
-                        : undefined;
-
-                    let r = 1;
-                    let g = 1;
-                    let b = 1;
-                    if (normalizedColorValue !== undefined) {
-                        [r, g, b] = getColorForNormalizedValue(normalizedColorValue, datacube.colors!.colorPalette);
-                    }
-
-                    points.push({
-                        x: normalizedX,
-                        y: normalizedY,
-                        z: normalizedZ,
-                        r,
-                        g,
-                        b,
-                        size: normalizedSize ? 2.5 * normalizedSize : 2.5,
-                    });
-                }
-            }
-
-            const datacubePosition = datacube.position;
-            const datacubeId = datacube.id;
-            const datacubeIsErroneous = datacube.isErroneous;
-            const datacubeIsPending = datacube.isPending;
-            const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
-            if (existingCuboid) {
-                const from = {
-                    translateY: existingCuboid.translateY * 1000,
-                    scaleY: existingCuboid.scaleY * 1000,
-                    colorLAB0: existingCuboid.colorLAB ? existingCuboid.colorLAB[0] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
-                    colorLAB1: existingCuboid.colorLAB ? existingCuboid.colorLAB[1] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
-                    colorLAB2: existingCuboid.colorLAB ? existingCuboid.colorLAB[2] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
-                };
-
-                const to = datacubeIsPending
-                    ? {
-                          translateY: DATACUBE_PENDING_SCALE_Y * 0.5 * 1000,
-                          scaleY: DATACUBE_PENDING_SCALE_Y * 1000,
-                          colorLAB0: DATACUBE_PENDING_COLOR_LAB[0] * 1000,
-                          colorLAB1: DATACUBE_PENDING_COLOR_LAB[1] * 1000,
-                          colorLAB2: DATACUBE_PENDING_COLOR_LAB[2] * 1000,
-                      }
-                    : datacubeIsErroneous
-                    ? {
-                          translateY: datacube.relativeHeight * 0.5 * 1000,
-                          scaleY: datacube.relativeHeight * 1000,
-                          colorLAB0: DATACUBE_ERROR_COLOR_LAB[0] * 1000,
-                          colorLAB1: DATACUBE_ERROR_COLOR_LAB[1] * 1000,
-                          colorLAB2: DATACUBE_ERROR_COLOR_LAB[2] * 1000,
-                      }
-                    : {
-                          translateY: datacube.relativeHeight * 0.5 * 1000,
-                          scaleY: datacube.relativeHeight * 1000,
-                          colorLAB0: DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
-                          colorLAB1: DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
-                          colorLAB2: DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
-                      };
-
-                // Round the scaled target values to 0 decimals (i.e., the unscaled target values to 3 decimals)
-                // This is done to avoid unnecessary animation triggering due to numerical precision errors
-                to.scaleY = parseFloat(to.scaleY.toFixed(0));
-                to.translateY = parseFloat(to.translateY.toFixed(0));
-                to.colorLAB0 = parseFloat(to.colorLAB0.toFixed(0));
-                to.colorLAB1 = parseFloat(to.colorLAB1.toFixed(0));
-                to.colorLAB2 = parseFloat(to.colorLAB2.toFixed(0));
-
-                // https://animejs.com/documentation/#springPhysicsEasing
-                const springParams = {
-                    // default: 1, min: 0, max: 100
-                    mass: 1,
-                    // default: 100, min: 0, max: 100
-                    stiffness: 80,
-                    // default: 10, min: 10, max: 100
-                    damping: 80,
-                    // default: 0, min: 0, max: 100
-                    velocity: 0,
-                };
-
-                const changedSignificantly = (fromLocal: any, toLocal: any) => {
-                    return (
-                        Math.abs(fromLocal.translateY - toLocal.translateY) > 1.0 ||
-                        Math.abs(fromLocal.scaleY - toLocal.scaleY) > 1.0 ||
-                        Math.abs(fromLocal.colorLAB0 - toLocal.colorLAB0) > 1.0 ||
-                        Math.abs(fromLocal.colorLAB1 - toLocal.colorLAB1) > 1.0 ||
-                        Math.abs(fromLocal.colorLAB2 - toLocal.colorLAB2) > 1.0
-                    );
-                };
-
-                if (changedSignificantly(from, to)) {
-                    if (existingCuboid.runningAnimeJSAnimation) {
-                        existingCuboid.runningAnimeJSAnimation.pause();
-                        delete existingCuboid.runningAnimeJSAnimation;
-                    }
-                    const animeInstance = anime({
-                        targets: from,
-                        translateY: to.translateY,
-                        scaleY: to.scaleY,
-                        colorLAB0: to.colorLAB0,
-                        colorLAB1: to.colorLAB1,
-                        colorLAB2: to.colorLAB2,
-                        round: 1,
-                        easing: `spring(${springParams.mass}, ${springParams.stiffness}, ${springParams.damping}, ${springParams.velocity})`,
-                        update: () => {
-                            const translateY = from.translateY / 1000;
-                            const scaleY = from.scaleY / 1000;
-                            const colorLAB = [from.colorLAB0 / 1000, from.colorLAB1 / 1000, from.colorLAB2 / 1000];
-
-                            existingCuboid.translateY = translateY;
-                            existingCuboid.scaleY = scaleY;
-                            existingCuboid.colorLAB = colorLAB as [number, number, number];
-                            this._altered.alter('cuboids');
-                            this._invalidate(true);
-                        },
-                        complete: () => {
-                            delete existingCuboid.runningAnimeJSAnimation;
-                        },
-                    });
-                    existingCuboid.runningAnimeJSAnimation = animeInstance;
-                }
-
-                existingCuboid.translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
-                existingCuboid.isErroneous = datacubeIsErroneous;
-                existingCuboid.isPending = datacubeIsPending;
-                existingCuboid.idBufferOnly = renderCuboidToIdBufferOnly;
-                existingCuboid.points = points;
-                updatedCuboids.push(existingCuboid);
-            } else {
-                const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [CUBOID_SIZE_X, CUBOID_SIZE_Y, CUBOID_SIZE_Z]);
-                cuboid.initialize();
-
-                const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
-                let translateY = datacube.relativeHeight * 0.5;
-                let scaleY = datacube.relativeHeight;
-                let colorLAB = DATACUBE_DEFAULT_COLOR_LAB;
-
-                if (datacubeIsPending) {
-                    translateY = DATACUBE_PENDING_SCALE_Y * 0.5;
-                    scaleY = DATACUBE_PENDING_SCALE_Y;
-                    colorLAB = DATACUBE_PENDING_COLOR_LAB;
-                }
-
-                if (datacubeIsErroneous) {
-                    colorLAB = DATACUBE_ERROR_COLOR_LAB;
-                }
-
-                const newCuboid = {
-                    geometry: cuboid,
-                    translateXZ,
-                    translateY,
-                    scaleY,
-                    colorLAB,
-                    id: 4294967295 - datacubeId,
-                    isErroneous: datacubeIsErroneous,
-                    isPending: datacubeIsPending,
-                    idBufferOnly: renderCuboidToIdBufferOnly,
-                    points: points,
-                };
-
-                updatedCuboids.push(newCuboid);
+                datacubesNotDeleted.push(id);
             }
         }
 
-        this._cuboids = updatedCuboids;
-        this._altered.alter('cuboids');
+        updatedDatacubes = updatedDatacubes.filter((datacube) => datacubesNotDeleted.includes(datacube.id));
 
-        // TODO: Use this._altered instead!
+        this._datacubes = updatedDatacubes;
+        this._altered.alter('datacubes');
         this._invalidate(true);
+    }
+
+    get datacubes(): Array<DatacubeInformation> {
+        return this._datacubes;
+    }
+
+    set cuboids(cuboids: Cuboid[]) {
+        this._cuboids = cuboids;
+        this._altered.alter('cuboids');
+    }
+
+    get cuboids(): Cuboid[] {
+        return this._cuboids;
     }
 
     get datacubes$(): Observable<Array<DatacubeInformation>> {
@@ -1226,6 +1308,12 @@ export class DatacubesApplication extends Application {
     set datacubes(datacubes: Array<DatacubeInformation>) {
         if (this._renderer) {
             this._renderer.datacubes = datacubes;
+        }
+    }
+
+    set datacubePositions(datacubePositions: Map<number, XYPosition>) {
+        if (this._renderer) {
+            this._renderer.datacubePositions = datacubePositions;
         }
     }
 
