@@ -174,7 +174,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                 <div className="title">Color Mapping{isPending && ' …'}</div>
                 <div className="title-actions">
                     <span>
-                        <a onPointerUp={onDeleteNode}>Delete</a>
+                        <a onPointerUp={onDeleteNode}>✕</a>
                     </span>
                 </div>
             </div>
