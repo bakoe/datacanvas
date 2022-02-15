@@ -72,6 +72,7 @@ const CUBOID_SIZE_Y = 1.0;
 const CUBOID_SIZE_Z = 0.5;
 
 const DEBUG_SHOW_POINTS_ON_INTERACTION = true;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
 
 export interface Cuboid {
     geometry: CuboidGeometry;
@@ -1068,7 +1069,9 @@ class DatacubesRenderer extends Renderer {
             this._blit.framebuffer = this._accumulate?.framebuffer ? this._accumulate.framebuffer : this._intermediateFBOs[0];
             try {
                 this._blit.frame();
-                this._debugPass?.frame();
+                if (DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER) {
+                    this._debugPass?.frame();
+                }
             } catch (error) {
                 // Do nothing
             }
