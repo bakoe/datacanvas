@@ -131,7 +131,7 @@ const getFiles = (dataTransfer: DataTransfer): File[] => {
     return files;
 };
 
-let id = 3;
+let id = 4;
 const getId = () => `${id}`;
 
 const initialEdges: Edge[] = [];
@@ -187,6 +187,19 @@ const BasicFlow = () => {
                 isValidConnection,
             },
             position: { x: 800, y: 40 },
+        } as Node<PointPrimitiveNodeData>,
+
+        {
+            type: NodeTypes.PointPrimitive,
+            id: '3',
+            data: {
+                state: {
+                    ...PointPrimitiveNodeDefaultState,
+                },
+                onChangeState: (newState) => updateNodeState('3', newState),
+                isValidConnection,
+            },
+            position: { x: 800, y: 200 },
         } as Node<PointPrimitiveNodeData>,
     ];
 

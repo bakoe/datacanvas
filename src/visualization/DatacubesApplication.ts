@@ -32,7 +32,7 @@ import {
     ChangeLookup,
 } from 'webgl-operate';
 
-const { v3 } = gl_matrix_extensions;
+const { v3, m4 } = gl_matrix_extensions;
 
 import { Application } from './Application';
 
@@ -52,7 +52,6 @@ import { DatacubeInformation } from './DatacubesVisualization';
 import { Observable, Subject } from 'rxjs';
 import anime, { AnimeInstance } from 'animejs';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
-import { PointPrimitiveNodeState } from '../data/nodes/PointPrimitiveNode';
 import { NumberColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 
@@ -76,7 +75,6 @@ interface Cuboid {
     geometry: CuboidGeometry;
     translateY: number;
     scaleY: number;
-    translateXZ?: vec2;
     runningAnimeJSAnimation?: AnimeInstance;
     colorLAB?: [number, number, number];
     id?: number;
@@ -84,6 +82,8 @@ interface Cuboid {
     isPending?: boolean;
     idBufferOnly?: boolean;
     points?: Array<PointData>;
+    pointsFrom?: number;
+    pointsCount?: number;
 }
 
 // LAB values converted using: https://colors.dopely.top/color-converter/hex/
@@ -174,6 +174,7 @@ class DatacubesRenderer extends Renderer {
     protected _pointsProgram: Program | undefined;
     protected _uPointsViewProjection: WebGLUniformLocation | undefined;
     protected _uPointsNdcOffset: WebGLUniformLocation | undefined;
+    protected _uPointsModel: WebGLUniformLocation | undefined;
 
     // Keeping track of whether a cuboid is dragged
     protected _draggedCuboidID: number | undefined;
@@ -265,6 +266,7 @@ class DatacubesRenderer extends Renderer {
 
         this._uPointsViewProjection = this._pointsProgram.uniform('u_viewProjection');
         this._uPointsNdcOffset = this._pointsProgram.uniform('u_ndcOffset');
+        this._uPointsModel = this._pointsProgram.uniform('u_model');
 
         this._floor = new NdcFillingRectangle(this._context, 'Floor');
         this._floor.initialize();
@@ -443,13 +445,12 @@ class DatacubesRenderer extends Renderer {
                         if (coordsAt) {
                             this._dragStartPosition = coordsAt;
                             const cuboid = this._cuboids.find((cuboid) => cuboid.id === this._draggedCuboidID);
-                            if (cuboid?.translateXZ) {
-                                const cuboidPosition = vec3.fromValues(
-                                    cuboid?.translateXZ[0] || 0,
-                                    cuboid?.translateY || 0,
-                                    cuboid?.translateXZ[1] || 0,
-                                );
-                                this._draggedCuboidStartPosition = cuboidPosition;
+                            if (cuboid?.id) {
+                                const positionXZ = this.datacubePositions.get(4294967295 - cuboid.id);
+                                if (positionXZ) {
+                                    const cuboidPosition = vec3.fromValues(positionXZ.x || 0, cuboid?.translateY || 0, positionXZ.y || 0);
+                                    this._draggedCuboidStartPosition = cuboidPosition;
+                                }
                             }
                         }
                     }
@@ -834,43 +835,42 @@ class DatacubesRenderer extends Renderer {
 
             this.cuboids = updatedCuboids;
         }
-        if (this._altered.datacubePositions) {
-            const positions = this.datacubePositions;
-            for (const datacube of this._datacubes) {
-                const id = datacube.id;
-                const position = positions.get(id);
-                if (position) {
-                    const matchingCuboidIndex = this.cuboids.findIndex((cuboid) => cuboid.id === 4294967295 - id);
-                    if (matchingCuboidIndex !== -1) {
-                        const matchingCuboid = this.cuboids[matchingCuboidIndex];
-                        matchingCuboid.translateXZ = vec2.fromValues(position.x, position.y);
-                        this.cuboids.splice(matchingCuboidIndex, 1, matchingCuboid);
-                        // const updatedCuboids = this.cuboids;
-                        // updatedCuboids.splice(matchingCuboidIndex, 1, matchingCuboid);
-                        // this.cuboids = updatedCuboids;
-                        // this._altered.alter('points');
-                    }
-                }
-            }
-        }
         if (this._altered.cuboids) {
+            console.log("cuboids altered");
             const cuboidsWithPointData = this.cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
             const pointsData = [] as number[];
+            let pointsFrom = 0;
             if (cuboidsWithPointData.length > 0) {
                 for (let cuboidIndex = 0; cuboidIndex < cuboidsWithPointData.length; cuboidIndex++) {
-                    const { points, translateXZ, translateY } = cuboidsWithPointData[cuboidIndex];
-                    if (points && translateXZ) {
-                        for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
-                            const point = points[pointIndex];
-                            pointsData.push(
-                                point.x + translateXZ[0],
-                                point.y + translateY,
-                                point.z + translateXZ[1],
-                                point.r,
-                                point.g,
-                                point.b,
-                                point.size,
-                            );
+                    const { points, id } = cuboidsWithPointData[cuboidIndex];
+                    if (points && id) {
+                        const translateXZ = this.datacubePositions.get(4294967295 - id);
+                        if (translateXZ) {
+                            for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+                                const point = points[pointIndex];
+                                pointsData.push(
+                                    // prettier-ignore
+                                    point.x,
+                                    point.y,
+                                    point.z,
+                                    point.r,
+                                    point.g,
+                                    point.b,
+                                    point.size,
+                                );
+                            }
+
+                            const existingCuboidIndex = this.cuboids.findIndex((cuboid) => cuboid.id === id);
+                            if (existingCuboidIndex !== -1) {
+                                const existingCuboid = this.cuboids[existingCuboidIndex];
+                                existingCuboid.pointsFrom = pointsFrom;
+                                existingCuboid.pointsCount = points.length;
+                                const updatedCuboids = this.cuboids;
+                                updatedCuboids.splice(existingCuboidIndex, 1, existingCuboid);
+                                this.cuboids = updatedCuboids;
+                            }
+
+                            pointsFrom += points.length;
                         }
                     }
                 }
@@ -983,14 +983,21 @@ class DatacubesRenderer extends Renderer {
         if (this._cuboids.length > 0) {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
-            for (const { geometry, translateXZ, translateY, scaleY } of cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
+                if (!id) {
+                    continue;
+                }
+
+                const translateXZ = this.datacubePositions.get(4294967295 - id);
+
                 if (!translateXZ) {
                     continue;
                 }
+
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
-                const translate = mat4.fromTranslation(mat4.create(), [translateXZ[0], translateY, translateXZ[1]]);
+                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
 
                 const transform = mat4.multiply(mat4.create(), translate, scale);
 
@@ -1049,15 +1056,21 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateXZ, translateY, scaleY, colorLAB, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
-                if (idBufferOnly || !translateXZ) {
+            for (const { geometry, id, translateY, scaleY, colorLAB, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
+                if (idBufferOnly || !id) {
+                    continue;
+                }
+
+                const translateXZ = this.datacubePositions.get(4294967295 - id);
+
+                if (!translateXZ) {
                     continue;
                 }
 
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
-                const translate = mat4.fromTranslation(mat4.create(), [translateXZ[0], translateY, translateXZ[1]]);
+                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
 
                 const transform = mat4.multiply(mat4.create(), translate, scale);
 
@@ -1077,7 +1090,23 @@ class DatacubesRenderer extends Renderer {
             gl.disable(gl.CULL_FACE);
             gl.enable(gl.DEPTH_TEST);
             this._intermediateFBOs[0].bind();
-            this.renderPoints(ndcOffset || []);
+
+            for (const { id, pointsFrom, pointsCount, translateY, points } of cuboidsSortedByCameraDistance) {
+                if (id === undefined || points === undefined || points.length === 0) {
+                    continue;
+                }
+
+                const translateXZ = this.datacubePositions.get(4294967295 - id);
+
+                if (!translateXZ) {
+                    continue;
+                }
+
+                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
+
+                this.renderPoints(ndcOffset || [], pointsFrom || 0, pointsCount || Infinity, translate);
+            }
+
             gl.enable(gl.DEPTH_TEST);
         }
 
@@ -1100,7 +1129,13 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateXZ, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
+                if (!id) {
+                    continue;
+                }
+
+                const translateXZ = this.datacubePositions.get(4294967295 - id);
+
                 if (!translateXZ) {
                     continue;
                 }
@@ -1108,7 +1143,7 @@ class DatacubesRenderer extends Renderer {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
-                const translate = mat4.fromTranslation(mat4.create(), [translateXZ[0], translateY, translateXZ[1]]);
+                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
 
                 const transform = mat4.multiply(mat4.create(), translate, scale);
 
@@ -1144,11 +1179,12 @@ class DatacubesRenderer extends Renderer {
         this._accumulate?.frame(frameNumber);
     }
 
-    protected renderPoints(ndcOffset: number[]): void {
+    protected renderPoints(ndcOffset: number[], from: number, count: number, modelTransform: mat4): void {
         const gl = this._context.gl;
         this._pointsProgram?.bind();
 
         gl.uniformMatrix4fv(this._uPointsViewProjection, gl.GL_FALSE, this._camera?.viewProjection);
+        gl.uniformMatrix4fv(this._uPointsModel, gl.GL_FALSE, modelTransform);
         gl.uniform2fv(this._uPointsNdcOffset, ndcOffset);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this._pointsBuffer);
@@ -1162,7 +1198,7 @@ class DatacubesRenderer extends Renderer {
         gl.enableVertexAttribArray(2);
 
         if (this._points) {
-            gl.drawArrays(gl.POINTS, 0, this._points.length / 7);
+            gl.drawArrays(gl.POINTS, from, Math.min(this._points.length / 7, count));
             gl.bindBuffer(gl.ARRAY_BUFFER, Buffer.DEFAULT_BUFFER);
         }
 
@@ -1186,12 +1222,20 @@ class DatacubesRenderer extends Renderer {
 
     get cuboidsSortedByCameraDistance(): Cuboid[] {
         return this._cuboids
-            .filter((cuboid) => cuboid.translateXZ !== undefined)
-            .sort(
-                (a, b) =>
-                    this.distanceToCamera(vec3.fromValues(b.translateXZ![0], b.translateY, b.translateXZ![1])) -
-                    this.distanceToCamera(vec3.fromValues(a.translateXZ![0], a.translateY, a.translateXZ![1])),
-            );
+            .filter((cuboid) => cuboid.id !== undefined)
+            .sort((a, b) => {
+                const translateXZA = this.datacubePositions.get(4294967295 - a.id!);
+                const translateXZB = this.datacubePositions.get(4294967295 - b.id!);
+
+                if (!translateXZA || !translateXZB) {
+                    return 0;
+                }
+
+                return (
+                    this.distanceToCamera(vec3.fromValues(translateXZB.x, b.translateY, translateXZB.y)) -
+                    this.distanceToCamera(vec3.fromValues(translateXZA.x, a.translateY, translateXZA.y))
+                );
+            });
     }
 
     protected onSwap(): void {
