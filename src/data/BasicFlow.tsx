@@ -46,6 +46,7 @@ import PointPrimitiveNode, {
     PointPrimitiveNodeState,
     PointPrimitiveNodeTargetHandles,
 } from './nodes/PointPrimitiveNode';
+import { vec2 } from 'webgl-operate';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
 const onNodeClick = (_: MouseEvent, node: Node) => undefined;
@@ -312,6 +313,7 @@ const BasicFlow = () => {
     const [draggingInPage, setDraggingInPage] = useState(false);
 
     const [pointerDownStart, setPointerDownStart] = useState(undefined as undefined | number);
+    const [pointerDownStartPosition, setPointerDownStartPosition] = useState(undefined as undefined | vec2);
 
     const onDisconnect = (params: Edge | Connection) => {
         if (!params.source || !params.target) return;
@@ -574,10 +576,10 @@ const BasicFlow = () => {
         const virtualReference = {
             getBoundingClientRect() {
                 return {
-                    top: event.clientY,
-                    left: event.clientX,
-                    bottom: event.clientY,
-                    right: event.clientX,
+                    top: Math.round(event.clientY),
+                    left: Math.round(event.clientX),
+                    bottom: Math.round(event.clientY),
+                    right: Math.round(event.clientX),
                     width: 0,
                     height: 0,
                 };
@@ -721,24 +723,34 @@ const BasicFlow = () => {
             className="react-flow-basic-example"
             defaultZoom={1.5}
             onPaneContextMenu={onContextMenuOpen}
-            onPointerDown={() => {
+            onPointerDown={(event) => {
+                setPointerDownStartPosition(vec2.fromValues(event.clientX, event.clientY));
                 setPointerDownStart(new Date().getTime());
             }}
             onPointerUp={(event) => {
                 const LONG_PRESS_MIN_DURATION_IN_MILLISECONDS = 300;
                 if (pointerDownStart !== undefined) {
-                    setPointerDownStart(undefined);
                     const pointerDownEnd = new Date().getTime();
                     if (pointerDownEnd - pointerDownStart >= LONG_PRESS_MIN_DURATION_IN_MILLISECONDS) {
                         onContextMenuOpen(event);
                     }
+                    setPointerDownStart(undefined);
+                    setPointerDownStartPosition(undefined);
                 }
             }}
-            onPointerMove={() => {
+            onPointerMove={(event) => {
+                if (!pointerDownStartPosition || pointerDownStart === undefined) {
+                    return;
+                }
                 // Long-press detection: If the pointer is moved after pointer-down and before pointer-up, cancel the long-press recording
-                // TODO: Keep track of the start position and allow for a small delta offset in moving the pointer before cancelling the long-press recording
+                const distance = vec2.dist(vec2.fromValues(event.clientX, event.clientY), pointerDownStartPosition);
+                // Keep track of the start position and allow for a small delta offset in moving the pointer before cancelling the long-press recording
+                if (distance < 10) {
+                    return;
+                }
                 if (pointerDownStart !== undefined) {
                     setPointerDownStart(undefined);
+                    setPointerDownStartPosition(undefined);
                 }
             }}
             onMoveStart={() => {
