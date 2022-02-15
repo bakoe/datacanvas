@@ -873,6 +873,9 @@ const BasicFlow = () => {
                                                 addNodeFromContextMenu(nodeType);
                                             }
                                         }}
+                                        onPointerOver={() => {
+                                            setFocusedContextMenuEntry(index);
+                                        }}
                                     >
                                         <a
                                             id={`${index}`}
