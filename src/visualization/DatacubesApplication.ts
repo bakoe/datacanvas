@@ -497,7 +497,7 @@ class DatacubesRenderer extends Renderer {
 
                     const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._draggedCuboidID) {
-                            return { ...cuboid, translateXZ, translateY, scaleY };
+                            return { ...cuboid, translateY, scaleY };
                         }
                         return cuboid;
                     });
@@ -518,10 +518,6 @@ class DatacubesRenderer extends Renderer {
                             })
                             .filter((updatedDatacube) => updatedDatacube !== undefined) as Array<DatacubeInformation>,
                     );
-
-                    this._cuboids = updatedCuboids;
-                    this._altered.alter('cuboids');
-                    this._invalidate(true);
                 }
             }
         });
@@ -836,7 +832,7 @@ class DatacubesRenderer extends Renderer {
             this.cuboids = updatedCuboids;
         }
         if (this._altered.cuboids) {
-            console.log("cuboids altered");
+            console.log('cuboids altered');
             const cuboidsWithPointData = this.cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
             const pointsData = [] as number[];
             let pointsFrom = 0;
