@@ -220,8 +220,37 @@ class DatacubesRenderer extends Renderer {
             debugPoints: false,
         });
 
+        this._camera = new Camera();
+
+        this._camera.center = vec3.fromValues(0.0, 0.5, 0.0);
+        this._camera.up = vec3.fromValues(0.0, 1.0, 0.0);
+        this._camera.eye = vec3.fromValues(2.0, 2.0, 4.0);
+        this._camera.near = 0.01;
+        this._camera.far = 32.0;
+
         Passes.initialize(this._context, this.invalidate.bind(this));
-        
+        Passes.labels.camera = this._camera;
+
+        Passes.labels.labelInfo = [
+            {
+                labels: [
+                    {
+                        name: 'foo',
+                        dir: vec3.fromValues(1.0, 0.0, 0.0),
+                        pos: vec3.fromValues(1.0, 1.0, 1.0),
+                        up: vec3.fromValues(0.0, 1.0, 0.0),
+                    },
+                    {
+                        name: 'bar',
+                        dir: vec3.fromValues(1.0, 0.0, 0.0),
+                        pos: vec3.fromValues(-3.0, 1.0, 1.0),
+                        up: vec3.fromValues(0.0, 1.0, 0.0),
+                    },
+                ],
+                useNearest: true,
+            },
+        ];
+
         // prettier-ignore
         this.points = new Float32Array([
             // x, y, z, r, g, b, data,
@@ -360,14 +389,6 @@ class DatacubesRenderer extends Renderer {
         this._uRenderIDToFragColorCuboids = this._cuboidsProgram.uniform('u_renderIDToFragColor');
 
         this._cuboidsProgram.unbind();
-
-        this._camera = new Camera();
-
-        this._camera.center = vec3.fromValues(0.0, 0.5, 0.0);
-        this._camera.up = vec3.fromValues(0.0, 1.0, 0.0);
-        this._camera.eye = vec3.fromValues(2.0, 2.0, 4.0);
-        this._camera.near = 0.01;
-        this._camera.far = 32.0;
 
         /* Create and configure debug pass */
         this._debugPass = new DebugPass(this._context);
@@ -1053,6 +1074,10 @@ class DatacubesRenderer extends Renderer {
         // Draw floor
         Passes.floor.target = this._intermediateFBOs[0];
         Passes.floor.frame();
+
+        // Draw labels
+        Passes.labels.target = this._intermediateFBOs[0];
+        Passes.labels.frame();
 
         if (this._cuboids.length > 0) {
             this._cuboidsProgram?.bind();
