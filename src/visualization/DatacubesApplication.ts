@@ -36,9 +36,6 @@ const { v3, m4 } = gl_matrix_extensions;
 
 import { Application } from './Application';
 
-import FloorVert from './shaders/floor.vert';
-import FloorFrag from './shaders/floor.frag';
-
 import MeshVert from './shaders/mesh.vert';
 import MeshFrag from './shaders/mesh.frag';
 
@@ -54,6 +51,7 @@ import anime, { AnimeInstance } from 'animejs';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { NumberColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
+import { Passes } from './Passes';
 
 /* spellchecker: enable */
 
@@ -121,15 +119,6 @@ class DatacubesRenderer extends Renderer {
 
     protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
     protected _uModelCuboids: WebGLUniformLocation | undefined;
-
-    protected _floorProgram: Program | undefined;
-
-    protected _floor: NdcFillingRectangle | undefined;
-    protected _floorTransform: mat4 | undefined;
-
-    protected _uViewProjectionFloor: WebGLUniformLocation | undefined;
-    protected _uModelFloor: WebGLUniformLocation | undefined;
-    protected _uDiffuseFloor: WebGLUniformLocation | undefined;
 
     protected _camera: Camera | undefined;
     protected _navigation: PausableNavigation | undefined;
@@ -231,6 +220,8 @@ class DatacubesRenderer extends Renderer {
             debugPoints: false,
         });
 
+        Passes.initialize(this._context, this.invalidate.bind(this));
+        
         // prettier-ignore
         this.points = new Float32Array([
             // x, y, z, r, g, b, data,
@@ -300,16 +291,6 @@ class DatacubesRenderer extends Renderer {
         this._debugUPointsNdcOffset = this._debugPointsProgram.uniform('u_ndcOffset');
         this._debugUPointsModel = this._debugPointsProgram.uniform('u_model');
 
-        this._floor = new NdcFillingRectangle(this._context, 'Floor');
-        this._floor.initialize();
-        // prettier-ignore
-        this._floorTransform = mat4.fromValues(
-            16.0,  0.0,  0.0, 0.0,
-            0.0,   0.0, 16.0, 0.0,
-            0.0,  16.0,  0.0, 0.0,
-            0.0,   0.0,  0.0, 1.0
-        );
-
         const depthVert = new Shader(this._context, gl.VERTEX_SHADER, 'mesh.vert');
         depthVert.initialize(MeshVert);
         const depthFrag = new Shader(this._context, gl.FRAGMENT_SHADER, 'depth.frag');
@@ -359,34 +340,9 @@ class DatacubesRenderer extends Renderer {
         ]);
         this._intermediateFBOs[1].clearColor([0, 0, 0, 0]);
 
-        let vert = new Shader(this._context, gl.VERTEX_SHADER, 'floor.vert');
-        vert.initialize(FloorVert);
-        let frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'floor.frag');
-        frag.initialize(FloorFrag);
-
-        this._floorProgram = new Program(this._context, 'FloorProgram');
-        this._floorProgram.initialize([vert, frag], false);
-
-        this._floorProgram.link();
-        this._floorProgram.bind();
-
-        this._uViewProjectionFloor = this._floorProgram.uniform('u_viewProjection');
-        this._uModelFloor = this._floorProgram.uniform('u_model');
-        this._uDiffuseFloor = this._floorProgram.uniform('u_diffuse');
-
-        this._context.gl.uniform4f(
-            this._floorProgram.uniform('u_clearColor'),
-            this._clearColor[0],
-            this._clearColor[1],
-            this._clearColor[2],
-            this._clearColor[3],
-        );
-
-        this._floorProgram.unbind();
-
-        vert = new Shader(this._context, gl.VERTEX_SHADER, 'mesh.vert');
+        const vert = new Shader(this._context, gl.VERTEX_SHADER, 'mesh.vert');
         vert.initialize(MeshVert);
-        frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'mesh.frag');
+        const frag = new Shader(this._context, gl.FRAGMENT_SHADER, 'mesh.frag');
         frag.initialize(MeshFrag);
 
         this._cuboidsProgram = new Program(this._context, 'CuboidsProgram');
@@ -653,8 +609,6 @@ class DatacubesRenderer extends Renderer {
     protected onUninitialize(): void {
         super.uninitialize();
 
-        this._floor?.uninitialize();
-        this._floorProgram?.uninitialize();
         this._cuboidsProgram?.uninitialize();
 
         const gl = this._context.gl;
@@ -681,7 +635,7 @@ class DatacubesRenderer extends Renderer {
      */
     protected onUpdate(): boolean {
         this._navigation?.update();
-        return this._altered.any || (!!this._camera && this._camera.altered);
+        return this._altered.any || (!!this._camera && this._camera.altered) || Passes.altered;
     }
 
     /**
@@ -689,6 +643,7 @@ class DatacubesRenderer extends Renderer {
      * camera-updates.
      */
     protected onPrepare(): void {
+        Passes.floor.viewProjection = this._camera?.viewProjection;
         if (this._altered.datacubes) {
             const updatedCuboids = [];
 
@@ -991,21 +946,16 @@ class DatacubesRenderer extends Renderer {
         if (this._altered.clearColor) {
             this._preDepthFBO?.clearColor([0.9999999403953552, 0.9999999403953552, 0.9999999403953552, 0.9999999403953552]);
             this._intermediateFBOs[0].clearColor(this._clearColor);
-            if (this._defaultFBO && this._floorProgram) {
+            Passes.floor.clearColor = this._clearColor;
+            if (this._defaultFBO) {
                 this._defaultFBO.clearColor(this._clearColor);
-                this._context.gl.uniform4f(
-                    this._floorProgram.uniform('u_clearColor'),
-                    this._clearColor[0],
-                    this._clearColor[1],
-                    this._clearColor[2],
-                    this._clearColor[3],
-                );
             }
         }
         if (this._altered.multiFrameNumber) {
             this._ndcOffsetKernel = new AntiAliasingKernel(this._multiFrameNumber);
         }
         this._accumulate?.update();
+        Passes.update();
         this._altered.reset();
         if (this._camera) {
             this._camera.altered = false;
@@ -1048,12 +998,9 @@ class DatacubesRenderer extends Renderer {
         gl.uniform2fv(this._uDepthCameraNearFar, [this._camera?.near, this._camera?.far]);
         gl.uniform1i(this._uDepthHideFromDepthBuffer, Number(false));
 
-        // Draw floor
-        this._floor?.bind();
-        gl.uniformMatrix4fv(this._uDepthModel, false, this._floorTransform);
-        gl.cullFace(gl.BACK);
-        this._floor?.draw();
-        this._floor?.unbind();
+        // Draw floor (depth)
+        // Passes.floor.target = this._intermediateFBOs[0];
+        // Passes.floor.drawDepth(this._uDepthModel);
 
         const cuboidsSortedByCameraDistance = this.cuboidsSortedByCameraDistance;
 
@@ -1103,25 +1050,9 @@ class DatacubesRenderer extends Renderer {
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.BLEND);
 
-        this._floorProgram?.bind();
-        gl.uniformMatrix4fv(this._uViewProjectionFloor, false, this._camera?.viewProjection);
-
-        gl.depthFunc(gl.LEQUAL);
-
-        this._floor?.bind();
-        gl.uniformMatrix4fv(this._uModelFloor, false, this._floorTransform);
-
-        this._context.gl.uniform4f(this._uDiffuseFloor, 0.5, 0.5, 0.5, 0.25);
-
-        gl.disable(gl.CULL_FACE);
-        gl.depthMask(false);
-        this._floor?.draw();
-        gl.depthMask(true);
-        gl.enable(gl.CULL_FACE);
-
-        this._floor?.unbind();
-
-        this._floorProgram?.unbind();
+        // Draw floor
+        Passes.floor.target = this._intermediateFBOs[0];
+        Passes.floor.frame();
 
         if (this._cuboids.length > 0) {
             this._cuboidsProgram?.bind();
