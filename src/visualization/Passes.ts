@@ -1,8 +1,5 @@
-import { AccumulatePass, BlitPass, Context, DebugPass, Framebuffer, Invalidate, ReadbackPass } from 'webgl-operate';
-import { CuboidPass } from './cuboid/CuboidPass';
-import { PointDebugPass } from './debug/PointDebugPass';
+import { Context, Framebuffer, Invalidate } from 'webgl-operate';
 import { FloorPass } from './floor/FloorPass';
-import { PointPrimitivePass } from './point-primitive/PointPrimitivePass';
 import { LabelPass } from './label/LabelPass';
 
 const fontApi = 'https://fonts.varg.dev/api/fonts/';
@@ -13,7 +10,6 @@ const Roboto = {
 };
 
 export class Passes {
-    // To-be-created
     protected _floor: FloorPass;
 
     protected _labels: LabelPass;
