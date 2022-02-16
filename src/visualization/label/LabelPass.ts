@@ -118,7 +118,7 @@ export class LabelPass extends LabelRenderPass {
             l.position = i.pos;
             l.direction = i.dir;
             l.up = i.up;
-            l.color.fromRGB(0, 0, 0);
+            l.color.fromRGB(1, 1, 1);
             this.labels.push(l);
         });
     }
