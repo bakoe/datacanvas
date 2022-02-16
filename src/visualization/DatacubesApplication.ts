@@ -52,6 +52,7 @@ import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { NumberColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 import { Passes } from './Passes';
+import { GLfloat2 } from 'webgl-operate/lib/tuples';
 
 /* spellchecker: enable */
 
@@ -1077,6 +1078,7 @@ class DatacubesRenderer extends Renderer {
 
         // Draw labels
         Passes.labels.target = this._intermediateFBOs[0];
+        if (ndcOffset) Passes.labels.ndcOffset = ndcOffset as GLfloat2;
         Passes.labels.frame();
 
         if (this._cuboids.length > 0) {
