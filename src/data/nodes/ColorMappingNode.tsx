@@ -253,7 +253,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                         </tr>
                         <tr>
                             <td>
-                                <label htmlFor="number-of-stops"># stops:</label>
+                                <label htmlFor="number-of-stops">#&nbsp;stops:</label>
                             </td>
                             <td>
                                 <input
