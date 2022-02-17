@@ -112,7 +112,6 @@ class DatacubesRenderer extends Renderer {
     protected _extensions = false;
 
     protected _capturedIDBufferImageData: ImageData | undefined;
-    protected _capturedIDBufferImageDirty = false;
     protected _onDatacubePointerUpSubject: Subject<PointerEvent> | undefined;
     protected _onDatacubePointerMoveSubject: Subject<PointerEvent> | undefined;
 
@@ -565,20 +564,12 @@ class DatacubesRenderer extends Renderer {
             }
         });
 
-        eventProvider.mouseEventProvider.wheel$.subscribe((value) => {
-            this._capturedIDBufferImageDirty = true;
-        });
-
         eventProvider.pointerEventProvider.up$.subscribe((value) => {
             if (this._draggedCuboidID) {
                 this._draggedCuboidID = undefined;
                 if (this._navigation) this._navigation.isPaused = false;
                 this.invalidate(true);
             }
-
-            // Navigation ended -- thus, capture the ID buffer state
-            this.captureIDBufferState();
-            this._capturedIDBufferImageDirty = false;
 
             const eventWithDatacubeID = this.assignDatacubeToPointerEvent(value);
 
@@ -629,10 +620,6 @@ class DatacubesRenderer extends Renderer {
     }
 
     protected captureIDBufferState(): void {
-        if (!this._capturedIDBufferImageDirty) {
-            return;
-        }
-
         if (this._idRenderTexture?.valid && this._readbackPass?.initialized) {
             const gl = this._context.gl;
             const img = FrameCapture.capture(this._intermediateFBOs[1], gl.COLOR_ATTACHMENT0);
@@ -713,9 +700,12 @@ class DatacubesRenderer extends Renderer {
      * camera-updates.
      */
     protected onPrepare(): void {
+        if (this._altered.any) {
+            this._capturedIDBufferImageData = undefined;
+        }
+
         Passes.floor.viewProjection = this._camera?.viewProjection;
         Passes.lines.viewProjection = this._camera?.viewProjection;
-        this._capturedIDBufferImageDirty = true;
         if (this._altered.datacubes) {
             const updatedCuboids = [];
 
@@ -1328,10 +1318,10 @@ class DatacubesRenderer extends Renderer {
 
         this._accumulate?.frame(frameNumber);
 
-        if (frameNumber > 0) {
-            if (!this._capturedIDBufferImageData) {
-                this.captureIDBufferState();
-            }
+        if (!this._capturedIDBufferImageData) {
+            // TODO: Find a better way of determining when to re-capture the ID buffer state
+            // TODO: (i.e., don't re-update all the time during navigation)
+            this.captureIDBufferState();
         }
     }
 
