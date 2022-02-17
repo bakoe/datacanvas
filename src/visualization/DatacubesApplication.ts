@@ -111,6 +111,7 @@ class DatacubesRenderer extends Renderer {
     protected _extensions = false;
 
     protected _capturedIDBufferImageData: ImageData | undefined;
+    protected _capturedIDBufferImageDirty = false;
     protected _onDatacubePointerUpSubject: Subject<PointerEvent> | undefined;
 
     protected _defaultFBO: DefaultFramebuffer | undefined;
@@ -566,7 +567,10 @@ class DatacubesRenderer extends Renderer {
                 this.invalidate(true);
             }
 
+            // Navigation ended -- thus, capture the ID buffer state
             this.captureIDBufferState();
+            this._capturedIDBufferImageDirty = false;
+
             const eventWithDatacubeID = this.assignDatacubeToPointerEvent(value);
 
             this._onDatacubePointerUpSubject?.next(eventWithDatacubeID);
@@ -616,6 +620,10 @@ class DatacubesRenderer extends Renderer {
     }
 
     protected captureIDBufferState(): void {
+        if (!this._capturedIDBufferImageDirty) {
+            return;
+        }
+
         if (this._idRenderTexture?.valid && this._readbackPass?.initialized) {
             const gl = this._context.gl;
             const img = FrameCapture.capture(this._intermediateFBOs[1], gl.COLOR_ATTACHMENT0);
@@ -699,6 +707,7 @@ class DatacubesRenderer extends Renderer {
      */
     protected onPrepare(): void {
         Passes.floor.viewProjection = this._camera?.viewProjection;
+        this._capturedIDBufferImageDirty = true;
         if (this._altered.datacubes) {
             const updatedCuboids = [];
 
@@ -1035,6 +1044,7 @@ class DatacubesRenderer extends Renderer {
         if (this._altered.multiFrameNumber) {
             this._ndcOffsetKernel = new AntiAliasingKernel(this._multiFrameNumber);
         }
+
         this._accumulate?.update();
         Passes.update();
         this._altered.reset();
