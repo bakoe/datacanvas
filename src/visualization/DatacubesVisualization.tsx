@@ -13,6 +13,7 @@ import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 import { ColorPalette } from '../data/nodes/util/EditableColorGradient';
 import { serializeColumnInfo } from '../data/nodes/util/serializeColumnInfo';
+import { isColorMappingNode } from '../data/nodes/ColorMappingNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -113,7 +114,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let zColumn = undefined as undefined | CSVColumn;
             let sizeColumn = undefined as undefined | CSVColumn;
             let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
-            if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node)) {
+            if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node) || isColorMappingNode(node)) {
                 if (isDatasetNode(node)) {
                     if (overallMaxRowCount) {
                         const colRowCounts = node.data.state?.columns?.map((col) => col.length);
@@ -131,6 +132,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                         }
                     }
                     isErroneous = node.data.state?.errorMessage !== undefined;
+                    isPending = node.data.state?.isPending;
+                }
+                if (isColorMappingNode(node)) {
                     isPending = node.data.state?.isPending;
                 }
                 if (isPointPrimitiveNode(node)) {
