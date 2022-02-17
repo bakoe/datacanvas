@@ -3,10 +3,16 @@ import { FloorPass } from './floor/FloorPass';
 import { LabelPass } from './label/LabelPass';
 
 const fontApi = 'https://fonts.varg.dev/api/fonts/';
-const font = 'roboto-regular.ttf/61cc7e5a56a3775a3f27899a658881e1';
+const robotoFont = 'roboto-regular.ttf/61cc7e5a56a3775a3f27899a658881e1';
 const Roboto = {
-    fnt: fontApi + font + '/fontdescription',
-    png: fontApi + font + '/distancefield',
+    fnt: fontApi + robotoFont + '/fontdescription',
+    png: fontApi + robotoFont + '/distancefield',
+};
+
+const interRegularFont = 'inter-regular.ttf/11cb1170deec982ea806a414c4fae848';
+const InterRegular = {
+    fnt: fontApi + interRegularFont + '/fontdescription',
+    png: fontApi + interRegularFont + '/distancefield',
 };
 
 export class Passes {
@@ -42,7 +48,7 @@ export class Passes {
         this._labels.initialize();
         this._labels.depthMask = true;
         // ts-ignore
-        this._labels.loadFont(Roboto.fnt, Roboto.png, invalidate);
+        this._labels.loadFont(InterRegular.fnt, InterRegular.png, invalidate);
     }
 
     public static initialize(context: Context, invalidate: Invalidate): void {
