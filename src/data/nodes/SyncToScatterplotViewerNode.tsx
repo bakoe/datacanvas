@@ -1,4 +1,4 @@
-import { FC, memo, useEffect, useState } from 'react';
+import { FC, memo, useCallback, useEffect, useState } from 'react';
 import { Connection, Handle, Node, Position } from 'react-flow-renderer/nocss';
 
 import { ColorChunk, ColorColumn, Column as CSVColumn, NumberColumn } from '@lukaswagner/csv-parser';
@@ -68,9 +68,23 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
     const [childWindow, setChildWindow] = useState(null as Window | null);
     const [childWindowIsReady, setChildWindowIsReady] = useState(false);
 
+    const onChildWindowClose = useCallback(() => {
+        // TODO: Prevent automatic re-opening of closed tabs/windows on closing them (due to childWindowIsReady being changed)
+        setChildWindow(null);
+        setChildWindowIsReady(false);
+    }, []);
+
+    const closeChildWindow = () => {
+        console.log(childWindow);
+        console.log('Closing child window now');
+        childWindow?.removeEventListener('beforeunload', onChildWindowClose);
+        childWindow?.close();
+    };
+
     useEffect(() => {
         const initializeWindow = () => {
             let child = childWindow;
+            console.log(child);
 
             if (!child) {
                 child = window.open('/external/scatterplot-viewer', undefined);
@@ -80,11 +94,7 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
                         if (msg.data.type === 'ready') {
                             child?.focus();
                             setChildWindowIsReady(true);
-                            child?.addEventListener('beforeunload', () => {
-                                // TODO: Prevent automatic re-opening of closed tabs/windows on closing them (due to childWindowIsReady being changed)
-                                setChildWindow(null);
-                                setChildWindowIsReady(false);
-                            });
+                            child?.addEventListener('beforeunload', onChildWindowClose);
                         }
                     });
                 }
@@ -166,6 +176,8 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
             return;
         }
 
+        closeChildWindow();
+        onChildWindowClose();
         onChangeState({
             isPending: true,
         });
@@ -181,10 +193,26 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
             <div className="title-wrapper">
-                <div className="title">⎋ Scatterplot</div>
+                <div className="title">
+                    <a
+                        onPointerDown={() => {
+                            if (childWindow) childWindow.focus();
+                        }}
+                    >
+                        ⎋
+                    </a>{' '}
+                    Scatterplot
+                </div>
                 <div className="title-actions">
                     <span>
-                        <a onPointerUp={onDeleteNode}>✕</a>
+                        <a
+                            onPointerUp={() => {
+                                closeChildWindow();
+                                onDeleteNode();
+                            }}
+                        >
+                            ✕
+                        </a>
                     </span>
                 </div>
             </div>
