@@ -1,5 +1,7 @@
 import React, { PropsWithChildren } from 'react';
 
+import { distinctUntilChanged } from 'rxjs/operators';
+
 import { ReactFlowState, useStore, XYPosition, useStoreApi, NodeDiffUpdate } from 'react-flow-renderer/nocss';
 
 import shallow from 'zustand/shallow';
@@ -25,6 +27,7 @@ export interface DatacubeInformation {
     type: NodeTypes;
     isPending?: boolean;
     isErroneous?: boolean;
+    isSelected?: boolean;
     xColumn?: CSVColumn;
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
@@ -34,7 +37,6 @@ export interface DatacubeInformation {
         colorPalette: ColorPalette;
     };
     labelString?: string;
-    isSelected?: string;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -87,13 +89,23 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 });
             });
 
-            exampleInstance.datacubesPointerEvents$?.subscribe((event: PointerEvent) => {
+            exampleInstance.datacubesPointerUpEvents$?.subscribe((event: PointerEvent) => {
                 if ((event as any).data !== undefined) {
                     setNodeIdSelectedFromWebGL((event as any).data);
                 } else {
                     setNodeIdSelectedFromWebGL(undefined);
                 }
             });
+
+            exampleInstance.datacubesPointerMoveEvents$
+                ?.pipe(distinctUntilChanged((prev: any, curr: any) => prev.data === curr.data))
+                .subscribe((event: PointerEvent) => {
+                    if ((event as any).data !== undefined) {
+                        setNodeIdSelectedFromWebGL((event as any).data);
+                    } else {
+                        setNodeIdSelectedFromWebGL(undefined);
+                    }
+                });
         }
 
         // Commented-out to avoid infinite recursion in application's uninitialization(?)

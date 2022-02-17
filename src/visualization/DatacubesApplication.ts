@@ -84,6 +84,7 @@ export interface Cuboid {
     titleText?: string;
     isErroneous?: boolean;
     isPending?: boolean;
+    isSelected?: boolean;
     idBufferOnly?: boolean;
     points?: Array<PointData>;
     pointsFrom?: number;
@@ -113,6 +114,7 @@ class DatacubesRenderer extends Renderer {
     protected _capturedIDBufferImageData: ImageData | undefined;
     protected _capturedIDBufferImageDirty = false;
     protected _onDatacubePointerUpSubject: Subject<PointerEvent> | undefined;
+    protected _onDatacubePointerMoveSubject: Subject<PointerEvent> | undefined;
 
     protected _defaultFBO: DefaultFramebuffer | undefined;
 
@@ -471,6 +473,9 @@ class DatacubesRenderer extends Renderer {
         });
 
         eventProvider.pointerEventProvider.move$.subscribe((value) => {
+            const eventWithDatacubeID = this.assignDatacubeToPointerEvent(value);
+            this._onDatacubePointerMoveSubject?.next(eventWithDatacubeID);
+
             if (
                 this._draggedCuboidID &&
                 this._dragStartPosition &&
@@ -558,6 +563,10 @@ class DatacubesRenderer extends Renderer {
                     );
                 }
             }
+        });
+
+        eventProvider.mouseEventProvider.wheel$.subscribe((value) => {
+            this._capturedIDBufferImageDirty = true;
         });
 
         eventProvider.pointerEventProvider.up$.subscribe((value) => {
@@ -656,8 +665,6 @@ class DatacubesRenderer extends Renderer {
         const decodedId = gl_matrix_extensions.decode_uint32_from_rgba8(vec4.fromValues(red, green, blue, alpha));
 
         if (decodedId > 0) {
-            console.log(decodedId);
-
             (event as any).data = 4294967295 - decodedId;
         } else {
             (event as any).data = undefined;
@@ -707,6 +714,7 @@ class DatacubesRenderer extends Renderer {
      */
     protected onPrepare(): void {
         Passes.floor.viewProjection = this._camera?.viewProjection;
+        Passes.lines.viewProjection = this._camera?.viewProjection;
         this._capturedIDBufferImageDirty = true;
         if (this._altered.datacubes) {
             const updatedCuboids = [];
@@ -789,6 +797,7 @@ class DatacubesRenderer extends Renderer {
                 const datacubeId = datacube.id;
                 const datacubeIsErroneous = datacube.isErroneous;
                 const datacubeIsPending = datacube.isPending;
+                const datacubeIsSelected = datacube.isSelected;
                 const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
                 if (existingCuboid) {
                     const from = {
@@ -887,6 +896,7 @@ class DatacubesRenderer extends Renderer {
 
                     existingCuboid.isErroneous = datacubeIsErroneous;
                     existingCuboid.isPending = datacubeIsPending;
+                    existingCuboid.isSelected = datacubeIsSelected;
                     existingCuboid.idBufferOnly = renderCuboidToIdBufferOnly;
                     existingCuboid.points = points;
                     existingCuboid.titleText = datacube.labelString;
@@ -918,6 +928,7 @@ class DatacubesRenderer extends Renderer {
                         titleText: datacube.labelString,
                         isErroneous: datacubeIsErroneous,
                         isPending: datacubeIsPending,
+                        isSelected: datacubeIsSelected,
                         idBufferOnly: renderCuboidToIdBufferOnly,
                         points: points,
                     };
@@ -931,6 +942,14 @@ class DatacubesRenderer extends Renderer {
         if (this._altered.cuboids || this._altered.datacubePositions) {
             const labelSets = [] as LabelSet[];
 
+            let maxHeight = -Infinity;
+
+            const labelLines = [] as number[];
+
+            for (const cuboid of this.cuboids) {
+                if (cuboid.scaleY > maxHeight) maxHeight = cuboid.scaleY;
+            }
+
             for (const cuboid of this.cuboids) {
                 const id = cuboid.id;
                 if (id !== undefined) {
@@ -940,18 +959,24 @@ class DatacubesRenderer extends Renderer {
                             labels: [
                                 {
                                     name: `${cuboid.titleText}`,
-                                    pos: vec3.fromValues(translateXZ.x + 0.25 + 0.05, cuboid.scaleY + 0.05, translateXZ.y + 0.25),
+                                    pos: vec3.fromValues(translateXZ.x - 0.25 + 0.1, maxHeight + 0.4 + 0.02, translateXZ.y + 0.25),
                                     dir: vec3.fromValues(1.0, 0.0, 0.0),
                                     up: vec3.fromValues(0.0, 1.0, 0.0),
                                 },
                             ],
                             useNearest: true,
                         });
+
+                        if (cuboid.isSelected) {
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, maxHeight + 0.4, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                        }
                     }
                 }
             }
 
             Passes.labels.labelInfo = labelSets;
+            Passes.lines.lines = new Float32Array(labelLines.flat());
         }
         if (this._altered.cuboids) {
             const cuboidsWithPointData = this.cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
@@ -1149,6 +1174,11 @@ class DatacubesRenderer extends Renderer {
         Passes.labels.target = this._intermediateFBOs[0];
         if (ndcOffset) Passes.labels.ndcOffset = ndcOffset as GLfloat2;
         Passes.labels.frame();
+
+        // Draw label lines
+        Passes.lines.target = this._intermediateFBOs[0];
+        if (ndcOffset) Passes.lines.ndcOffset = ndcOffset as GLfloat2;
+        Passes.lines.frame();
 
         if (this._cuboids.length > 0) {
             this._cuboidsProgram?.bind();
@@ -1471,11 +1501,18 @@ class DatacubesRenderer extends Renderer {
         return this._datacubesSubject.asObservable();
     }
 
-    get datacubesPointerEvents$(): Observable<PointerEvent> {
+    get datacubesPointerUpEvents$(): Observable<PointerEvent> {
         if (this._onDatacubePointerUpSubject === undefined) {
             this._onDatacubePointerUpSubject = new Subject<PointerEvent>();
         }
         return this._onDatacubePointerUpSubject.asObservable();
+    }
+
+    get datacubesPointerMoveEvents$(): Observable<PointerEvent> {
+        if (this._onDatacubePointerMoveSubject === undefined) {
+            this._onDatacubePointerMoveSubject = new Subject<PointerEvent>();
+        }
+        return this._onDatacubePointerMoveSubject.asObservable();
     }
 
     set points(points: Float32Array | undefined) {
@@ -1538,9 +1575,15 @@ export class DatacubesApplication extends Application {
         }
     }
 
-    get datacubesPointerEvents$(): Observable<PointerEvent> | undefined {
+    get datacubesPointerUpEvents$(): Observable<PointerEvent> | undefined {
         if (this._renderer) {
-            return this._renderer.datacubesPointerEvents$;
+            return this._renderer.datacubesPointerUpEvents$;
+        }
+    }
+
+    get datacubesPointerMoveEvents$(): Observable<PointerEvent> | undefined {
+        if (this._renderer) {
+            return this._renderer.datacubesPointerMoveEvents$;
         }
     }
 }

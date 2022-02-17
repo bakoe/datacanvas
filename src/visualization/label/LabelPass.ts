@@ -1,4 +1,15 @@
-import { ChangeLookup, Context, FontFace, Initializable, Label, LabelRenderPass, Position3DLabel, Text, vec3 } from 'webgl-operate';
+import {
+    ChangeLookup,
+    Context,
+    FontFace,
+    Initializable,
+    Label,
+    LabelRenderPass,
+    Position3DLabel,
+    Projected3DLabel,
+    Text,
+    vec3,
+} from 'webgl-operate';
 
 export type LabelInfo = {
     name: string;
@@ -113,6 +124,7 @@ export class LabelPass extends LabelRenderPass {
             const l = new Position3DLabel(new Text(i.name), Label.Type.Static);
             l.fontFace = this._fontFace;
             l.fontSize = 0.15;
+            l.fontSizeUnit = Label.Unit.World;
             l.lineAnchor = Label.LineAnchor.Ascent;
             l.alignment = Label.Alignment.Left;
             l.position = i.pos;

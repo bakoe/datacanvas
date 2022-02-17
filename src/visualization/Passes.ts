@@ -1,6 +1,7 @@
 import { Context, Framebuffer, Invalidate } from 'webgl-operate';
 import { FloorPass } from './floor/FloorPass';
 import { LabelPass } from './label/LabelPass';
+import { LinePass } from './line/LinePass';
 
 const fontApi = 'https://fonts.varg.dev/api/fonts/';
 const robotoFont = 'roboto-regular.ttf/61cc7e5a56a3775a3f27899a658881e1';
@@ -19,6 +20,7 @@ export class Passes {
     protected _floor: FloorPass;
 
     protected _labels: LabelPass;
+    protected _lines: LinePass;
 
     // // To-be-created
     // protected _cuboids: CuboidPass;
@@ -49,6 +51,9 @@ export class Passes {
         this._labels.depthMask = true;
         // ts-ignore
         this._labels.loadFont(InterRegular.fnt, InterRegular.png, invalidate);
+
+        this._lines = new LinePass(context);
+        this._lines.initialize();
     }
 
     public static initialize(context: Context, invalidate: Invalidate): void {
@@ -63,17 +68,23 @@ export class Passes {
         return this._instance._labels;
     }
 
+    public static get lines(): LinePass {
+        return this._instance._lines;
+    }
+
     public static set renderFBO(fbo: Framebuffer) {
         Passes.floor.target = fbo;
         Passes.labels.target = fbo;
+        Passes.lines.target = fbo;
     }
 
     public static get altered(): boolean {
-        return Passes.floor.altered || Passes.labels.altered;
+        return Passes.floor.altered || Passes.labels.altered || Passes.lines.altered;
     }
 
     public static update(): void {
         Passes.floor.update();
         Passes.labels.update();
+        Passes.lines.update();
     }
 }
