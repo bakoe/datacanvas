@@ -33,6 +33,8 @@ export interface DatacubeInformation {
         column: CSVColumn;
         colorPalette: ColorPalette;
     };
+    labelString?: string;
+    isSelected?: string;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -142,17 +144,23 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let zColumn = undefined as undefined | CSVColumn;
             let sizeColumn = undefined as undefined | CSVColumn;
             let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
+            let labelString = '';
+            const isSelected = node.selected;
             if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node) || isColorMappingNode(node)) {
                 if (isDatasetNode(node)) {
+                    // labelString += node.data.filename;
+                    labelString += 'CSV Dataset';
                     if (overallMaxRowCount) {
                         const colRowCounts = node.data.state?.columns?.map((col) => col.length);
                         if (colRowCounts) {
                             relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                            labelString += `\n${node.data.state?.columns?.length} columns • ${colRowCounts[0]} rows`;
                         }
                     }
                     isPending = node.data.state?.isLoading;
                 }
                 if (isDateFilterNode(node)) {
+                    labelString += 'Filter: Date Range';
                     if (overallMaxRowCount) {
                         const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
                         if (colRowCounts) {
@@ -163,9 +171,11 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     isPending = node.data.state?.isPending;
                 }
                 if (isColorMappingNode(node)) {
+                    labelString += 'Mapping: Color Mapping';
                     isPending = node.data.state?.isPending;
                 }
                 if (isPointPrimitiveNode(node)) {
+                    labelString += 'Rendering: Point Primitive';
                     isPending = node.data.state?.isPending;
                     xColumn = node.data.state?.xColumn;
                     yColumn = node.data.state?.yColumn;
@@ -186,6 +196,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 zColumn,
                 sizeColumn,
                 colors,
+                labelString: isSelected ? labelString : '',
+                isSelected,
             } as DatacubeInformation;
         });
     });
@@ -215,6 +227,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 colorsLengthAndPalette: nodeInfo.colors
                     ? `${serializeColumnInfo(nodeInfo.colors.column)}_${JSON.stringify(nodeInfo.colors.colorPalette)}`
                     : undefined,
+                labelString: nodeInfo.labelString,
+                isSelected: nodeInfo.isSelected,
             })),
         ),
     ]);

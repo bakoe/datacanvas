@@ -113,8 +113,8 @@ export class LabelPass extends LabelRenderPass {
             const l = new Position3DLabel(new Text(i.name), Label.Type.Static);
             l.fontFace = this._fontFace;
             l.fontSize = 0.15;
-            l.lineAnchor = Label.LineAnchor.Center;
-            l.alignment = Label.Alignment.Center;
+            l.lineAnchor = Label.LineAnchor.Ascent;
+            l.alignment = Label.Alignment.Left;
             l.position = i.pos;
             l.direction = i.dir;
             l.up = i.up;

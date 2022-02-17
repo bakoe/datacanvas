@@ -53,6 +53,7 @@ import { NumberColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 import { Passes } from './Passes';
 import { GLfloat2 } from 'webgl-operate/lib/tuples';
+import { LabelSet } from './label/LabelPass';
 
 /* spellchecker: enable */
 
@@ -80,6 +81,7 @@ export interface Cuboid {
     runningAnimeJSAnimation?: AnimeInstance;
     colorLAB?: [number, number, number];
     id?: number;
+    titleText?: string;
     isErroneous?: boolean;
     isPending?: boolean;
     idBufferOnly?: boolean;
@@ -234,26 +236,6 @@ class DatacubesRenderer extends Renderer {
 
         Passes.initialize(this._context, this.invalidate.bind(this));
         Passes.labels.camera = this._camera;
-
-        Passes.labels.labelInfo = [
-            {
-                labels: [
-                    {
-                        name: 'foo',
-                        dir: vec3.fromValues(1.0, 0.0, 0.0),
-                        pos: vec3.fromValues(1.0, 1.0, 1.0),
-                        up: vec3.fromValues(0.0, 1.0, 0.0),
-                    },
-                    {
-                        name: 'bar',
-                        dir: vec3.fromValues(1.0, 0.0, 0.0),
-                        pos: vec3.fromValues(-3.0, 1.0, 1.0),
-                        up: vec3.fromValues(0.0, 1.0, 0.0),
-                    },
-                ],
-                useNearest: true,
-            },
-        ];
 
         // prettier-ignore
         this.points = new Float32Array([
@@ -898,6 +880,7 @@ class DatacubesRenderer extends Renderer {
                     existingCuboid.isPending = datacubeIsPending;
                     existingCuboid.idBufferOnly = renderCuboidToIdBufferOnly;
                     existingCuboid.points = points;
+                    existingCuboid.titleText = datacube.labelString;
                     updatedCuboids.push(existingCuboid);
                 } else {
                     const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [CUBOID_SIZE_X, CUBOID_SIZE_Y, CUBOID_SIZE_Z]);
@@ -923,6 +906,7 @@ class DatacubesRenderer extends Renderer {
                         scaleY,
                         colorLAB,
                         id: 4294967295 - datacubeId,
+                        titleText: datacube.labelString,
                         isErroneous: datacubeIsErroneous,
                         isPending: datacubeIsPending,
                         idBufferOnly: renderCuboidToIdBufferOnly,
@@ -934,6 +918,31 @@ class DatacubesRenderer extends Renderer {
             }
 
             this.cuboids = updatedCuboids;
+        }
+        if (this._altered.cuboids || this._altered.datacubePositions) {
+            const labelSets = [] as LabelSet[];
+
+            for (const cuboid of this.cuboids) {
+                const id = cuboid.id;
+                if (id !== undefined) {
+                    const translateXZ = this.datacubePositions.get(4294967295 - id);
+                    if (translateXZ) {
+                        labelSets.push({
+                            labels: [
+                                {
+                                    name: `${cuboid.titleText}`,
+                                    pos: vec3.fromValues(translateXZ.x + 0.25 + 0.05, cuboid.scaleY + 0.05, translateXZ.y + 0.25),
+                                    dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                    up: vec3.fromValues(0.0, 1.0, 0.0),
+                                },
+                            ],
+                            useNearest: true,
+                        });
+                    }
+                }
+            }
+
+            Passes.labels.labelInfo = labelSets;
         }
         if (this._altered.cuboids) {
             const cuboidsWithPointData = this.cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
