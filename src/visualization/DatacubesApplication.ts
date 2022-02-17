@@ -1048,6 +1048,8 @@ class DatacubesRenderer extends Renderer {
             if (this._camera) {
                 this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
                 this._camera.viewport = this._canvasSize;
+                // TODO: Find out if this forceful update of the viewProjection can be moved to onUpdate (or similar)
+                Passes.floor.viewProjection = this._camera?.viewProjection;
                 if (this._debugPass) {
                     this._debugPass.dstBounds = vec4.fromValues(
                         this._canvasSize[0] * (1.0 - 0.187),
