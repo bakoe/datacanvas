@@ -885,7 +885,6 @@ class DatacubesRenderer extends Renderer {
             this.cuboids = updatedCuboids;
         }
         if (this._altered.cuboids) {
-            console.log('cuboids altered');
             const cuboidsWithPointData = this.cuboids.filter((cuboid) => cuboid.points !== undefined && cuboid.points.length > 0);
             const pointsData = [] as number[];
             let pointsFrom = 0;
