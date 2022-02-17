@@ -103,7 +103,7 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
         };
 
         let columnsData = [] as CSVColumn[];
-        const configuration = { axes: [], pointSize: 0.02 } as {
+        const configuration = { axes: [] } as {
             axes: string[];
             name?: string;
             csv?: DataSource;
