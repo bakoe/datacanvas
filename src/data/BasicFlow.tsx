@@ -50,6 +50,8 @@ import { vec2 } from 'webgl-operate';
 import SyncToScatterplotViewerNode, {
     defaultState as SyncToScatterplotViewerNodeDefaultState,
     SyncToScatterplotViewerNodeData,
+    SyncToScatterplotViewerNodeState,
+    SyncToScatterplotViewerNodeTargetHandles,
 } from './nodes/SyncToScatterplotViewerNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
@@ -370,6 +372,32 @@ const BasicFlow = () => {
                 updateNodeState(targetNode.id, updatedState);
             }
         }
+
+        if (targetNode.type === NodeTypes.SyncToScatterplotViewer) {
+            let stateKey;
+            switch (params.targetHandle as SyncToScatterplotViewerNodeTargetHandles) {
+                case SyncToScatterplotViewerNodeTargetHandles.X:
+                    stateKey = 'xColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Y:
+                    stateKey = 'yColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Z:
+                    stateKey = 'zColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Size:
+                    stateKey = 'sizeColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
+            }
+            if (stateKey) {
+                const updatedState = {} as Partial<SyncToScatterplotViewerNodeState>;
+                (updatedState as any)[stateKey] = undefined;
+                updateNodeState(targetNode.id, updatedState);
+            }
+        }
     };
 
     const onConnect = (params: Edge | Connection) => {
@@ -430,6 +458,35 @@ const BasicFlow = () => {
                 const sourceColumn = findSourceColumn(sourceNode, params);
                 if (sourceColumn) {
                     const updatedState = {} as Partial<PointPrimitiveNodeState>;
+                    (updatedState as any)[stateKey] = sourceColumn;
+                    updateNodeState(targetNode.id, updatedState);
+                }
+            }
+        }
+
+        if (targetNode.type === NodeTypes.SyncToScatterplotViewer) {
+            let stateKey;
+            switch (params.targetHandle as SyncToScatterplotViewerNodeTargetHandles) {
+                case SyncToScatterplotViewerNodeTargetHandles.X:
+                    stateKey = 'xColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Y:
+                    stateKey = 'yColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Z:
+                    stateKey = 'zColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Size:
+                    stateKey = 'sizeColumn';
+                    break;
+                case SyncToScatterplotViewerNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
+            }
+            if (stateKey) {
+                const sourceColumn = findSourceColumn(sourceNode, params);
+                if (sourceColumn) {
+                    const updatedState = {} as Partial<SyncToScatterplotViewerNodeState>;
                     (updatedState as any)[stateKey] = sourceColumn;
                     updateNodeState(targetNode.id, updatedState);
                 }
