@@ -8,7 +8,6 @@ import {
     Shader,
     Renderer,
     Wizard,
-    NdcFillingRectangle,
     mat4,
     Camera,
     Invalidate,
@@ -30,6 +29,7 @@ import {
     vec2,
     ray_math,
     ChangeLookup,
+    FrameCapture,
 } from 'webgl-operate';
 
 const { v3, m4 } = gl_matrix_extensions;
@@ -107,6 +107,9 @@ DATACUBE_ERROR_COLOR_LAB[2] = (DATACUBE_ERROR_COLOR_LAB[2] + 128) / 256;
 
 class DatacubesRenderer extends Renderer {
     protected _extensions = false;
+
+    protected _capturedIDBufferImageData: ImageData | undefined;
+    protected _onDatacubePointerUpSubject: Subject<PointerEvent> | undefined;
 
     protected _defaultFBO: DefaultFramebuffer | undefined;
 
@@ -574,12 +577,17 @@ class DatacubesRenderer extends Renderer {
             }
         });
 
-        eventProvider.pointerEventProvider.up$.subscribe(() => {
+        eventProvider.pointerEventProvider.up$.subscribe((value) => {
             if (this._draggedCuboidID) {
                 this._draggedCuboidID = undefined;
                 if (this._navigation) this._navigation.isPaused = false;
                 this.invalidate(true);
             }
+
+            this.captureIDBufferState();
+            const eventWithDatacubeID = this.assignDatacubeToPointerEvent(value);
+
+            this._onDatacubePointerUpSubject?.next(eventWithDatacubeID);
         });
 
         eventProvider.mouseEventProvider.click$.subscribe((value) => {
@@ -623,6 +631,49 @@ class DatacubesRenderer extends Renderer {
         });
 
         return true;
+    }
+
+    protected captureIDBufferState(): void {
+        if (this._idRenderTexture?.valid && this._readbackPass?.initialized) {
+            const gl = this._context.gl;
+            const img = FrameCapture.capture(this._intermediateFBOs[1], gl.COLOR_ATTACHMENT0);
+            if (img.width === 1) {
+                return;
+            }
+            this._capturedIDBufferImageData = img;
+        }
+    }
+
+    protected assignDatacubeToPointerEvent(event: PointerEvent): PointerEvent {
+        if (!this._capturedIDBufferImageData) {
+            return event;
+        }
+
+        // TODO: Cache .getBoundingClientRect(), i.e., don't re-compute it every time here
+        const elementBoundingRect = (event.target as any).getBoundingClientRect() as DOMRect;
+        const xOffset = elementBoundingRect.x;
+        const yOffset = elementBoundingRect.y;
+        const x = Math.round(((event.clientX - xOffset) / (event.target as any).clientWidth) * this._capturedIDBufferImageData.width);
+        const y = Math.round(((event.clientY - yOffset) / (event.target as any).clientHeight) * this._capturedIDBufferImageData.height);
+
+        // https://stackoverflow.com/a/45969661
+        const index = (x + y * this._capturedIDBufferImageData.width) * 4;
+        const red = this._capturedIDBufferImageData.data[index];
+        const green = this._capturedIDBufferImageData.data[index + 1];
+        const blue = this._capturedIDBufferImageData.data[index + 2];
+        const alpha = this._capturedIDBufferImageData.data[index + 3];
+
+        const decodedId = gl_matrix_extensions.decode_uint32_from_rgba8(vec4.fromValues(red, green, blue, alpha));
+
+        if (decodedId > 0) {
+            console.log(decodedId);
+
+            (event as any).data = 4294967295 - decodedId;
+        } else {
+            (event as any).data = undefined;
+        }
+
+        return event;
     }
 
     /**
@@ -1225,6 +1276,12 @@ class DatacubesRenderer extends Renderer {
         this._intermediateFBOs[1].unbind();
 
         this._accumulate?.frame(frameNumber);
+
+        if (frameNumber > 0) {
+            if (!this._capturedIDBufferImageData) {
+                this.captureIDBufferState();
+            }
+        }
     }
 
     protected renderPoints(ndcOffset: number[], from: number, count: number, modelTransform: mat4): void {
@@ -1392,8 +1449,14 @@ class DatacubesRenderer extends Renderer {
         if (this._datacubesSubject === undefined) {
             this._datacubesSubject = new Subject<Array<DatacubeInformation>>();
         }
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        return this._datacubesSubject!.asObservable();
+        return this._datacubesSubject.asObservable();
+    }
+
+    get datacubesPointerEvents$(): Observable<PointerEvent> {
+        if (this._onDatacubePointerUpSubject === undefined) {
+            this._onDatacubePointerUpSubject = new Subject<PointerEvent>();
+        }
+        return this._onDatacubePointerUpSubject.asObservable();
     }
 
     set points(points: Float32Array | undefined) {
@@ -1453,6 +1516,12 @@ export class DatacubesApplication extends Application {
     get datacubes$(): Observable<Array<DatacubeInformation>> | undefined {
         if (this._renderer) {
             return this._renderer.datacubes$;
+        }
+    }
+
+    get datacubesPointerEvents$(): Observable<PointerEvent> | undefined {
+        if (this._renderer) {
+            return this._renderer.datacubesPointerEvents$;
         }
     }
 }

@@ -38,6 +38,7 @@ export interface DatacubeInformation {
 const selector = (s: ReactFlowState) => ({
     updateNodePosition: s.updateNodePosition,
     unselectNodesAndEdges: s.unselectNodesAndEdges,
+    nodeInternals: s.nodeInternals,
 });
 
 export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: PropsWithChildren<DatacubesProps>) => {
@@ -48,6 +49,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
 
     const { updateNodePosition, unselectNodesAndEdges } = useStore(selector, shallow);
 
+    const [nodeIdSelectedFromWebGL, setNodeIdSelectedFromWebGL] = React.useState(undefined);
+
     // Initialization -- runs only once (due to the empty list of dependencies passed to useEffect as its 2nd parameter)
     React.useEffect(() => {
         if (canvasRef.current) {
@@ -55,7 +58,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             exampleInstance.initialize(canvasRef.current, spinnerRef.current || undefined);
             setApplication(exampleInstance);
             exampleInstance.datacubes$?.subscribe((datacubes: Array<DatacubeInformation>) => {
-                unselectNodesAndEdges();
+                if (!nodeIdSelectedFromWebGL) {
+                    unselectNodesAndEdges();
+                }
 
                 const nodeInternals = store.getState().nodeInternals;
                 nodeInternals.forEach((node) => {
@@ -79,6 +84,14 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     }
                 });
             });
+
+            exampleInstance.datacubesPointerEvents$?.subscribe((event: PointerEvent) => {
+                if ((event as any).data !== undefined) {
+                    setNodeIdSelectedFromWebGL((event as any).data);
+                } else {
+                    setNodeIdSelectedFromWebGL(undefined);
+                }
+            });
         }
 
         // Commented-out to avoid infinite recursion in application's uninitialization(?)
@@ -88,6 +101,21 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
         //     }
         // };
     }, []);
+
+    React.useEffect(() => {
+        unselectNodesAndEdges();
+
+        if (nodeIdSelectedFromWebGL === undefined) {
+            return;
+        }
+
+        store.setState({
+            nodeInternals: store.getState().nodeInternals.set(`${nodeIdSelectedFromWebGL}`, {
+                ...(store.getState().nodeInternals.get(`${nodeIdSelectedFromWebGL}`) as any),
+                selected: true,
+            }),
+        });
+    }, [nodeIdSelectedFromWebGL]);
 
     const nodeInformations = useStore((state: ReactFlowState) => {
         const maxRowCounts = Array.from(state.nodeInternals)
