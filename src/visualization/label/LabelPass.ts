@@ -16,6 +16,7 @@ export type LabelInfo = {
     pos: vec3;
     dir: vec3;
     up: vec3;
+    fontSize?: number;
 };
 
 export type LabelSet = {
@@ -112,7 +113,20 @@ export class LabelPass extends LabelRenderPass {
         const changed = indices.reduce((acc, index, i) => acc || index !== this._lastIndices[i], false);
         this._lastIndices = indices;
         if (changed) {
-            this._labelInfo = this._labelSets.map((s, i) => s.labels[indices[i]]);
+            this._labelInfo = this._labelSets
+                .map((s, i) => s.labels[indices[i]])
+                .map((labelInfo) => {
+                    const MIN_FONT_SIZE = 0.05;
+                    const MAX_FONT_SIZE = 0.3;
+                    const distanceToCamera = vec3.dist(labelInfo.pos, this._camera.eye);
+                    const MAX_DISTANCE_TO_CAMERA = 30.0;
+                    const fontSize =
+                        MIN_FONT_SIZE + Math.min(distanceToCamera / MAX_DISTANCE_TO_CAMERA, 1.0) * (MAX_FONT_SIZE - MIN_FONT_SIZE);
+                    return {
+                        ...labelInfo,
+                        fontSize: fontSize,
+                    };
+                });
             this._labelsAltered.alter('labels');
         }
     }
@@ -123,7 +137,7 @@ export class LabelPass extends LabelRenderPass {
         this._labelInfo?.forEach((i) => {
             const l = new Position3DLabel(new Text(i.name), Label.Type.Static);
             l.fontFace = this._fontFace;
-            l.fontSize = 0.15;
+            l.fontSize = i.fontSize || 0.15;
             l.fontSizeUnit = Label.Unit.World;
             l.lineAnchor = Label.LineAnchor.Ascent;
             l.alignment = Label.Alignment.Left;
