@@ -16,6 +16,10 @@ export type LabelInfo = {
     pos: vec3;
     dir: vec3;
     up: vec3;
+    alignment?: Label.Alignment;
+    lineWidth?: number;
+    elide?: Label.Elide;
+    lineAnchor?: Label.LineAnchor;
     fontSize?: number;
 };
 
@@ -139,8 +143,10 @@ export class LabelPass extends LabelRenderPass {
             l.fontFace = this._fontFace;
             l.fontSize = i.fontSize || 0.15;
             l.fontSizeUnit = Label.Unit.World;
-            l.lineAnchor = Label.LineAnchor.Ascent;
-            l.alignment = Label.Alignment.Left;
+            l.lineAnchor = i.lineAnchor || Label.LineAnchor.Ascent;
+            l.alignment = i.alignment || Label.Alignment.Left;
+            l.lineWidth = i.lineWidth || 0;
+            l.elide = i.elide || Label.Elide.None;
             l.position = i.pos;
             l.direction = i.dir;
             l.up = i.up;
