@@ -92,6 +92,24 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                             diff: { x: deltaX, y: deltaY },
                         } as NodeDiffUpdate);
                     }
+                    if (datacube && datacube.extent) {
+                        console.log('updarting datcube extent');
+                        store.setState({
+                            nodeInternals: store.getState().nodeInternals.set(`${id}`, {
+                                ...(store.getState().nodeInternals.get(`${id}`) as any),
+                                data: {
+                                    ...(store.getState().nodeInternals.get(`${id}`) as any).data,
+                                    state: {
+                                        ...(store.getState().nodeInternals.get(`${id}`) as any).data.state,
+                                        extent: {
+                                            ...(store.getState().nodeInternals.get(`${id}`) as any).data.state.extent,
+                                            ...datacube.extent,
+                                        },
+                                    },
+                                },
+                            }),
+                        });
+                    }
                 });
             });
 
@@ -192,9 +210,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let relativeHeight = 1.0;
             const extent = (node as any).data?.state?.extent || {
                 minX: -0.25,
-                maxX: 0.25 * Math.random() * 2.0,
+                maxX: 0.25,
                 minZ: -0.25,
-                maxZ: 0.25 * Math.random() * 2.0,
+                maxZ: 0.25,
             };
             let isErroneous = false;
             let isPending: undefined | boolean = false;

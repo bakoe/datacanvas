@@ -186,7 +186,17 @@ class DatacubesRenderer extends Renderer {
     // Keeping track of whether a cuboid is resized
     protected _resizedCuboidID: number | undefined;
     protected _resizeStartPosition: vec3 | undefined;
+    protected _isResizingCuboidInXDirection = false;
+    protected _isResizingCuboidInZDirection = false;
     protected _resizedCuboidStartPosition: vec3 | undefined;
+    protected _resizedCuboidStartExtent:
+        | {
+              minX: number;
+              maxX: number;
+              minZ: number;
+              maxZ: number;
+          }
+        | undefined;
 
     // Keeping track of whether a cuboid is dragged
     protected _draggedCuboidID: number | undefined;
@@ -484,6 +494,9 @@ class DatacubesRenderer extends Renderer {
                                     : new Float32Array([debugPoint].flat());
                             }
 
+                            this._isResizingCuboidInXDirection = isResizingCuboidInXDirection;
+                            this._isResizingCuboidInZDirection = isResizingCuboidInZDirection;
+
                             if (isResizingCuboidInXDirection || isResizingCuboidInZDirection) {
                                 this._resizeStartPosition = coordsAt;
                                 const cuboid = this._cuboids.find((cuboid) => cuboid.id === this._resizedCuboidID);
@@ -496,6 +509,7 @@ class DatacubesRenderer extends Renderer {
                                             positionXZ.y || 0,
                                         );
                                         this._resizedCuboidStartPosition = cuboidPosition;
+                                        this._resizedCuboidStartExtent = cuboid.extent;
                                     }
                                 }
                             } else {
@@ -585,13 +599,30 @@ class DatacubesRenderer extends Renderer {
                     const scaleY = this._cuboids.find((cuboid) => cuboid.id === this._resizedCuboidID)?.scaleY || CUBOID_SIZE_Y;
                     const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
 
+                    const newExtent = this._resizedCuboidStartExtent;
+
+                    if (!newExtent || !this._resizedCuboidStartPosition) {
+                        return;
+                    }
+
+                    if (this._isResizingCuboidInXDirection) {
+                        newExtent.maxX = coordsAt[0] - this._resizedCuboidStartPosition[0];
+                        console.log('new maxX', coordsAt[0] - this._resizedCuboidStartPosition[0]);
+                    }
+
+                    if (this._isResizingCuboidInZDirection) {
+                        newExtent.maxZ = coordsAt[2] - this._resizedCuboidStartPosition[2];
+                        console.log('new maxZ', coordsAt[2] - this._resizedCuboidStartPosition[2]);
+                    }
+
                     const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._resizedCuboidID) {
+                            console.log('updating cuboid live');
                             return {
                                 ...cuboid,
                                 extent: {
                                     ...cuboid.extent,
-                                    maxX: 2.0,
+                                    ...newExtent,
                                 },
                                 // translateY,
                                 // scaleY
@@ -599,6 +630,8 @@ class DatacubesRenderer extends Renderer {
                         }
                         return cuboid;
                     });
+
+                    console.log('triggererd');
 
                     this._datacubesSubject?.next(
                         updatedCuboids
@@ -610,12 +643,18 @@ class DatacubesRenderer extends Renderer {
                                         //     x: translateXZ[0],
                                         //     y: translateXZ[1],
                                         // },
+                                        extent: {
+                                            ...cuboid.extent,
+                                            ...newExtent,
+                                        },
                                     };
                                 }
                                 return undefined;
                             })
                             .filter((updatedDatacube) => updatedDatacube !== undefined) as Array<DatacubeInformation>,
                     );
+
+                    this.cuboids = updatedCuboids;
                 }
             }
 
@@ -711,6 +750,9 @@ class DatacubesRenderer extends Renderer {
         eventProvider.pointerEventProvider.up$.subscribe((value) => {
             if (this._resizedCuboidID) {
                 this._resizedCuboidID = undefined;
+                this._resizedCuboidStartExtent = undefined;
+                this._isResizingCuboidInXDirection = false;
+                this._isResizingCuboidInZDirection = false;
                 if (this._navigation) this._navigation.isPaused = false;
                 this.invalidate(true);
             }
@@ -1108,6 +1150,7 @@ class DatacubesRenderer extends Renderer {
                     existingCuboid.idBufferOnly = renderCuboidToIdBufferOnly;
                     existingCuboid.points = points;
                     existingCuboid.titleText = datacube.labelString;
+                    existingCuboid.extent = datacube.extent;
                     updatedCuboids.push(existingCuboid);
                 } else {
                     const cuboid = new CuboidGeometry(this._context, 'Cuboid', true, [CUBOID_SIZE_X, CUBOID_SIZE_Y, CUBOID_SIZE_Z]);
