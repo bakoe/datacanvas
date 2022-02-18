@@ -1132,6 +1132,62 @@ class DatacubesRenderer extends Renderer {
                         if (cuboid.isSelected) {
                             labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
                             labelLines.push(translateXZ.x - 0.25 + 0.01, maxHeight + 0.4, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            
+                            // Top face
+
+                            // x=0,y=1,z=1 to x=1,y=1,z=1
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+
+                            // x=1,y=1,z=1 to x=1,y=1,z=0
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, cuboid.scaleY, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+
+                            // x=1,y=1,z=0 to x=0,y=1,z=0
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, cuboid.scaleY, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+
+                            // x=0,y=1,z=0 to x=0,y=1,z=1
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+
+                            // Bottom face
+
+                            // x=0,y=0,z=1 to x=1,y=0,z=1
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, 0, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, 0, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+
+                            // x=1,y=0,z=1 to x=1,y=0,z=0
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, 0, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, 0, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+
+                            // x=1,y=0,z=0 to x=0,y=0,z=0
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, 0, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, 0, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+                            
+                            // x=0,y=0,z=0 to x=0,y=0,z=1
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, 0, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, 0, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            
+                            // Connections from top to bottom face
+
+                            // Connection from top-front-left to bottom-front-left
+
+                            // x=0,y=1,z=1 to x=0,y=0,z=1
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, 0, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+
+                            // x=1,y=1,z=1 to x=1,y=0,z=1
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, cuboid.scaleY, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, 0, translateXZ.y + 0.25 - 0.01, 1, 1, 1);
+
+                            // x=1,y=1,z=0 to x=1,y=0,z=0
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, cuboid.scaleY, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x + 0.25 - 0.01, 0, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+
+                            // x=0,y=1,z=0 to x=0,y=0,z=0
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, cuboid.scaleY, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
+                            labelLines.push(translateXZ.x - 0.25 + 0.01, 0, translateXZ.y - 0.25 + 0.01, 1, 1, 1);
                         }
                     }
                 }
