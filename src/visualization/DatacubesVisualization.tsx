@@ -25,6 +25,12 @@ export interface DatacubeInformation {
     position?: XYPosition;
     relativeHeight: number;
     type: NodeTypes;
+    extent: {
+        minX: number;
+        maxX: number;
+        minZ: number;
+        maxZ: number;
+    };
     isPending?: boolean;
     isErroneous?: boolean;
     isSelected?: boolean;
@@ -184,6 +190,12 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
         const overallMaxRowCount = maxRowCounts.length > 0 ? Math.max(...maxRowCounts) : undefined;
         return Array.from(state.nodeInternals).map(([, node]) => {
             let relativeHeight = 1.0;
+            const extent = (node as any).data?.state?.extent || {
+                minX: -0.25,
+                maxX: 0.25 * Math.random() * 2.0,
+                minZ: -0.25,
+                maxZ: 0.25 * Math.random() * 2.0,
+            };
             let isErroneous = false;
             let isPending: undefined | boolean = false;
             let xColumn = undefined as undefined | CSVColumn;
@@ -233,6 +245,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             }
             return {
                 position: node.position,
+                extent,
                 id: parseInt(node.id, 10),
                 relativeHeight,
                 type: node.type,
@@ -263,6 +276,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             nodeInformations.map((nodeInfo) => ({
                 // Caution: No nodeInfo.position here -> this update is handled in 2nd useEffect hook below!
                 id: nodeInfo.id,
+                extent: nodeInfo.extent,
                 relativeHeight: nodeInfo.relativeHeight,
                 type: nodeInfo.type,
                 isErroneous: nodeInfo.isErroneous,

@@ -73,12 +73,18 @@ const CUBOID_SIZE_Y = 1.0;
 const CUBOID_SIZE_Z = 0.5;
 
 const DEBUG_SHOW_POINTS_ON_INTERACTION = true;
-const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
 
 export interface Cuboid {
     geometry: CuboidGeometry;
     translateY: number;
     scaleY: number;
+    extent: {
+        minX: number;
+        maxX: number;
+        minZ: number;
+        maxZ: number;
+    };
     runningAnimeJSAnimation?: AnimeInstance;
     colorLAB?: [number, number, number];
     id?: number;
@@ -581,7 +587,15 @@ class DatacubesRenderer extends Renderer {
 
                     const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._resizedCuboidID) {
-                            return { ...cuboid, translateY, scaleY };
+                            return {
+                                ...cuboid,
+                                extent: {
+                                    ...cuboid.extent,
+                                    maxX: 2.0,
+                                },
+                                // translateY,
+                                // scaleY
+                            };
                         }
                         return cuboid;
                     });
@@ -592,10 +606,10 @@ class DatacubesRenderer extends Renderer {
                                 if (cuboid.id === this._resizedCuboidID) {
                                     return {
                                         id: cuboid.id ? 4294967295 - cuboid.id : 0,
-                                        position: {
-                                            x: translateXZ[0],
-                                            y: translateXZ[1],
-                                        },
+                                        // position: {
+                                        //     x: translateXZ[0],
+                                        //     y: translateXZ[1],
+                                        // },
                                     };
                                 }
                                 return undefined;
@@ -811,12 +825,12 @@ class DatacubesRenderer extends Renderer {
                         // console.log(coordsAt);
 
                         const cuboidBbox = {
-                            xMin: translateXZ.x - 0.25,
-                            xMax: translateXZ.x + 0.25,
+                            xMin: translateXZ.x + matchingCuboid.extent.minX,
+                            xMax: translateXZ.x + matchingCuboid.extent.maxX,
                             yMin: 0,
                             yMax: matchingCuboid.scaleY,
-                            zMin: translateXZ.y - 0.25,
-                            zMax: translateXZ.y + 0.25,
+                            zMin: translateXZ.y + matchingCuboid.extent.minZ,
+                            zMax: translateXZ.y + matchingCuboid.extent.maxZ,
                         };
 
                         cuboidBboxHovered = {
@@ -1118,6 +1132,7 @@ class DatacubesRenderer extends Renderer {
                         translateY,
                         scaleY,
                         colorLAB,
+                        extent: datacube.extent,
                         id: 4294967295 - datacubeId,
                         titleText: datacube.labelString,
                         isErroneous: datacubeIsErroneous,
@@ -1125,7 +1140,7 @@ class DatacubesRenderer extends Renderer {
                         isSelected: datacubeIsSelected,
                         idBufferOnly: renderCuboidToIdBufferOnly,
                         points: points,
-                    };
+                    } as Cuboid;
 
                     updatedCuboids.push(newCuboid);
                 }
@@ -1158,7 +1173,7 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${matchingDatacube.xColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x, 0.0, translateXZ.y + 0.25 + 0.15),
+                                            pos: vec3.fromValues(translateXZ.x, 0.0, translateXZ.y + cuboid.extent.maxZ + 0.15),
                                             dir: vec3.fromValues(1.0, 0.0, 0.0),
                                             up: vec3.fromValues(0.0, 0.0, -1.0),
                                             alignment: Label.Alignment.Center,
@@ -1174,7 +1189,11 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${(matchingDatacube.xColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(translateXZ.x - 0.25, 0.0, translateXZ.y + 0.25 + 0.05),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x - cuboid.extent.minX,
+                                                0.0,
+                                                translateXZ.y + cuboid.extent.maxZ + 0.05,
+                                            ),
                                             dir: vec3.fromValues(1.0, 0.0, 0.0),
                                             up: vec3.fromValues(0.0, 0.0, -1.0),
                                             alignment: Label.Alignment.Left,
@@ -1191,7 +1210,11 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${(matchingDatacube.xColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(translateXZ.x + 0.25, 0.0, translateXZ.y + 0.25 + 0.05),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + cuboid.extent.maxX,
+                                                0.0,
+                                                translateXZ.y + cuboid.extent.maxZ + 0.05,
+                                            ),
                                             dir: vec3.fromValues(1.0, 0.0, 0.0),
                                             up: vec3.fromValues(0.0, 0.0, -1.0),
                                             alignment: Label.Alignment.Right,
@@ -1210,7 +1233,11 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${matchingDatacube.yColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x + 0.25 + 0.15, cuboid.scaleY * 0.5, translateXZ.y + 0.25),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + cuboid.extent.maxX + 0.15,
+                                                cuboid.scaleY * 0.5,
+                                                translateXZ.y + cuboid.extent.maxZ,
+                                            ),
                                             dir: vec3.fromValues(0.0, 1.0, 0.0),
                                             up: vec3.fromValues(-1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Center,
@@ -1236,7 +1263,11 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${(matchingDatacube.yColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(translateXZ.x + 0.25 + 0.05, 0, translateXZ.y + 0.25),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + cuboid.extent.maxX + 0.05,
+                                                0,
+                                                translateXZ.y + cuboid.extent.maxZ,
+                                            ),
                                             dir: vec3.fromValues(0.0, 1.0, 0.0),
                                             up: vec3.fromValues(-1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Left,
@@ -1253,7 +1284,11 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${(matchingDatacube.yColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(translateXZ.x + 0.25 + 0.05, cuboid.scaleY, translateXZ.y + 0.25),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + cuboid.extent.maxX + 0.05,
+                                                cuboid.scaleY,
+                                                translateXZ.y + cuboid.extent.maxZ,
+                                            ),
                                             dir: vec3.fromValues(0.0, 1.0, 0.0),
                                             up: vec3.fromValues(-1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Right,
@@ -1272,7 +1307,7 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${matchingDatacube.zColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x - 0.25 - 0.15, 0.0, translateXZ.y),
+                                            pos: vec3.fromValues(translateXZ.x + cuboid.extent.minX - 0.15, 0.0, translateXZ.y),
                                             dir: vec3.fromValues(0.0, 0.0, 1.0),
                                             up: vec3.fromValues(1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Center,
@@ -1288,7 +1323,11 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${(matchingDatacube.zColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(translateXZ.x - 0.25 - 0.05, 0.0, translateXZ.y - 0.25),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + cuboid.extent.minX - 0.05,
+                                                0.0,
+                                                translateXZ.y + cuboid.extent.minZ,
+                                            ),
                                             dir: vec3.fromValues(0.0, 0.0, 1.0),
                                             up: vec3.fromValues(1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Left,
@@ -1305,7 +1344,11 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${(matchingDatacube.zColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(translateXZ.x - 0.25 - 0.05, 0.0, translateXZ.y + 0.25),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + cuboid.extent.minX - 0.05,
+                                                0.0,
+                                                translateXZ.y + cuboid.extent.maxZ,
+                                            ),
                                             dir: vec3.fromValues(0.0, 0.0, 1.0),
                                             up: vec3.fromValues(1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Right,
@@ -1324,7 +1367,11 @@ class DatacubesRenderer extends Renderer {
                             labels: [
                                 {
                                     name: `${cuboid.titleText}`,
-                                    pos: vec3.fromValues(translateXZ.x - 0.25 + 0.1, maxHeight + 0.4 + 0.02, translateXZ.y + 0.25),
+                                    pos: vec3.fromValues(
+                                        translateXZ.x + cuboid.extent.minX + 0.1,
+                                        maxHeight + 0.4 + 0.02,
+                                        translateXZ.y + cuboid.extent.maxZ,
+                                    ),
                                     dir: vec3.fromValues(1.0, 0.0, 0.0),
                                     up: vec3.fromValues(0.0, 1.0, 0.0),
                                 },
@@ -1333,64 +1380,162 @@ class DatacubesRenderer extends Renderer {
                         });
 
                         if (cuboid.isSelected) {
-                            labelLines.push(translateXZ.x - 0.25 + 0, cuboid.scaleY, translateXZ.y + 0.25 - 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x - 0.25 + 0, maxHeight + 0.4, translateXZ.y + 0.25 - 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                maxHeight + 0.4,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
 
                             // Top face
 
                             // x=0,y=1,z=1 to x=1,y=1,z=1
-                            labelLines.push(translateXZ.x - 0.25 + 0, cuboid.scaleY, translateXZ.y + 0.25 - 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x + 0.25 - 0, cuboid.scaleY, translateXZ.y + 0.25 - 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.maxX - 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
 
                             // x=1,y=1,z=1 to x=1,y=1,z=0
-                            labelLines.push(translateXZ.x + 0.25 - 0, cuboid.scaleY, translateXZ.y + 0.25 - 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x + 0.25 - 0, cuboid.scaleY, translateXZ.y - 0.25 + 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.maxX - 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.maxX - 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.minZ + 0,
+                                1,
+                                1,
+                                1,
+                            );
 
                             // x=1,y=1,z=0 to x=0,y=1,z=0
-                            labelLines.push(translateXZ.x + 0.25 - 0, cuboid.scaleY, translateXZ.y - 0.25 + 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x - 0.25 + 0, cuboid.scaleY, translateXZ.y - 0.25 + 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.maxX - 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.minZ + 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.minZ + 0,
+                                1,
+                                1,
+                                1,
+                            );
 
                             // x=0,y=1,z=0 to x=0,y=1,z=1
-                            labelLines.push(translateXZ.x - 0.25 + 0, cuboid.scaleY, translateXZ.y - 0.25 + 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x - 0.25 + 0, cuboid.scaleY, translateXZ.y + 0.25 - 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.minZ + 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
 
                             // Bottom face
 
                             // x=0,y=0,z=1 to x=1,y=0,z=1
-                            labelLines.push(translateXZ.x - 0.25 + 0, 0, translateXZ.y + 0.25 - 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x + 0.25 - 0, 0, translateXZ.y + 0.25 - 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.minX + 0, 0, translateXZ.y + cuboid.extent.maxZ - 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.maxX - 0, 0, translateXZ.y + cuboid.extent.maxZ - 0, 1, 1, 1);
 
                             // x=1,y=0,z=1 to x=1,y=0,z=0
-                            labelLines.push(translateXZ.x + 0.25 - 0, 0, translateXZ.y + 0.25 - 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x + 0.25 - 0, 0, translateXZ.y - 0.25 + 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.maxX - 0, 0, translateXZ.y + cuboid.extent.maxZ - 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.maxX - 0, 0, translateXZ.y + cuboid.extent.minZ + 0, 1, 1, 1);
 
                             // x=1,y=0,z=0 to x=0,y=0,z=0
-                            labelLines.push(translateXZ.x + 0.25 - 0, 0, translateXZ.y - 0.25 + 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x - 0.25 + 0, 0, translateXZ.y - 0.25 + 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.maxX - 0, 0, translateXZ.y + cuboid.extent.minZ + 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.minX + 0, 0, translateXZ.y + cuboid.extent.minZ + 0, 1, 1, 1);
 
                             // x=0,y=0,z=0 to x=0,y=0,z=1
-                            labelLines.push(translateXZ.x - 0.25 + 0, 0, translateXZ.y - 0.25 + 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x - 0.25 + 0, 0, translateXZ.y + 0.25 - 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.minX + 0, 0, translateXZ.y + cuboid.extent.minZ + 0, 1, 1, 1);
+                            labelLines.push(translateXZ.x + cuboid.extent.minX + 0, 0, translateXZ.y + cuboid.extent.maxZ - 0, 1, 1, 1);
 
                             // Connections from top to bottom face
 
                             // Connection from top-front-left to bottom-front-left
 
                             // x=0,y=1,z=1 to x=0,y=0,z=1
-                            labelLines.push(translateXZ.x - 0.25 + 0, cuboid.scaleY, translateXZ.y + 0.25 - 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x - 0.25 + 0, 0, translateXZ.y + 0.25 - 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(translateXZ.x + cuboid.extent.minX + 0, 0, translateXZ.y + cuboid.extent.maxZ - 0, 1, 1, 1);
 
                             // x=1,y=1,z=1 to x=1,y=0,z=1
-                            labelLines.push(translateXZ.x + 0.25 - 0, cuboid.scaleY, translateXZ.y + 0.25 - 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x + 0.25 - 0, 0, translateXZ.y + 0.25 - 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.maxX - 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.maxZ - 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(translateXZ.x + cuboid.extent.maxX - 0, 0, translateXZ.y + cuboid.extent.maxZ - 0, 1, 1, 1);
 
                             // x=1,y=1,z=0 to x=1,y=0,z=0
-                            labelLines.push(translateXZ.x + 0.25 - 0, cuboid.scaleY, translateXZ.y - 0.25 + 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x + 0.25 - 0, 0, translateXZ.y - 0.25 + 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.maxX - 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.minZ + 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(translateXZ.x + cuboid.extent.maxX - 0, 0, translateXZ.y + cuboid.extent.minZ + 0, 1, 1, 1);
 
                             // x=0,y=1,z=0 to x=0,y=0,z=0
-                            labelLines.push(translateXZ.x - 0.25 + 0, cuboid.scaleY, translateXZ.y - 0.25 + 0, 1, 1, 1);
-                            labelLines.push(translateXZ.x - 0.25 + 0, 0, translateXZ.y - 0.25 + 0, 1, 1, 1);
+                            labelLines.push(
+                                translateXZ.x + cuboid.extent.minX + 0,
+                                cuboid.scaleY,
+                                translateXZ.y + cuboid.extent.minZ + 0,
+                                1,
+                                1,
+                                1,
+                            );
+                            labelLines.push(translateXZ.x + cuboid.extent.minX + 0, 0, translateXZ.y + cuboid.extent.minZ + 0, 1, 1, 1);
                         }
                     }
                 }
@@ -1547,7 +1692,7 @@ class DatacubesRenderer extends Renderer {
         if (this._cuboids.length > 0) {
             gl.uniform2fv(this._uDepthNdcOffset, ndcOffset);
 
-            for (const { geometry, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateY, scaleY, id, extent } of cuboidsSortedByCameraDistance) {
                 if (id === undefined) {
                     continue;
                 }
@@ -1561,9 +1706,18 @@ class DatacubesRenderer extends Renderer {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
-                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
+                const extentScale = mat4.fromScaling(
+                    mat4.create(),
+                    vec3.fromValues((extent.maxX - extent.minX) / CUBOID_SIZE_X, 1.0, (extent.maxZ - extent.minZ) / CUBOID_SIZE_Z),
+                );
+                const translate = mat4.fromTranslation(mat4.create(), [
+                    translateXZ.x + (extent.maxX + extent.minX) / 2,
+                    translateY,
+                    translateXZ.y + (extent.maxZ + extent.minZ) / 2,
+                ]);
 
-                const transform = mat4.multiply(mat4.create(), translate, scale);
+                let transform = mat4.multiply(mat4.create(), extentScale, scale);
+                transform = mat4.multiply(mat4.create(), translate, transform);
 
                 gl.uniformMatrix4fv(this._uDepthModel, false, transform);
 
@@ -1614,7 +1768,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, id, translateY, scaleY, colorLAB, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
+            for (const { geometry, id, translateY, scaleY, colorLAB, extent, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
                 if (idBufferOnly || !id) {
                     continue;
                 }
@@ -1628,9 +1782,18 @@ class DatacubesRenderer extends Renderer {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
-                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
+                const extentScale = mat4.fromScaling(
+                    mat4.create(),
+                    vec3.fromValues((extent.maxX - extent.minX) / CUBOID_SIZE_X, 1.0, (extent.maxZ - extent.minZ) / CUBOID_SIZE_Z),
+                );
+                const translate = mat4.fromTranslation(mat4.create(), [
+                    translateXZ.x + (extent.maxX + extent.minX) / 2,
+                    translateY,
+                    translateXZ.y + (extent.maxZ + extent.minZ) / 2,
+                ]);
 
-                const transform = mat4.multiply(mat4.create(), translate, scale);
+                let transform = mat4.multiply(mat4.create(), extentScale, scale);
+                transform = mat4.multiply(mat4.create(), translate, transform);
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
                 gl.uniform3fv(this._uColorCuboids, colorLAB || DATACUBE_DEFAULT_COLOR_LAB);
@@ -1700,7 +1863,7 @@ class DatacubesRenderer extends Renderer {
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
             gl.cullFace(gl.BACK);
 
-            for (const { geometry, translateY, scaleY, id } of cuboidsSortedByCameraDistance) {
+            for (const { geometry, translateY, scaleY, id, extent } of cuboidsSortedByCameraDistance) {
                 if (id === undefined) {
                     continue;
                 }
@@ -1714,9 +1877,18 @@ class DatacubesRenderer extends Renderer {
                 geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
-                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
+                const extentScale = mat4.fromScaling(
+                    mat4.create(),
+                    vec3.fromValues((extent.maxX - extent.minX) / CUBOID_SIZE_X, 1.0, (extent.maxZ - extent.minZ) / CUBOID_SIZE_Z),
+                );
+                const translate = mat4.fromTranslation(mat4.create(), [
+                    translateXZ.x + (extent.maxX + extent.minX) / 2,
+                    translateY,
+                    translateXZ.y + (extent.maxZ + extent.minZ) / 2,
+                ]);
 
-                const transform = mat4.multiply(mat4.create(), translate, scale);
+                let transform = mat4.multiply(mat4.create(), extentScale, scale);
+                transform = mat4.multiply(mat4.create(), translate, transform);
 
                 gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
 
