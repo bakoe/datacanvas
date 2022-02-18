@@ -21,6 +21,7 @@ export type LabelInfo = {
     elide?: Label.Elide;
     lineAnchor?: Label.LineAnchor;
     fontSize?: number;
+    ellipsis?: string;
 };
 
 export type LabelSet = {
@@ -147,6 +148,7 @@ export class LabelPass extends LabelRenderPass {
             l.alignment = i.alignment || Label.Alignment.Left;
             l.lineWidth = i.lineWidth || 0;
             l.elide = i.elide || Label.Elide.None;
+            l.ellipsis = i.ellipsis !== undefined ? i.ellipsis : '...';
             l.position = i.pos;
             l.direction = i.dir;
             l.up = i.up;

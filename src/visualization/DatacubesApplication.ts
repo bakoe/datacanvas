@@ -949,11 +949,13 @@ class DatacubesRenderer extends Renderer {
                         if (cuboid.points !== undefined && cuboid.points.length > 0) {
                             const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - id);
                             if (matchingDatacube) {
+                                // x axis labeling
+
                                 labelSets.push({
                                     labels: [
                                         {
                                             name: `${matchingDatacube.xColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x, 0.0, translateXZ.y + 0.25),
+                                            pos: vec3.fromValues(translateXZ.x, 0.0, translateXZ.y + 0.25 + 0.15),
                                             dir: vec3.fromValues(1.0, 0.0, 0.0),
                                             up: vec3.fromValues(0.0, 0.0, -1.0),
                                             alignment: Label.Alignment.Center,
@@ -968,8 +970,44 @@ class DatacubesRenderer extends Renderer {
                                 labelSets.push({
                                     labels: [
                                         {
+                                            name: `${(matchingDatacube.xColumn as NumberColumn)?.min}`,
+                                            pos: vec3.fromValues(translateXZ.x - 0.25, 0.0, translateXZ.y + 0.25 + 0.05),
+                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                            up: vec3.fromValues(0.0, 0.0, -1.0),
+                                            alignment: Label.Alignment.Left,
+                                            lineWidth: 0.5 * 0.45,
+                                            elide: Label.Elide.Right,
+                                            ellipsis: '',
+                                            lineAnchor: Label.LineAnchor.Ascent,
+                                        },
+                                    ],
+                                    useNearest: false,
+                                });
+
+                                labelSets.push({
+                                    labels: [
+                                        {
+                                            name: `${(matchingDatacube.xColumn as NumberColumn)?.max}`,
+                                            pos: vec3.fromValues(translateXZ.x + 0.25, 0.0, translateXZ.y + 0.25 + 0.05),
+                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                            up: vec3.fromValues(0.0, 0.0, -1.0),
+                                            alignment: Label.Alignment.Right,
+                                            lineWidth: 0.5 * 0.45,
+                                            elide: Label.Elide.Right,
+                                            ellipsis: '',
+                                            lineAnchor: Label.LineAnchor.Ascent,
+                                        },
+                                    ],
+                                    useNearest: false,
+                                });
+
+                                // y axis labeling
+
+                                labelSets.push({
+                                    labels: [
+                                        {
                                             name: `${matchingDatacube.yColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x + 0.25, cuboid.scaleY * 0.5, translateXZ.y + 0.25),
+                                            pos: vec3.fromValues(translateXZ.x + 0.25 + 0.15, cuboid.scaleY * 0.5, translateXZ.y + 0.25),
                                             dir: vec3.fromValues(0.0, 1.0, 0.0),
                                             up: vec3.fromValues(-1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Center,
@@ -994,13 +1032,83 @@ class DatacubesRenderer extends Renderer {
                                 labelSets.push({
                                     labels: [
                                         {
+                                            name: `${(matchingDatacube.yColumn as NumberColumn)?.min}`,
+                                            pos: vec3.fromValues(translateXZ.x + 0.25 + 0.05, 0, translateXZ.y + 0.25),
+                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                            alignment: Label.Alignment.Left,
+                                            lineWidth: cuboid.scaleY * 0.45,
+                                            elide: Label.Elide.Right,
+                                            ellipsis: '',
+                                            lineAnchor: Label.LineAnchor.Ascent,
+                                        },
+                                    ],
+                                    useNearest: false,
+                                });
+
+                                labelSets.push({
+                                    labels: [
+                                        {
+                                            name: `${(matchingDatacube.yColumn as NumberColumn)?.max}`,
+                                            pos: vec3.fromValues(translateXZ.x + 0.25 + 0.05, cuboid.scaleY, translateXZ.y + 0.25),
+                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                            alignment: Label.Alignment.Right,
+                                            lineWidth: cuboid.scaleY * 0.45,
+                                            elide: Label.Elide.Right,
+                                            ellipsis: '',
+                                            lineAnchor: Label.LineAnchor.Ascent,
+                                        },
+                                    ],
+                                    useNearest: false,
+                                });
+
+                                // z axis labeling
+
+                                labelSets.push({
+                                    labels: [
+                                        {
                                             name: `${matchingDatacube.zColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x - 0.25, 0.0, translateXZ.y),
+                                            pos: vec3.fromValues(translateXZ.x - 0.25 - 0.15, 0.0, translateXZ.y),
                                             dir: vec3.fromValues(0.0, 0.0, 1.0),
                                             up: vec3.fromValues(1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Center,
                                             lineWidth: 0.5,
                                             elide: Label.Elide.Middle,
+                                            lineAnchor: Label.LineAnchor.Ascent,
+                                        },
+                                    ],
+                                    useNearest: true,
+                                });
+
+                                labelSets.push({
+                                    labels: [
+                                        {
+                                            name: `${(matchingDatacube.zColumn as NumberColumn)?.min}`,
+                                            pos: vec3.fromValues(translateXZ.x - 0.25 - 0.05, 0.0, translateXZ.y - 0.25),
+                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                            up: vec3.fromValues(1.0, 0.0, 0.0),
+                                            alignment: Label.Alignment.Left,
+                                            lineWidth: 0.5 * 0.45,
+                                            elide: Label.Elide.Right,
+                                            ellipsis: '',
+                                            lineAnchor: Label.LineAnchor.Ascent,
+                                        },
+                                    ],
+                                    useNearest: true,
+                                });
+
+                                labelSets.push({
+                                    labels: [
+                                        {
+                                            name: `${(matchingDatacube.zColumn as NumberColumn)?.max}`,
+                                            pos: vec3.fromValues(translateXZ.x - 0.25 - 0.05, 0.0, translateXZ.y + 0.25),
+                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                            up: vec3.fromValues(1.0, 0.0, 0.0),
+                                            alignment: Label.Alignment.Right,
+                                            lineWidth: 0.5 * 0.45,
+                                            elide: Label.Elide.Right,
+                                            ellipsis: '',
                                             lineAnchor: Label.LineAnchor.Ascent,
                                         },
                                     ],
