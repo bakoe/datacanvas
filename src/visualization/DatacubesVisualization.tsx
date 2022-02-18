@@ -90,8 +90,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             });
 
             exampleInstance.datacubesPointerUpEvents$?.subscribe((event: PointerEvent) => {
-                if ((event as any).data !== undefined) {
-                    setNodeIdSelectedFromWebGL((event as any).data);
+                if ((event as any).data !== undefined && (event as any).data.datacubeID !== undefined) {
+                    setNodeIdSelectedFromWebGL((event as any).data.datacubeID);
                 } else {
                     setNodeIdSelectedFromWebGL(undefined);
                 }
@@ -100,10 +100,45 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             exampleInstance.datacubesPointerMoveEvents$
                 ?.pipe(distinctUntilChanged((prev: any, curr: any) => prev.data === curr.data))
                 .subscribe((event: PointerEvent) => {
-                    if ((event as any).data !== undefined) {
-                        setNodeIdSelectedFromWebGL((event as any).data);
+                    let cursorSet = false;
+
+                    if ((event as any).data !== undefined && (event as any).data.datacubeID !== undefined) {
+                        setNodeIdSelectedFromWebGL((event as any).data.datacubeID);
                     } else {
                         setNodeIdSelectedFromWebGL(undefined);
+                    }
+
+                    if ((event as any).data !== undefined && (event as any).data.cuboidBboxHovered !== undefined) {
+                        const cuboidBboxHovered = (event as any).data.cuboidBboxHovered as {
+                            xMin: boolean;
+                            xMax: boolean;
+                            yMin: boolean;
+                            yMax: boolean;
+                            zMin: boolean;
+                            zMax: boolean;
+                        };
+
+                        const { xMin, xMax, yMin, yMax, zMin, zMax } = cuboidBboxHovered;
+
+                        if (yMin || yMax) {
+                            if ((xMax && zMax) || (xMin && zMin)) {
+                                document.body.style.cursor = 'nwse-resize';
+                                cursorSet = true;
+                            } else if ((xMax && zMin) || (xMin && zMax)) {
+                                document.body.style.cursor = 'nesw-resize';
+                                cursorSet = true;
+                            } else if (xMax || xMin) {
+                                document.body.style.cursor = 'ew-resize';
+                                cursorSet = true;
+                            } else if (zMin || zMax) {
+                                document.body.style.cursor = 'ns-resize';
+                                cursorSet = true;
+                            }
+                        }
+                    }
+
+                    if (!cursorSet) {
+                        document.body.style.cursor = 'unset';
                     }
                 });
         }
