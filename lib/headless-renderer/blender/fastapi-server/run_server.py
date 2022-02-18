@@ -74,7 +74,7 @@ async def create_rendering(config: SceneRenderConfiguration):
 
     render_thread = threading.Thread(target=lambda: subprocess.check_output(args, env=env))
 
-    logging.debug(f"Start blender with args:", args)
+    logging.debug(f"Start blender with args: %s", args)
 
     t_render_thread_start = perf_counter()
     render_thread.start()
