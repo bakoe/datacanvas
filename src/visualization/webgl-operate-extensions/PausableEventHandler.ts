@@ -4,6 +4,18 @@ export class PausableEventHandler extends EventHandler {
     protected _isPaused = false;
 
     set isPaused(isPaused: boolean) {
+        if (isPaused === false) {
+            // On un-pausing, clear the list of intermediate events
+            this._latestMouseEventsByType.forEach((value) => (value.length = 0));
+            this._previousMouseEventsByType.forEach((value) => (value.length = 0));
+            this._latestTouchEventsByType.forEach((value) => (value.length = 0));
+            this._previousTouchEventsByType.forEach((value) => (value.length = 0));
+            this._latestPointerEventsByType.forEach((value) => (value.length = 0));
+            this._previousPointerEventsByType.forEach((value) => (value.length = 0));
+            this._previousEyeGazeEventsByType.forEach((value) => (value.length = 0));
+            this._latestEyeGazeEventsByType.forEach((value) => (value.length = 0));
+        }
+
         this._isPaused = isPaused;
     }
 

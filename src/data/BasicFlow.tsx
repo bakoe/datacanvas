@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon';
-import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback } from 'react';
+import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback, ChangeEvent, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 import ReactFlow, {
     addEdge,
@@ -19,6 +20,13 @@ import ReactFlow, {
     applyNodeChanges,
     StartHandle,
 } from 'react-flow-renderer/nocss';
+import ColorMappingNode, {
+    ColorMappingNodeData,
+    ColorMappingNodeState,
+    defaultState as ColorMappingNodeDefaultState,
+} from './nodes/ColorMappingNode';
+
+import { usePopper } from 'react-popper';
 
 import DatasetNode, {
     DatasetNodeData,
@@ -38,9 +46,31 @@ import PointPrimitiveNode, {
     PointPrimitiveNodeState,
     PointPrimitiveNodeTargetHandles,
 } from './nodes/PointPrimitiveNode';
+import { vec2 } from 'webgl-operate';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
 const onNodeClick = (_: MouseEvent, node: Node) => undefined;
+
+const findSourceColumn = (sourceNode: Node<any>, params: Edge<any> | Connection) => {
+    let sourceColumn;
+    switch (sourceNode.type as NodeTypes) {
+        case NodeTypes.Dataset:
+            sourceColumn = (sourceNode as Node<DatasetNodeData>).data.state?.columns?.find((column) => column.name === params.sourceHandle);
+            break;
+        case NodeTypes.DateFilter:
+            sourceColumn = (sourceNode as Node<DateFilterNodeData>).data.state?.filteredColumns?.find(
+                (column) => column.name === params.sourceHandle,
+            );
+            break;
+        case NodeTypes.ColorMapping:
+            sourceColumn = {
+                column: (sourceNode as Node<ColorMappingNodeData>).data.state?.column,
+                colorPalette: (sourceNode as Node<ColorMappingNodeData>).data.state?.colorPalette,
+            };
+            break;
+    }
+    return sourceColumn;
+};
 
 const getFileMimetypes = (dataTransfer: DataTransfer): string[] => {
     const fileMimeTypes = [] as string[];
@@ -105,7 +135,7 @@ const getFiles = (dataTransfer: DataTransfer): File[] => {
     return files;
 };
 
-let id = 2;
+let id = 4;
 const getId = () => `${id}`;
 
 const initialEdges: Edge[] = [];
@@ -132,22 +162,52 @@ const BasicFlow = () => {
                     to: DateTime.fromISO('2021-12-19'),
                 },
                 onChangeState: (newState) => updateNodeState('0', newState),
+                onDeleteNode: () => deleteNode('0'),
                 isValidConnection,
             },
-            position: { x: 400, y: 40 },
+            position: { x: 200, y: 40 },
         } as Node<DateFilterNodeData>,
 
         {
-            type: NodeTypes.PointPrimitive,
+            type: NodeTypes.ColorMapping,
             id: '1',
+            data: {
+                state: {
+                    ...ColorMappingNodeDefaultState,
+                },
+                onChangeState: (newState) => updateNodeState('1', newState),
+                onDeleteNode: () => deleteNode('1'),
+                isValidConnection,
+            },
+            position: { x: 500, y: 40 },
+        } as Node<ColorMappingNodeData>,
+
+        {
+            type: NodeTypes.PointPrimitive,
+            id: '2',
             data: {
                 state: {
                     ...PointPrimitiveNodeDefaultState,
                 },
-                onChangeState: (newState) => updateNodeState('1', newState),
+                onChangeState: (newState) => updateNodeState('2', newState),
+                onDeleteNode: () => deleteNode('2'),
                 isValidConnection,
             },
-            position: { x: 700, y: 40 },
+            position: { x: 800, y: 40 },
+        } as Node<PointPrimitiveNodeData>,
+
+        {
+            type: NodeTypes.PointPrimitive,
+            id: '3',
+            data: {
+                state: {
+                    ...PointPrimitiveNodeDefaultState,
+                },
+                onChangeState: (newState) => updateNodeState('3', newState),
+                onDeleteNode: () => deleteNode('3'),
+                isValidConnection,
+            },
+            position: { x: 800, y: 240 },
         } as Node<PointPrimitiveNodeData>,
     ];
 
@@ -217,6 +277,10 @@ const BasicFlow = () => {
         }
     };
 
+    const deleteNode = useCallback((nodeId: string) => {
+        setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    }, []);
+
     const updateNodeState = <NodePropsType extends NodeWithStateProps<NodeStateType>, NodeStateType>(
         nodeId: string,
         newState: NodeStateType,
@@ -247,6 +311,9 @@ const BasicFlow = () => {
     // See https://github.com/leonadler/drag-and-drop-across-browsers/blob/master/README.md
     const [eventCounter, setEventCounter] = useState(0);
     const [draggingInPage, setDraggingInPage] = useState(false);
+
+    const [pointerDownStart, setPointerDownStart] = useState(undefined as undefined | number);
+    const [pointerDownStartPosition, setPointerDownStartPosition] = useState(undefined as undefined | vec2);
 
     const onDisconnect = (params: Edge | Connection) => {
         if (!params.source || !params.target) return;
@@ -324,6 +391,15 @@ const BasicFlow = () => {
             }
         }
 
+        if (targetNode.type === NodeTypes.ColorMapping) {
+            const sourceColumn = findSourceColumn(sourceNode, params);
+            if (sourceColumn) {
+                updateNodeState(targetNode.id, {
+                    column: sourceColumn,
+                } as Partial<ColorMappingNodeState>);
+            }
+        }
+
         if (targetNode.type === NodeTypes.PointPrimitive) {
             let stateKey;
             switch (params.targetHandle as PointPrimitiveNodeTargetHandles) {
@@ -339,21 +415,12 @@ const BasicFlow = () => {
                 case PointPrimitiveNodeTargetHandles.Size:
                     stateKey = 'sizeColumn';
                     break;
+                case PointPrimitiveNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
             }
             if (stateKey) {
-                let sourceColumn;
-                switch (sourceNode.type as NodeTypes) {
-                    case NodeTypes.Dataset:
-                        sourceColumn = (sourceNode as Node<DatasetNodeData>).data.state?.columns?.find(
-                            (column) => column.name === params.sourceHandle,
-                        );
-                        break;
-                    case NodeTypes.DateFilter:
-                        sourceColumn = (sourceNode as Node<DateFilterNodeData>).data.state?.filteredColumns?.find(
-                            (column) => column.name === params.sourceHandle,
-                        );
-                        break;
-                }
+                const sourceColumn = findSourceColumn(sourceNode, params);
                 if (sourceColumn) {
                     const updatedState = {} as Partial<PointPrimitiveNodeState>;
                     (updatedState as any)[stateKey] = sourceColumn;
@@ -373,6 +440,7 @@ const BasicFlow = () => {
         mapping['dataset'] = DatasetNode;
         mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
+        mapping[NodeTypes.ColorMapping] = ColorMappingNode;
         return mapping;
     }, []);
 
@@ -419,6 +487,7 @@ const BasicFlow = () => {
                 columns: [],
                 filename: `Loading ${type?.toUpperCase() ?? ''}…`,
                 onChangeState: (newState: DatasetNodeState) => updateNodeState(nodeId, newState),
+                onDeleteNode: () => deleteNode(nodeId),
                 state: {
                     ...DatasetNodeDefaultState,
                 },
@@ -438,6 +507,8 @@ const BasicFlow = () => {
         });
 
         setDragInProgress(true);
+
+        id++;
     };
 
     const onDragEnter = (event: DragEvent) => {
@@ -492,6 +563,146 @@ const BasicFlow = () => {
         id++;
     };
 
+    const [contextMenuPopperElement, setContextMenuPopperElement] = useState(null as HTMLElement | null);
+    const [contextMenuVirtualReference, setContextMenuVirtualReference] = useState(null as any);
+
+    const { styles, attributes } = usePopper(contextMenuVirtualReference, contextMenuPopperElement, {
+        placement: 'right-start',
+    });
+
+    const onContextMenuOpen = useCallback((event: MouseEvent) => {
+        event.preventDefault();
+
+        const virtualReference = {
+            getBoundingClientRect() {
+                return {
+                    top: Math.round(event.clientY),
+                    left: Math.round(event.clientX),
+                    bottom: Math.round(event.clientY),
+                    right: Math.round(event.clientX),
+                    width: 0,
+                    height: 0,
+                };
+            },
+        };
+
+        setContextMenuVirtualReference(virtualReference);
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                onContextMenuClose();
+            }
+        });
+    }, []);
+
+    const onContextMenuClose = useCallback(() => {
+        setFilteredNodesThatCanBeAddedViaContextMenu(nodesThatCanBeAddedViaContextMenu);
+        setContextMenuVirtualReference(null);
+        setFocusedContextMenuEntry(0);
+    }, []);
+
+    const addNodeFromContextMenu = useCallback(
+        (nodeType: NodeTypes) => {
+            if (!contextMenuVirtualReference) return;
+            if (!reactFlowInstance) return;
+
+            onContextMenuClose();
+
+            const { top, left } = contextMenuVirtualReference.getBoundingClientRect();
+
+            const xyPosition = reactFlowInstance.project({ x: left, y: top });
+
+            onAddNode(nodeType, xyPosition);
+        },
+        [contextMenuVirtualReference],
+    );
+
+    const onAddNode = useCallback((nodeType: NodeTypes, xyPosition: XYPosition) => {
+        let nodeData: any;
+        const nodeId = getId();
+
+        switch (nodeType) {
+            case 'filter-date':
+                nodeData = {
+                    state: {
+                        ...DateFilterNodeDefaultState,
+                        from: DateTime.fromISO('2021-11-15'),
+                        to: DateTime.fromISO('2021-12-19'),
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as DateFilterNodeData;
+                break;
+            case 'point-primitive':
+                nodeData = {
+                    state: {
+                        ...PointPrimitiveNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as PointPrimitiveNodeData;
+                break;
+            case 'color-mapping':
+                nodeData = {
+                    state: {
+                        ...ColorMappingNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as ColorMappingNodeData;
+                break;
+            case 'dataset':
+                return;
+            default:
+                return;
+        }
+
+        id++;
+
+        setNodes((nds) =>
+            nds.concat({
+                type: nodeType,
+                id: `${nodeId}`,
+                position: xyPosition,
+                data: nodeData,
+            }),
+        );
+    }, []);
+
+    const nodesThatCanBeAddedViaContextMenu = [
+        {
+            nodeType: NodeTypes.DateFilter,
+            label: 'Filtering: Date Filter',
+            highlightString: undefined as undefined | string,
+        },
+        {
+            nodeType: NodeTypes.PointPrimitive,
+            label: 'Rendering: Point Primitive',
+            highlightString: undefined as undefined | string,
+        },
+        {
+            nodeType: NodeTypes.ColorMapping,
+            label: 'Mapping: Color Mapping',
+            highlightString: undefined as undefined | string,
+        },
+    ];
+
+    const [filteredNodesThatCanBeAddedViaContextMenu, setFilteredNodesThatCanBeAddedViaContextMenu] =
+        useState(nodesThatCanBeAddedViaContextMenu);
+
+    const [focusedContextMenuEntry, setFocusedContextMenuEntry] = useState(0);
+
+    const contextMenuEntriesRef = useRef<Array<HTMLLIElement | null>>([]);
+
+    // List of refs that works inside a loop
+    // see: https://stackoverflow.com/a/56063129
+    useEffect(() => {
+        contextMenuEntriesRef.current = contextMenuEntriesRef.current.splice(0, filteredNodesThatCanBeAddedViaContextMenu.length);
+    }, [filteredNodesThatCanBeAddedViaContextMenu]);
+
     return (
         <ReactFlow
             nodes={nodes}
@@ -502,7 +713,7 @@ const BasicFlow = () => {
             onDrop={onDrop}
             onDragLeave={onDragLeave}
             onNodesChange={onNodesChange}
-            // onEdgeUpdate is set to enable react-flow's support for updating handles (i.e., dragging them off their handles) 
+            // onEdgeUpdate is set to enable react-flow's support for updating handles (i.e., dragging them off their handles)
             onEdgeUpdate={() => undefined}
             onEdgeUpdateEnd={onEdgeUpdateEnd}
             onInit={onPaneReady}
@@ -511,7 +722,43 @@ const BasicFlow = () => {
             onNodeDragStop={onNodeDragStop}
             className="react-flow-basic-example"
             defaultZoom={1.5}
+            onPaneContextMenu={onContextMenuOpen}
+            onPointerDown={(event) => {
+                setPointerDownStartPosition(vec2.fromValues(event.clientX, event.clientY));
+                setPointerDownStart(new Date().getTime());
+            }}
+            onPointerUp={(event) => {
+                const LONG_PRESS_MIN_DURATION_IN_MILLISECONDS = 300;
+                if (pointerDownStart !== undefined) {
+                    const pointerDownEnd = new Date().getTime();
+                    if (pointerDownEnd - pointerDownStart >= LONG_PRESS_MIN_DURATION_IN_MILLISECONDS) {
+                        onContextMenuOpen(event);
+                    }
+                    setPointerDownStart(undefined);
+                    setPointerDownStartPosition(undefined);
+                }
+            }}
+            onPointerMove={(event) => {
+                if (!pointerDownStartPosition || pointerDownStart === undefined) {
+                    return;
+                }
+                // Long-press detection: If the pointer is moved after pointer-down and before pointer-up, cancel the long-press recording
+                const distance = vec2.dist(vec2.fromValues(event.clientX, event.clientY), pointerDownStartPosition);
+                // Keep track of the start position and allow for a small delta offset in moving the pointer before cancelling the long-press recording
+                if (distance < 10) {
+                    return;
+                }
+                if (pointerDownStart !== undefined) {
+                    setPointerDownStart(undefined);
+                    setPointerDownStartPosition(undefined);
+                }
+            }}
+            onMoveStart={() => {
+                if (contextMenuVirtualReference) onContextMenuClose();
+            }}
             onPaneClick={() => {
+                if (contextMenuVirtualReference) onContextMenuClose();
+
                 if (store.getState().connectionStartHandle) {
                     // Delete the edge if clicking a connection first and then clicking onto the canvas (pane) background
                     const connectionStartHandle = store.getState().connectionStartHandle as StartHandle;
@@ -523,7 +770,7 @@ const BasicFlow = () => {
                             return edge.source === connectionStartHandle.nodeId;
                         } else {
                             if (connectionStartHandle.handleId) {
-                                return edge.target === connectionStartHandle.nodeId && edge.targetHandle === connectionStartHandle.handleId;    
+                                return edge.target === connectionStartHandle.nodeId && edge.targetHandle === connectionStartHandle.handleId;
                             }
                             return edge.target === connectionStartHandle.nodeId;
                         }
@@ -539,8 +786,125 @@ const BasicFlow = () => {
             attributionPosition="top-right"
         >
             <Background variant={BackgroundVariant.Lines} />
+            {contextMenuVirtualReference &&
+                createPortal(
+                    <div ref={setContextMenuPopperElement} style={styles.popper} {...attributes.popper}>
+                        <div className="context-menu">
+                            <input
+                                type="text"
+                                defaultValue={''}
+                                placeholder={'Filter nodes …'}
+                                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                                    let filterText = event.target.value;
+                                    filterText = filterText.toLowerCase();
+                                    if (filterText !== '') {
+                                        const filteredNodes = nodesThatCanBeAddedViaContextMenu
+                                            .filter(({ label }) => label.toLowerCase().includes(filterText))
+                                            .map((node) => {
+                                                // See: https://bitsofco.de/a-one-line-solution-to-highlighting-search-matches/
+                                                const highlightString = node.label.replace(
+                                                    new RegExp(filterText, 'gi'),
+                                                    (match) => `<mark>${match}</mark>`,
+                                                );
+                                                return {
+                                                    ...node,
+                                                    highlightString,
+                                                };
+                                            });
+                                        setFilteredNodesThatCanBeAddedViaContextMenu(filteredNodes);
+                                    } else {
+                                        setFilteredNodesThatCanBeAddedViaContextMenu(nodesThatCanBeAddedViaContextMenu);
+                                    }
+                                }}
+                                autoFocus={true}
+                                onKeyDown={(event) => {
+                                    switch (event.key) {
+                                        case 'ArrowDown':
+                                            event.preventDefault();
+                                            if (filteredNodesThatCanBeAddedViaContextMenu.length === 1) {
+                                                setFocusedContextMenuEntry(0);
+                                                contextMenuEntriesRef.current[0]?.focus();
+                                            } else if (filteredNodesThatCanBeAddedViaContextMenu.length > 1) {
+                                                setFocusedContextMenuEntry(1);
+                                                contextMenuEntriesRef.current[1]?.focus();
+                                            }
+                                            break;
+                                        case 'Enter':
+                                            event.preventDefault();
+                                            addNodeFromContextMenu(
+                                                filteredNodesThatCanBeAddedViaContextMenu[focusedContextMenuEntry].nodeType,
+                                            );
+                                    }
+                                }}
+                            />
+                            <ul
+                                className="dropdown-list"
+                                role="toolbar"
+                                onKeyDown={(event) => {
+                                    let focusedEntryIndex = undefined;
+                                    switch (event.key) {
+                                        case 'ArrowDown':
+                                            event.preventDefault();
+                                            focusedEntryIndex = Math.min(
+                                                focusedContextMenuEntry + 1,
+                                                filteredNodesThatCanBeAddedViaContextMenu.length - 1,
+                                            );
+                                            break;
+                                        case 'ArrowUp':
+                                            event.preventDefault();
+                                            focusedEntryIndex = Math.max(focusedContextMenuEntry - 1, 0);
+                                            break;
+                                    }
+                                    if (focusedEntryIndex !== undefined) {
+                                        setFocusedContextMenuEntry(focusedEntryIndex);
+                                        contextMenuEntriesRef.current[focusedEntryIndex]?.focus();
+                                    }
+                                }}
+                            >
+                                {filteredNodesThatCanBeAddedViaContextMenu.map(({ nodeType, label, highlightString }, index) => (
+                                    <li
+                                        key={index}
+                                        // Use "roving tabindex" for accessibility
+                                        // see: https://web.dev/control-focus-with-tabindex/#create-accessible-components-with-%22roving-tabindex%22
+                                        tabIndex={focusedContextMenuEntry !== undefined ? (index === focusedContextMenuEntry ? 0 : -1) : 0}
+                                        ref={(element) => (contextMenuEntriesRef.current[index] = element)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                addNodeFromContextMenu(nodeType);
+                                            }
+                                        }}
+                                        onPointerOver={() => {
+                                            setFocusedContextMenuEntry(index);
+                                        }}
+                                    >
+                                        <a
+                                            id={`${index}`}
+                                            className="link"
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    addNodeFromContextMenu(nodeType);
+                                                }
+                                            }}
+                                            onClick={() => addNodeFromContextMenu(nodeType)}
+                                            dangerouslySetInnerHTML={highlightString ? { __html: highlightString } : undefined}
+                                        >
+                                            {!highlightString ? label : undefined}
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>,
+                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                    document.querySelector('#context-menu-destination')!,
+                )}
 
-            <div style={{ position: 'absolute', right: 10, top: 10, zIndex: 4 }}></div>
+            {store.getState().nodeInternals.size === 0 && (
+                <div style={{ position: 'absolute', top: 0, marginLeft: '1rem', marginTop: '1rem', zIndex: 4 }}>
+                    Right-click (or long-press on a mobile device) on the canvas to add a new node. You can also drag-and-drop datasets
+                    (e.g., CSV files) here.
+                </div>
+            )}
         </ReactFlow>
     );
 };

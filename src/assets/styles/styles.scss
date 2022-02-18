@@ -7,6 +7,18 @@
 
 @import 'react-collapse';
 
+@import 'react-linear-gradient-picker/dist/index.css';
+@import 'react-linear-gradient-picker';
+
+.split {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
 .link {
     text-decoration: none;
     background-color: black;
@@ -14,7 +26,108 @@
     padding: 0.2rem 0.25rem;
     cursor: pointer;
 
-    &:focus, &:hover {
+    &:focus,
+    &:hover {
         box-shadow: 0 0 0 1px #32c99b;
+    }
+}
+
+#context-menu-destination {
+    & * {
+        z-index: 5;
+    }
+}
+
+.context-menu {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+
+    & input {
+        background-color: black;
+        color: white;
+
+        box-sizing: border-box;
+        width: 100%;
+        padding: 0.4rem calc(1rem - 2px);
+        font-size: 1rem;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+            'Helvetica Neue', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+.dropdown-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background-color: black;
+    width: 100%;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+
+    &:hover {
+        & li {
+            &[tabindex='0']:not(:hover) {
+                & .link {
+                    background-color: black;
+                    color: white;
+                }
+            }
+        }
+    }
+
+    & li {
+        width: 100%;
+
+        &:focus,
+        &[tabindex='0'] {
+            & .link {
+                box-shadow: none;
+                background-color: #32c99b;
+                color: white;
+            }
+        }
+
+        & .link {
+            display: block;
+            padding: 0.4rem 1rem;
+
+            &:hover,
+            &:focus {
+                box-shadow: none;
+                background-color: #32c99b;
+                color: white;
+            }
+
+            & mark {
+                background-color: transparent;
+                text-decoration: underline;
+                color: white;
+            }
+        }
+    }
+
+    & .dropdown-list {
+        padding-left: 1rem;
+    }
+}
+
+select,
+input {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+        'Helvetica Neue', sans-serif;
+    font-size: 1em;
+}
+
+select::-ms-expand {
+    display: none;
+}
+
+table {
+    select,
+    input {
+        margin-right: -1px;
+        width: 100%;
+        box-sizing: border-box;
     }
 }
