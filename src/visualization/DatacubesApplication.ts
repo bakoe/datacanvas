@@ -72,8 +72,8 @@ const CUBOID_SIZE_X = 0.5;
 const CUBOID_SIZE_Y = 1.0;
 const CUBOID_SIZE_Z = 0.5;
 
-const DEBUG_SHOW_POINTS_ON_INTERACTION = true;
-const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
+const DEBUG_SHOW_POINTS_ON_INTERACTION = false;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
 
 export interface Cuboid {
     geometry: CuboidGeometry;
@@ -449,11 +449,20 @@ class DatacubesRenderer extends Renderer {
             let isResizingCuboidInXDirection = false;
             let isResizingCuboidInZDirection = false;
 
-            if (document.body.style.cursor === 'ew-resize' || document.body.style.cursor === 'nesw-resize') {
+            // TODO: Find a cleaner way to pass this state from the global/React part of the app to the renderer
+            if (
+                document.body.style.cursor === 'ew-resize' ||
+                document.body.style.cursor === 'nesw-resize' ||
+                document.body.style.cursor === 'nwse-resize'
+            ) {
                 isResizingCuboidInXDirection = true;
             }
 
-            if (document.body.style.cursor === 'ns-resize' || document.body.style.cursor === 'nwse-resize') {
+            if (
+                document.body.style.cursor === 'ns-resize' ||
+                document.body.style.cursor === 'nwse-resize' ||
+                document.body.style.cursor === 'nesw-resize'
+            ) {
                 isResizingCuboidInZDirection = true;
             }
 
@@ -586,38 +595,35 @@ class DatacubesRenderer extends Renderer {
                             : new Float32Array([debugPoint].flat());
                     }
 
-                    let datacubePosition = { x: coordsAt[0], y: coordsAt[2] } as XYPosition;
-
-                    if (this._resizedCuboidStartPosition) {
-                        const offset = vec3.subtract(v3(), coordsAt, this._resizeStartPosition);
-                        const position = vec3.add(v3(), this._resizedCuboidStartPosition, offset);
-                        datacubePosition = { x: position[0], y: position[2] } as XYPosition;
-                    }
-
-                    const translateY =
-                        this._cuboids.find((cuboid) => cuboid.id === this._resizedCuboidID)?.translateY || CUBOID_SIZE_Y * 0.5;
-                    const scaleY = this._cuboids.find((cuboid) => cuboid.id === this._resizedCuboidID)?.scaleY || CUBOID_SIZE_Y;
-                    const translateXZ = vec2.fromValues(datacubePosition.x, datacubePosition.y);
-
                     const newExtent = this._resizedCuboidStartExtent;
 
                     if (!newExtent || !this._resizedCuboidStartPosition) {
                         return;
                     }
 
-                    if (this._isResizingCuboidInXDirection) {
+                    if (this._isResizingCuboidInXDirection && coordsAt[0] >= this._resizedCuboidStartPosition[0]) {
                         newExtent.maxX = coordsAt[0] - this._resizedCuboidStartPosition[0];
-                        console.log('new maxX', coordsAt[0] - this._resizedCuboidStartPosition[0]);
                     }
 
-                    if (this._isResizingCuboidInZDirection) {
-                        newExtent.maxZ = coordsAt[2] - this._resizedCuboidStartPosition[2];
-                        console.log('new maxZ', coordsAt[2] - this._resizedCuboidStartPosition[2]);
+                    if (this._isResizingCuboidInXDirection && coordsAt[0] < this._resizedCuboidStartPosition[0]) {
+                        newExtent.minX = coordsAt[0] - this._resizedCuboidStartPosition[0];
                     }
+
+                    if (this._isResizingCuboidInZDirection && coordsAt[2] >= this._resizedCuboidStartPosition[2]) {
+                        newExtent.maxZ = coordsAt[2] - this._resizedCuboidStartPosition[2];
+                    }
+
+                    if (this._isResizingCuboidInZDirection && coordsAt[2] < this._resizedCuboidStartPosition[2]) {
+                        newExtent.minZ = coordsAt[2] - this._resizedCuboidStartPosition[2];
+                    }
+
+                    newExtent.minX = Math.max(-2.0, Math.min(-0.25, newExtent.minX));
+                    newExtent.maxX = Math.min(2.0, Math.max(0.25, newExtent.maxX));
+                    newExtent.minZ = Math.max(-2.0, Math.min(-0.25, newExtent.minZ));
+                    newExtent.maxZ = Math.min(2.0, Math.max(0.25, newExtent.maxZ));
 
                     const updatedCuboids = this._cuboids.map((cuboid) => {
                         if (cuboid.id === this._resizedCuboidID) {
-                            console.log('updating cuboid live');
                             return {
                                 ...cuboid,
                                 extent: {
@@ -630,8 +636,6 @@ class DatacubesRenderer extends Renderer {
                         }
                         return cuboid;
                     });
-
-                    console.log('triggererd');
 
                     this._datacubesSubject?.next(
                         updatedCuboids
@@ -907,8 +911,6 @@ class DatacubesRenderer extends Renderer {
                         if (Math.abs(coordsAt[2] - cuboidBbox.zMax) <= 0.1) {
                             cuboidBboxHovered.zMax = true;
                         }
-
-                        // console.log(cuboidBboxHovered);
                     }
                 }
             }
@@ -1216,11 +1218,15 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${matchingDatacube.xColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x, 0.0, translateXZ.y + cuboid.extent.maxZ + 0.15),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + (cuboid.extent.maxX + cuboid.extent.minX) * 0.5,
+                                                0.0,
+                                                translateXZ.y + cuboid.extent.maxZ + 0.15,
+                                            ),
                                             dir: vec3.fromValues(1.0, 0.0, 0.0),
                                             up: vec3.fromValues(0.0, 0.0, -1.0),
                                             alignment: Label.Alignment.Center,
-                                            lineWidth: 0.5,
+                                            lineWidth: cuboid.extent.maxX - cuboid.extent.minX,
                                             elide: Label.Elide.Middle,
                                             lineAnchor: Label.LineAnchor.Ascent,
                                         },
@@ -1233,7 +1239,7 @@ class DatacubesRenderer extends Renderer {
                                         {
                                             name: `${(matchingDatacube.xColumn as NumberColumn)?.min}`,
                                             pos: vec3.fromValues(
-                                                translateXZ.x - cuboid.extent.minX,
+                                                translateXZ.x + cuboid.extent.minX,
                                                 0.0,
                                                 translateXZ.y + cuboid.extent.maxZ + 0.05,
                                             ),
@@ -1350,11 +1356,15 @@ class DatacubesRenderer extends Renderer {
                                     labels: [
                                         {
                                             name: `${matchingDatacube.zColumn?.name}`,
-                                            pos: vec3.fromValues(translateXZ.x + cuboid.extent.minX - 0.15, 0.0, translateXZ.y),
+                                            pos: vec3.fromValues(
+                                                translateXZ.x + cuboid.extent.minX - 0.15,
+                                                0.0,
+                                                translateXZ.y + (cuboid.extent.maxZ + cuboid.extent.minZ) * 0.5,
+                                            ),
                                             dir: vec3.fromValues(0.0, 0.0, 1.0),
                                             up: vec3.fromValues(1.0, 0.0, 0.0),
                                             alignment: Label.Alignment.Center,
-                                            lineWidth: 0.5,
+                                            lineWidth: cuboid.extent.maxZ - cuboid.extent.minZ,
                                             elide: Label.Elide.Middle,
                                             lineAnchor: Label.LineAnchor.Ascent,
                                         },
@@ -1855,7 +1865,7 @@ class DatacubesRenderer extends Renderer {
             gl.enable(gl.DEPTH_TEST);
             this._intermediateFBOs[0].bind();
 
-            for (const { id, pointsFrom, pointsCount, translateY, points } of cuboidsSortedByCameraDistance) {
+            for (const { id, pointsFrom, pointsCount, translateY, points, extent } of cuboidsSortedByCameraDistance) {
                 if (id === undefined || points === undefined || points.length === 0) {
                     continue;
                 }
@@ -1866,9 +1876,19 @@ class DatacubesRenderer extends Renderer {
                     continue;
                 }
 
-                const translate = mat4.fromTranslation(mat4.create(), [translateXZ.x, translateY, translateXZ.y]);
+                const extentScale = mat4.fromScaling(
+                    mat4.create(),
+                    vec3.fromValues((extent.maxX - extent.minX) / CUBOID_SIZE_X, 1.0, (extent.maxZ - extent.minZ) / CUBOID_SIZE_Z),
+                );
+                const translate = mat4.fromTranslation(mat4.create(), [
+                    translateXZ.x + (extent.maxX + extent.minX) / 2,
+                    translateY,
+                    translateXZ.y + (extent.maxZ + extent.minZ) / 2,
+                ]);
 
-                this.renderPoints(ndcOffset || [], pointsFrom || 0, pointsCount || Infinity, translate);
+                const transform = mat4.multiply(mat4.create(), translate, extentScale);
+
+                this.renderPoints(ndcOffset || [], pointsFrom || 0, pointsCount || Infinity, transform);
             }
 
             gl.enable(gl.DEPTH_TEST);

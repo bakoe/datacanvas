@@ -93,7 +93,6 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                         } as NodeDiffUpdate);
                     }
                     if (datacube && datacube.extent) {
-                        console.log('updarting datcube extent');
                         store.setState({
                             nodeInternals: store.getState().nodeInternals.set(`${id}`, {
                                 ...(store.getState().nodeInternals.get(`${id}`) as any),
