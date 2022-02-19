@@ -63,7 +63,11 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
             onChangeState({
                 isPending: false,
             });
+            return;
         }
+        onChangeState({
+            isPending: true,
+        });
     }, [serializeColumnInfo(xColumn), serializeColumnInfo(yColumn), serializeColumnInfo(zColumn)]);
 
     return (
