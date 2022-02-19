@@ -23,7 +23,7 @@ export function isDatasetNode(node: Node<unknown>): node is Node<DatasetNodeData
 
 // Workaround to use papaparse instead of @lukaswagner/csv-parser for the time being,
 // due to problems with nested worker imports in Vite
-const USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE = false;
+const USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE = true;
 
 import { NodeWithStateProps } from '../BasicFlow';
 import CollapsibleHandle from './util/CollapsibleHandle';
