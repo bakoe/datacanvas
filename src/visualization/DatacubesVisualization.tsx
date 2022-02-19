@@ -16,6 +16,7 @@ import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 import { ColorPalette } from '../data/nodes/util/EditableColorGradient';
 import { serializeColumnInfo } from '../data/nodes/util/serializeColumnInfo';
 import { isColorMappingNode } from '../data/nodes/ColorMappingNode';
+import { isSyncToScatterplotViewerNode } from '../data/nodes/SyncToScatterplotViewerNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -222,7 +223,13 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
             let labelString = '';
             const isSelected = node.selected;
-            if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node) || isColorMappingNode(node)) {
+            if (
+                isDatasetNode(node) ||
+                isDateFilterNode(node) ||
+                isPointPrimitiveNode(node) ||
+                isColorMappingNode(node) ||
+                isSyncToScatterplotViewerNode(node)
+            ) {
                 if (isDatasetNode(node)) {
                     // labelString += node.data.filename;
                     labelString += 'CSV Dataset';
@@ -258,6 +265,10 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     zColumn = node.data.state?.zColumn;
                     sizeColumn = node.data.state?.sizeColumn;
                     colors = node.data.state?.colors;
+                }
+                if (isSyncToScatterplotViewerNode(node)) {
+                    labelString += 'Rendering: Sync to Scatterplot Viewer';
+                    isPending = node.data.state?.isPending;
                 }
             }
             return {
