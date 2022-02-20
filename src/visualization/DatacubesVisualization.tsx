@@ -8,7 +8,7 @@ import shallow from 'zustand/shallow';
 
 import { DatacubesApplication } from './DatacubesApplication';
 
-import { isDatasetNode } from '../data/nodes/DatasetNode';
+import { isDatasetNode, makeTypeHumanReadable } from '../data/nodes/DatasetNode';
 import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isPointPrimitiveNode } from '../data/nodes/PointPrimitiveNode';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
@@ -232,7 +232,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             ) {
                 if (isDatasetNode(node)) {
                     // labelString += node.data.filename;
-                    labelString += 'CSV Dataset';
+                    const typeString = makeTypeHumanReadable(node.data.type);
+                    labelString += (typeString ? typeString + ' ' : '') + 'Dataset';
                     if (overallMaxRowCount) {
                         const colRowCounts = node.data.state?.columns?.map((col) => col.length);
                         if (colRowCounts) {

@@ -12,6 +12,7 @@ import {
     Float32Chunk,
     Float32Column,
     NumberColumn,
+    SheetInput,
     StringChunk,
     StringColumn,
 } from '@lukaswagner/csv-parser';
@@ -36,12 +37,27 @@ interface Column {
     name: string;
 }
 
-type DatasetNodeValidTypes = 'csv' | 'json' | undefined;
+export const makeTypeHumanReadable = (type: DatasetNodeValidTypes): string | undefined => {
+    switch (type) {
+        case 'csv':
+            return 'CSV';
+        case 'json':
+            return 'JSON';
+        case 'google-sheets':
+            return 'Google Sheets';
+        default:
+            return undefined;
+    }
+};
+
+export type DatasetNodeValidTypes = 'csv' | 'json' | 'google-sheets' | undefined;
 
 export interface DatasetNodeState {
     columnHeaders?: CSVColumnHeader[];
     columns?: CSVColumn[];
     isLoading?: boolean;
+    googleSheetsUri?: string;
+    forceRefreshGoogleSheets?: boolean;
 }
 
 export const defaultState = { isLoading: true } as DatasetNodeState;
@@ -78,6 +94,8 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
 
+    const [googleSheetsRefetchingIntervalId, setGoogleSheetsRefetchingIntervalId] = useState(undefined as undefined | number);
+
     useEffect(() => {
         if (state && state.columnHeaders && state.columns && state.columnHeaders.length > 0 && state.columns.length > 0) {
             onChangeState({
@@ -85,6 +103,83 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
             });
         }
     }, [state?.columnHeaders, state?.columns]);
+
+    useEffect(() => {
+        if (data.state?.forceRefreshGoogleSheets === false) {
+            return;
+        }
+
+        if (data.type === 'google-sheets' && state?.googleSheetsUri) {
+            const sheetId = state.googleSheetsUri.match(/docs.google.com\/spreadsheets\/d\/(.*)\//)?.[1];
+
+            if (!sheetId) {
+                onChangeState({
+                    isLoading: true,
+                    columns: [],
+                    columnHeaders: [],
+                });
+                return;
+            }
+
+            const readColumnsFromGoogleSheets = async (sheetId: string) => {
+                const fileId = sheetId;
+
+                const loader = new CSV<string>({
+                    includesHeader: true,
+                    delimiter: ',',
+                });
+
+                // TODO: Add support for specifying API key
+                loader.addDataSource(fileId, {
+                    sheetId,
+                    apiKey: import.meta.env.VITE_GOOGLE_SHEETS_API_KEY,
+                } as SheetInput);
+                const columnHeaders = await loader.open(fileId);
+
+                onChangeState({ columnHeaders });
+
+                const [columns, loaderDispatch] = loader.load({
+                    columns: columnHeaders.map(({ type }) => type.valueOf() as DataType),
+                    generatedColumns: [],
+                });
+
+                for await (const value of loaderDispatch()) {
+                    if (value.type === 'done') {
+                        onChangeState({ columns });
+                        setupGoogleSheetsRefetchingInterval();
+                    }
+                }
+            };
+
+            readColumnsFromGoogleSheets(sheetId);
+            onChangeState({
+                forceRefreshGoogleSheets: false,
+            });
+        }
+    }, [state?.googleSheetsUri, state?.forceRefreshGoogleSheets]);
+
+    const setupGoogleSheetsRefetchingInterval = () => {
+        clearGoogleSheetsRefetchingInteval();
+        const intervalId = window.setInterval(() => {
+            onChangeState({
+                forceRefreshGoogleSheets: true,
+            });
+        }, 5000);
+        setGoogleSheetsRefetchingIntervalId(intervalId);
+    };
+
+    const clearGoogleSheetsRefetchingInteval = () => {
+        if (googleSheetsRefetchingIntervalId) {
+            clearInterval(googleSheetsRefetchingIntervalId);
+            setGoogleSheetsRefetchingIntervalId(undefined);
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            clearGoogleSheetsRefetchingInteval();
+        };
+    }, []);
 
     useEffect(() => {
         const readColumnsFromCSVFile = async (file: File) => {
@@ -240,15 +335,50 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node`}>
             <div className="title-wrapper">
                 <div className="title hyphenate">
-                    {data.type?.toUpperCase() + ' '}Dataset{isLoading ? ' …' : ''}
+                    {makeTypeHumanReadable(data.type) ? makeTypeHumanReadable(data.type) + ' ' : ''}Dataset{isLoading ? ' …' : ''}
                 </div>
                 <div className="title-actions">
                     <span>
-                        <a onPointerUp={onDeleteNode}>✕</a>
+                        <a
+                            onPointerUp={() => {
+                                clearGoogleSheetsRefetchingInteval();
+                                onDeleteNode();
+                            }}
+                        >
+                            ✕
+                        </a>
                     </span>
                 </div>
             </div>
             <span className="hyphenate">{data.filename}</span>
+
+            {(data.type === undefined || data.type === 'google-sheets') && (
+                <>
+                    <div className="nodrag">
+                        <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
+                            <tbody>
+                                <tr>
+                                    <td style={{ width: '48%' }}>
+                                        <label htmlFor="google-sheets-uri">Google Sheets URL:</label>
+                                    </td>
+                                    <td>
+                                        <input
+                                            type="text"
+                                            id="google-sheets-uri"
+                                            defaultValue={state?.googleSheetsUri}
+                                            onChange={(event) => {
+                                                onChangeState({
+                                                    googleSheetsUri: event.target.value,
+                                                });
+                                            }}
+                                        />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            )}
 
             <hr className="divider" />
 
@@ -263,7 +393,8 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 />
                 <span className="source-handle-label">
                     <a
-                        className="nodrag link"
+                        className={`nodrag link ${!columnHeaders || columnHeaders.length === 0 ? 'disabled' : ''}`}
+                        aria-disabled={!columnHeaders || columnHeaders.length === 0}
                         onClick={() => {
                             setIsCollapsed(!isCollapsed);
                         }}
