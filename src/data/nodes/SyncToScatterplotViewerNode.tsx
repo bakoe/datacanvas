@@ -205,7 +205,7 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
                     >
                         ⎋
                     </a>{' '}
-                    Scatterplot
+                    Scatterplot{isPending ? ' …' : ''}
                 </div>
                 <div className="title-actions">
                     <span>

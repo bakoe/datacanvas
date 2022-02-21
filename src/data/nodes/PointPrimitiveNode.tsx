@@ -73,7 +73,7 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-rendering`}>
             <div className="title-wrapper">
-                <div className="title">Point Primitive</div>
+                <div className="title">Point Primitive{isPending ? ' …' : ''}</div>
                 <div className="title-actions">
                     <span>
                         <a onPointerUp={onDeleteNode}>✕</a>

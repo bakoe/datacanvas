@@ -222,7 +222,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
         >
             <div className="title-wrapper">
                 <div className="title" title={errorMessage}>
-                    Filter: Date Range{isPending ? ' …' : ''}
+                    Date Filter{isPending ? ' …' : ''}
                 </div>
                 <div className="title-actions">
                     <span>
@@ -245,7 +245,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                             <strong>{dataToFilter[0].length}</strong> Dates to filter
                         </>
                     ) : (
-                        <em>Data to filter</em>
+                        'Data to filter'
                     )}
                 </span>
             </div>
@@ -305,7 +305,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                             {isCollapsed ? '↓' : '↑'}
                         </a>
                     ) : (
-                        <em>Filtered data</em>
+                        'Filtered data'
                     )}
                 </span>
             </div>
