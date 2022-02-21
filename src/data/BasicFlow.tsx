@@ -1068,6 +1068,8 @@ const BasicFlow = () => {
             }}
             minZoom={0.2}
             maxZoom={4}
+            fitView={true}
+            fitViewOptions={{ padding: 0.1 }}
             attributionPosition="top-right"
         >
             <Background variant={BackgroundVariant.Lines} />
