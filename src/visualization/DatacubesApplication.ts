@@ -53,9 +53,9 @@ import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { DateColumn, NumberColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 import { Passes } from './Passes';
-import { GLfloat2 } from 'webgl-operate/lib/tuples';
+
 import { LabelSet } from './label/LabelPass';
-import { DateTime } from 'luxon';
+import { GLfloat2 } from 'webgl-operate/lib/tuples';
 
 /* spellchecker: enable */
 
@@ -100,21 +100,39 @@ export interface Cuboid {
 }
 
 // LAB values converted using: https://colors.dopely.top/color-converter/hex/
-const DATACUBE_PENDING_COLOR_LAB = [72.77, -49.48, 12.02] as [number, number, number];
 const DATACUBE_DEFAULT_COLOR_LAB = [98.87, 1.17, -0.14] as [number, number, number];
 const DATACUBE_ERROR_COLOR_LAB = [52.94, 66.39, 42.22] as [number, number, number];
 
-DATACUBE_PENDING_COLOR_LAB[0] /= 100;
-DATACUBE_PENDING_COLOR_LAB[1] = (DATACUBE_PENDING_COLOR_LAB[1] + 128) / 256;
-DATACUBE_PENDING_COLOR_LAB[2] = (DATACUBE_PENDING_COLOR_LAB[2] + 128) / 256;
+// Original:
+// const DATACUBE_INPUT_COLOR_LAB = [21.84, 0.43, 1.57] as [number, number, number];
+// Inverted:
+const DATACUBE_INPUT_COLOR_LAB = [81.59, -0.31, -1.24] as [number, number, number];
+const DATACUBE_FILTERING_COLOR_LAB = [39.86, -18.04, -13.93] as [number, number, number];
+const DATACUBE_MAPPING_COLOR_LAB = [64.85, -6.79, 0.03] as [number, number, number];
+const DATACUBE_RENDERING_COLOR_LAB = [69.33, 26.95, 68.9] as [number, number, number];
 
-DATACUBE_DEFAULT_COLOR_LAB[0] /= 100;
-DATACUBE_DEFAULT_COLOR_LAB[1] = (DATACUBE_DEFAULT_COLOR_LAB[1] + 128) / 256;
-DATACUBE_DEFAULT_COLOR_LAB[2] = (DATACUBE_DEFAULT_COLOR_LAB[2] + 128) / 256;
+// TODO: Move this to utils/colorTransformations.ts
+export const mapLABColorRangeToZeroOne = (labColor: [number, number, number]): [number, number, number] => {
+    return [labColor[0] / 100, (labColor[1] + 128) / 256, (labColor[2] + 128) / 256];
+};
 
-DATACUBE_ERROR_COLOR_LAB[0] /= 100;
-DATACUBE_ERROR_COLOR_LAB[1] = (DATACUBE_ERROR_COLOR_LAB[1] + 128) / 256;
-DATACUBE_ERROR_COLOR_LAB[2] = (DATACUBE_ERROR_COLOR_LAB[2] + 128) / 256;
+export const mapLABColorRangeToNonZeroOne = (labColor: [number, number, number]): [number, number, number] => {
+    return [labColor[0] * 100, labColor[1] * 256 - 128, labColor[2] * 256 - 128];
+};
+
+for (const color of [
+    DATACUBE_DEFAULT_COLOR_LAB,
+    DATACUBE_ERROR_COLOR_LAB,
+    DATACUBE_INPUT_COLOR_LAB,
+    DATACUBE_FILTERING_COLOR_LAB,
+    DATACUBE_MAPPING_COLOR_LAB,
+    DATACUBE_RENDERING_COLOR_LAB,
+]) {
+    const mappedColor = mapLABColorRangeToZeroOne(color);
+    color[0] = mappedColor[0];
+    color[1] = mappedColor[1];
+    color[2] = mappedColor[2];
+}
 
 class DatacubesRenderer extends Renderer {
     protected _extensions = false;
@@ -1016,6 +1034,12 @@ class DatacubesRenderer extends Renderer {
                         const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
                         const colorValue = datacube.colors?.column ? (datacube.colors.column.get(index) as number) : undefined;
 
+                        let colorIsInvalid = false;
+
+                        if (datacube.colors?.column && isNaN(datacube.colors.column.get(index) as number)) {
+                            colorIsInvalid = true;
+                        }
+
                         const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
                         const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
                         const normalizedZ = ((z - minZ) / (maxZ - minZ)) * CUBOID_SIZE_Z - 0.5 * CUBOID_SIZE_Z;
@@ -1029,6 +1053,14 @@ class DatacubesRenderer extends Renderer {
                         let b = 1;
                         if (normalizedColorValue !== undefined) {
                             [r, g, b] = getColorForNormalizedValue(normalizedColorValue, datacube.colors!.colorPalette);
+                        }
+
+                        if (colorIsInvalid) {
+                            continue;
+                            // Comment-in the following to set the color of NaN points to the INVALID_COLOR (red)
+                            // r = 0.92156863;
+                            // g = 0.22745098;
+                            // b = 0.22745098;
                         }
 
                         points.push({
@@ -1047,23 +1079,40 @@ class DatacubesRenderer extends Renderer {
                 const datacubeIsErroneous = datacube.isErroneous;
                 const datacubeIsPending = datacube.isPending;
                 const datacubeIsSelected = datacube.isSelected;
+                const datacubeType = datacube.type;
+                let colorLAB = DATACUBE_DEFAULT_COLOR_LAB;
+                switch (datacubeType as NodeTypes) {
+                    case NodeTypes.Dataset:
+                        colorLAB = DATACUBE_INPUT_COLOR_LAB;
+                        break;
+                    case NodeTypes.DateFilter:
+                        colorLAB = DATACUBE_FILTERING_COLOR_LAB;
+                        break;
+                    case NodeTypes.ColorMapping:
+                        colorLAB = DATACUBE_MAPPING_COLOR_LAB;
+                        break;
+                    case NodeTypes.PointPrimitive:
+                    case NodeTypes.SyncToScatterplotViewer:
+                        colorLAB = DATACUBE_RENDERING_COLOR_LAB;
+                        break;
+                }
                 const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
                 if (existingCuboid) {
                     const from = {
                         translateY: existingCuboid.translateY * 1000,
                         scaleY: existingCuboid.scaleY * 1000,
-                        colorLAB0: existingCuboid.colorLAB ? existingCuboid.colorLAB[0] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
-                        colorLAB1: existingCuboid.colorLAB ? existingCuboid.colorLAB[1] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
-                        colorLAB2: existingCuboid.colorLAB ? existingCuboid.colorLAB[2] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
+                        colorLAB0: existingCuboid.colorLAB ? existingCuboid.colorLAB[0] * 1000 : colorLAB[0] * 1000,
+                        colorLAB1: existingCuboid.colorLAB ? existingCuboid.colorLAB[1] * 1000 : colorLAB[1] * 1000,
+                        colorLAB2: existingCuboid.colorLAB ? existingCuboid.colorLAB[2] * 1000 : colorLAB[2] * 1000,
                     };
 
                     const to = datacubeIsPending
                         ? {
                               translateY: DATACUBE_PENDING_SCALE_Y * 0.5 * 1000,
                               scaleY: DATACUBE_PENDING_SCALE_Y * 1000,
-                              colorLAB0: DATACUBE_PENDING_COLOR_LAB[0] * 1000,
-                              colorLAB1: DATACUBE_PENDING_COLOR_LAB[1] * 1000,
-                              colorLAB2: DATACUBE_PENDING_COLOR_LAB[2] * 1000,
+                              colorLAB0: colorLAB[0] * 1000,
+                              colorLAB1: colorLAB[1] * 1000,
+                              colorLAB2: colorLAB[2] * 1000,
                           }
                         : datacubeIsErroneous
                         ? {
@@ -1076,9 +1125,9 @@ class DatacubesRenderer extends Renderer {
                         : {
                               translateY: datacube.relativeHeight * 0.5 * 1000,
                               scaleY: datacube.relativeHeight * 1000,
-                              colorLAB0: DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
-                              colorLAB1: DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
-                              colorLAB2: DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
+                              colorLAB0: colorLAB[0] * 1000,
+                              colorLAB1: colorLAB[1] * 1000,
+                              colorLAB2: colorLAB[2] * 1000,
                           };
 
                     // Round the scaled target values to 0 decimals (i.e., the unscaled target values to 3 decimals)
@@ -1157,12 +1206,10 @@ class DatacubesRenderer extends Renderer {
 
                     let translateY = datacube.relativeHeight * 0.5;
                     let scaleY = datacube.relativeHeight;
-                    let colorLAB = DATACUBE_DEFAULT_COLOR_LAB;
 
                     if (datacubeIsPending) {
                         translateY = DATACUBE_PENDING_SCALE_Y * 0.5;
                         scaleY = DATACUBE_PENDING_SCALE_Y;
-                        colorLAB = DATACUBE_PENDING_COLOR_LAB;
                     }
 
                     if (datacubeIsErroneous) {
@@ -1627,6 +1674,9 @@ class DatacubesRenderer extends Renderer {
                         if (translateXZ) {
                             for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
                                 const point = points[pointIndex];
+                                if (isNaN(point.x) || isNaN(point.y) || isNaN(point.z)) {
+                                    continue;
+                                }
                                 pointsData.push(
                                     // prettier-ignore
                                     point.x,

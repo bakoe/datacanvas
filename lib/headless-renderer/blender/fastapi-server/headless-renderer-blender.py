@@ -63,16 +63,9 @@ def add_scene_element(scene, scene_element):
     for obj in bpy.context.selected_objects:
         obj.select_set(False)
 
-    from colormath.color_objects import LabColor, sRGBColor
-    from colormath.color_conversions import convert_color
-
     t_start = perf_counter()
     id = scene_element['id']
-    color_lab = LabColor(scene_element['colorLAB'][0], scene_element['colorLAB'][1], scene_element['colorLAB'][2])
-    color_lab.lab_l = color_lab.lab_l * 100.0
-    color_lab.lab_a = color_lab.lab_a * 256.0 - 128.0
-    color_lab.lab_b = color_lab.lab_b * 256.0 - 128.0
-    color_srgb = convert_color(color_lab, sRGBColor)
+    color_rgb = scene_element['colorRGB']
     translate_x = scene_element['translateXZ']["0"]
     translate_y = scene_element['translateY']
     translate_z = scene_element['translateXZ']["1"]
@@ -205,6 +198,10 @@ def add_scene_element(scene, scene_element):
                 r = point["r"]
                 g = point["g"]
                 b = point["b"]
+                # Convert to Gamma-corrected sRGB
+                r = pow(r, 2.2)
+                g = pow(g, 2.2)
+                b = pow(b, 2.2)
                 bm.verts[point_index][size_attribute] = size
                 bm.verts[point_index][color_r_attribute] = r
                 bm.verts[point_index][color_g_attribute] = g
@@ -245,7 +242,15 @@ def add_scene_element(scene, scene_element):
     mat = bpy.data.materials.new(f"Material_{id}")
     mat.use_nodes = True
     principled_bsdf_node = mat.node_tree.nodes['Principled BSDF']
-    principled_bsdf_node.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
+    if color_rgb:
+        # Convert to Gamma-corrected sRGB
+        color_rgb = [
+            pow(color_rgb[0], 2.2),
+            pow(color_rgb[1], 2.2),
+            pow(color_rgb[2], 2.2)
+        ]
+        principled_bsdf_node.inputs['Base Color'].default_value = (color_rgb[0], color_rgb[1], color_rgb[2], 1)
+
     obj.data.materials.append(mat)
 
     # Remove object from all collections not used in a scene
