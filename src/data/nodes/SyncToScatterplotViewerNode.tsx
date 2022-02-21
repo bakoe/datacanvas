@@ -195,7 +195,7 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
     ]);
 
     return (
-        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
+        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-rendering`}>
             <div className="title-wrapper">
                 <div className="title">
                     <a

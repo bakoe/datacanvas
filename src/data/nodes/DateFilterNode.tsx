@@ -216,7 +216,9 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     return (
         <div
             style={nodeStyleOverrides}
-            className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${errorMessage && 'erroneous'} node`}
+            className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${
+                errorMessage && 'erroneous'
+            } node category-filtering`}
         >
             <div className="title-wrapper">
                 <div className="title" title={errorMessage}>

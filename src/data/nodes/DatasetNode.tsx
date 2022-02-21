@@ -332,7 +332,10 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     });
 
     return (
-        <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node`}>
+        <div
+            style={nodeStyleOverrides}
+            className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node category-input`}
+        >
             <div className="title-wrapper">
                 <div className="title hyphenate">
                     {makeTypeHumanReadable(data.type) ? makeTypeHumanReadable(data.type) + ' ' : ''}Dataset{isLoading ? ' …' : ''}

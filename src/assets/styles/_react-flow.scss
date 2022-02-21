@@ -1,5 +1,19 @@
 $handle-clickable-area-size: 0.7rem;
 
+@use 'sass:color';
+
+$input-color: #363432;
+$input-color-muted: color.scale($input-color, $lightness: -50%);
+
+$filtering-color: #196774;
+$filtering-color-muted: color.scale($filtering-color, $lightness: -50%);
+
+$mapping-color: #90a19d;
+$mapping-color-muted: color.scale($mapping-color, $lightness: -50%);
+
+$rendering-color: #f0941f;
+$rendering-color-muted: color.scale($rendering-color, $lightness: -50%);
+
 .react-flow__handle {
     box-shadow: 0 0 0 2px white;
     border: 1px solid black;
@@ -87,12 +101,78 @@ $handle-clickable-area-size: 0.7rem;
     border-radius: 0 0.5rem 0 0;
 }
 
-.node.pending {
-    border-color: #32c99b;
+.title {
+    .category-input & {
+        background: $input-color;
+    }
+
+    .category-filtering & {
+        background: $filtering-color;
+    }
+
+    .category-mapping & {
+        background: $mapping-color;
+    }
+
+    .category-rendering & {
+        background: $rendering-color;
+    }
+
+    background: black;
+    color: white;
+    hyphens: auto;
+    font-weight: bold;
+    z-index: 1;
 }
 
-.node.pending .title {
-    background: #32c99b;
+.node {
+    &.category-input {
+        border-color: $input-color;
+
+        &.pending {
+            border-color: $input-color-muted;
+
+            .title {
+                background: $input-color-muted;
+            }
+        }
+    }
+
+    &.category-filtering {
+        border-color: $filtering-color;
+
+        &.pending {
+            border-color: $filtering-color-muted;
+
+            .title {
+                background: $filtering-color-muted;
+            }
+        }
+    }
+
+    &.category-mapping {
+        border-color: $mapping-color;
+
+        &.pending {
+            border-color: $mapping-color-muted;
+
+            .title {
+                background: $mapping-color-muted;
+            }
+        }
+    }
+
+    &.category-rendering {
+        border-color: $rendering-color;
+
+        &.pending {
+            border-color: $rendering-color-muted;
+
+            .title {
+                background: $rendering-color-muted;
+            }
+        }
+    }
 }
 
 .node.erroneous {
@@ -159,14 +239,6 @@ $handle-clickable-area-size: 0.7rem;
     padding-right: 0.8rem;
     padding-left: 0.8rem;
     border-radius: 0 0.5rem 0 0;
-}
-
-.title {
-    background: black;
-    color: white;
-    hyphens: auto;
-    font-weight: bold;
-    z-index: 1;
 }
 
 .hyphenate {

@@ -71,7 +71,7 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
     }, [serializeColumnInfo(xColumn), serializeColumnInfo(yColumn), serializeColumnInfo(zColumn)]);
 
     return (
-        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
+        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-rendering`}>
             <div className="title-wrapper">
                 <div className="title">Point Primitive</div>
                 <div className="title-actions">
