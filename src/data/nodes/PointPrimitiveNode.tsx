@@ -15,8 +15,8 @@ export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPri
 
 export enum PointPrimitiveNodeTargetHandles {
     X = 'x coordinate',
-    Y = 'y coordinate',
-    Z = 'z coordinate',
+    Y = 'y coordinate (optional)',
+    Z = 'z coordinate (optional)',
     Size = 'size (optional)',
     Color = 'color (optional)',
 }
@@ -59,7 +59,7 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
     const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined } = { ...defaultState, ...state };
 
     useEffect(() => {
-        if (xColumn && yColumn && zColumn) {
+        if (xColumn) {
             onChangeState({
                 isPending: false,
             });

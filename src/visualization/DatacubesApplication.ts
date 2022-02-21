@@ -50,11 +50,12 @@ import { DatacubeInformation } from './DatacubesVisualization';
 import { Observable, Subject } from 'rxjs';
 import anime, { AnimeInstance } from 'animejs';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
-import { NumberColumn } from '@lukaswagner/csv-parser';
+import { DateColumn, NumberColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 import { Passes } from './Passes';
 import { GLfloat2 } from 'webgl-operate/lib/tuples';
 import { LabelSet } from './label/LabelPass';
+import { DateTime } from 'luxon';
 
 /* spellchecker: enable */
 
@@ -978,12 +979,8 @@ class DatacubesRenderer extends Renderer {
                 let points = undefined as undefined | PointData[];
                 if (
                     datacube.type === NodeTypes.PointPrimitive &&
-                    datacube.xColumn &&
-                    datacube.yColumn &&
-                    datacube.zColumn &&
+                    datacube.xColumn
                     // Make sure that the points only update after all (subsequently updated) columns were updated
-                    datacube.xColumn.length === datacube.yColumn.length &&
-                    datacube.xColumn.length === datacube.zColumn.length
                 ) {
                     renderCuboidToIdBufferOnly = true;
 
@@ -991,10 +988,10 @@ class DatacubesRenderer extends Renderer {
 
                     const minX = (datacube.xColumn as NumberColumn).min;
                     const maxX = (datacube.xColumn as NumberColumn).max;
-                    const minY = (datacube.yColumn as NumberColumn).min;
-                    const maxY = (datacube.yColumn as NumberColumn).max;
-                    const minZ = (datacube.zColumn as NumberColumn).min;
-                    const maxZ = (datacube.zColumn as NumberColumn).max;
+                    const minY = (datacube.yColumn as NumberColumn | undefined)?.min ?? 0;
+                    const maxY = (datacube.yColumn as NumberColumn | undefined)?.max ?? 1;
+                    const minZ = (datacube.zColumn as NumberColumn | undefined)?.min ?? 0;
+                    const maxZ = (datacube.zColumn as NumberColumn | undefined)?.max ?? 1;
 
                     let minSize: number;
                     let maxSize: number;
@@ -1014,8 +1011,8 @@ class DatacubesRenderer extends Renderer {
 
                     for (let index = 0; index < datacube.xColumn.length; index++) {
                         const x = datacube.xColumn.get(index) as number;
-                        const y = datacube.yColumn.get(index) as number;
-                        const z = datacube.zColumn.get(index) as number;
+                        const y = (datacube.yColumn?.get(index) as number) ?? 0;
+                        const z = (datacube.zColumn?.get(index) as number) ?? 1;
                         const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
                         const colorValue = datacube.colors?.column ? (datacube.colors.column.get(index) as number) : undefined;
 
@@ -1213,206 +1210,227 @@ class DatacubesRenderer extends Renderer {
                             const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - id);
                             if (matchingDatacube) {
                                 // x axis labeling
+                                if (matchingDatacube.xColumn !== undefined) {
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name: `${matchingDatacube.xColumn.name}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + (cuboid.extent.maxX + cuboid.extent.minX) * 0.5,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ + 0.15,
+                                                ),
+                                                dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                                up: vec3.fromValues(0.0, 0.0, -1.0),
+                                                alignment: Label.Alignment.Center,
+                                                lineWidth: cuboid.extent.maxX - cuboid.extent.minX,
+                                                elide: Label.Elide.Middle,
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${matchingDatacube.xColumn?.name}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + (cuboid.extent.maxX + cuboid.extent.minX) * 0.5,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ + 0.15,
-                                            ),
-                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
-                                            up: vec3.fromValues(0.0, 0.0, -1.0),
-                                            alignment: Label.Alignment.Center,
-                                            lineWidth: cuboid.extent.maxX - cuboid.extent.minX,
-                                            elide: Label.Elide.Middle,
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.xColumn.type === 'date'
+                                                        ? `${(matchingDatacube.xColumn as DateColumn)?.min.toLocaleDateString('en-US')}`
+                                                        : `${(matchingDatacube.xColumn as NumberColumn)?.min}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ + 0.05,
+                                                ),
+                                                dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                                up: vec3.fromValues(0.0, 0.0, -1.0),
+                                                alignment: Label.Alignment.Left,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.xColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ + 0.05,
-                                            ),
-                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
-                                            up: vec3.fromValues(0.0, 0.0, -1.0),
-                                            alignment: Label.Alignment.Left,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
-
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.xColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ + 0.05,
-                                            ),
-                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
-                                            up: vec3.fromValues(0.0, 0.0, -1.0),
-                                            alignment: Label.Alignment.Right,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.xColumn.type === 'date'
+                                                        ? `${(matchingDatacube.xColumn as DateColumn)?.max.toLocaleDateString('en-US')}`
+                                                        : `${(matchingDatacube.xColumn as NumberColumn)?.max}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ + 0.05,
+                                                ),
+                                                dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                                up: vec3.fromValues(0.0, 0.0, -1.0),
+                                                alignment: Label.Alignment.Right,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
+                                }
 
                                 // y axis labeling
+                                if (matchingDatacube.yColumn !== undefined) {
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name: `${matchingDatacube.yColumn.name}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX + 0.15,
+                                                    cuboid.scaleY * 0.5,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                                up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Center,
+                                                lineWidth: 1.0,
+                                                elide: Label.Elide.Middle,
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                            // {
+                                            //     name: `${matchingDatacube.xColumn?.name}`,
+                                            //     pos: vec3.fromValues(translateXZ.x - 0.25, cuboid.scaleY * 0.5, translateXZ.y + 0.25),
+                                            //     dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                            //     up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                            //     alignment: Label.Alignment.Center,
+                                            //     lineWidth: 1.0,
+                                            //     elide: Label.Elide.Middle,
+                                            //     lineAnchor: Label.LineAnchor.Descent,
+                                            // },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${matchingDatacube.yColumn?.name}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX + 0.15,
-                                                cuboid.scaleY * 0.5,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Center,
-                                            lineWidth: 1.0,
-                                            elide: Label.Elide.Middle,
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                        // {
-                                        //     name: `${matchingDatacube.xColumn?.name}`,
-                                        //     pos: vec3.fromValues(translateXZ.x - 0.25, cuboid.scaleY * 0.5, translateXZ.y + 0.25),
-                                        //     dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                        //     up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                        //     alignment: Label.Alignment.Center,
-                                        //     lineWidth: 1.0,
-                                        //     elide: Label.Elide.Middle,
-                                        //     lineAnchor: Label.LineAnchor.Descent,
-                                        // },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.yColumn.type === 'date'
+                                                        ? `${(matchingDatacube.yColumn as DateColumn)?.min.toLocaleDateString('en-US')}`
+                                                        : `${(matchingDatacube.yColumn as NumberColumn)?.min}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX + 0.05,
+                                                    0,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                                up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Left,
+                                                lineWidth: cuboid.scaleY * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.yColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX + 0.05,
-                                                0,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Left,
-                                            lineWidth: cuboid.scaleY * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
-
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.yColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX + 0.05,
-                                                cuboid.scaleY,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Right,
-                                            lineWidth: cuboid.scaleY * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.yColumn.type === 'date'
+                                                        ? `${(matchingDatacube.yColumn as DateColumn)?.max.toLocaleDateString('en-US')}`
+                                                        : `${(matchingDatacube.yColumn as NumberColumn)?.max}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX + 0.05,
+                                                    cuboid.scaleY,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                                up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Right,
+                                                lineWidth: cuboid.scaleY * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
+                                }
 
                                 // z axis labeling
+                                if (matchingDatacube.zColumn !== undefined) {
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name: `${matchingDatacube.zColumn.name}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX - 0.15,
+                                                    0.0,
+                                                    translateXZ.y + (cuboid.extent.maxZ + cuboid.extent.minZ) * 0.5,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                                up: vec3.fromValues(1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Center,
+                                                lineWidth: cuboid.extent.maxZ - cuboid.extent.minZ,
+                                                elide: Label.Elide.Middle,
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${matchingDatacube.zColumn?.name}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX - 0.15,
-                                                0.0,
-                                                translateXZ.y + (cuboid.extent.maxZ + cuboid.extent.minZ) * 0.5,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
-                                            up: vec3.fromValues(1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Center,
-                                            lineWidth: cuboid.extent.maxZ - cuboid.extent.minZ,
-                                            elide: Label.Elide.Middle,
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.zColumn.type === 'date'
+                                                        ? `${(matchingDatacube.zColumn as DateColumn)?.min.toLocaleDateString('en-US')}`
+                                                        : `${(matchingDatacube.zColumn as NumberColumn)?.min}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX - 0.05,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.minZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                                up: vec3.fromValues(1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Left,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.zColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX - 0.05,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.minZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
-                                            up: vec3.fromValues(1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Left,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
-
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.zColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX - 0.05,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
-                                            up: vec3.fromValues(1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Right,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.zColumn.type === 'date'
+                                                        ? `${(matchingDatacube.zColumn as DateColumn)?.max.toLocaleDateString('en-US')}`
+                                                        : `${(matchingDatacube.zColumn as NumberColumn)?.max}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX - 0.05,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                                up: vec3.fromValues(1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Right,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
+                                }
                             }
                         }
 
