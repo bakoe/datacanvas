@@ -63,16 +63,9 @@ def add_scene_element(scene, scene_element):
     for obj in bpy.context.selected_objects:
         obj.select_set(False)
 
-    from colormath.color_objects import LabColor, sRGBColor
-    from colormath.color_conversions import convert_color
-
     t_start = perf_counter()
     id = scene_element['id']
-    color_lab = LabColor(scene_element['colorLAB'][0], scene_element['colorLAB'][1], scene_element['colorLAB'][2])
-    color_lab.lab_l = color_lab.lab_l * 100.0
-    color_lab.lab_a = color_lab.lab_a * 256.0 - 128.0
-    color_lab.lab_b = color_lab.lab_b * 256.0 - 128.0
-    color_srgb = convert_color(color_lab, sRGBColor)
+    color_rgb = scene_element['colorRGB']
     translate_x = scene_element['translateXZ']["0"]
     translate_y = scene_element['translateY']
     translate_z = scene_element['translateXZ']["1"]
@@ -81,8 +74,21 @@ def add_scene_element(scene, scene_element):
 
     scale_y_webgl = scene_element['scaleY']
     scale_z_blender = scale_y_webgl
-
     scale_blender = mathutils.Vector((1, 1, scale_z_blender))
+
+    extent_webgl = scene_element['extent']
+    if extent_webgl:
+        CUBOID_SIZE_X = 0.5;
+        CUBOID_SIZE_Z = 0.5;
+        extent_scale_webgl = mathutils.Vector(((extent_webgl["maxX"] - extent_webgl["minX"]) / CUBOID_SIZE_X, 1.0, (extent_webgl["maxZ"] - extent_webgl["minZ"]) / CUBOID_SIZE_Z))
+        extent_scale_blender = vec3_transform_webgl_to_blender(extent_scale_webgl)
+
+        extent_compensation_translate_webgl = mathutils.Vector((
+            translate_x + (extent_webgl["maxX"] + extent_webgl["minX"]) / 2, 
+            translate_y, 
+            translate_z + (extent_webgl["maxZ"] + extent_webgl["minZ"]) / 2)
+        )
+        extent_compensation_translate_blender = vec3_transform_webgl_to_blender(extent_compensation_translate_webgl)
     
     hide = scene_element["idBufferOnly"] == True
     if hide:
@@ -98,9 +104,6 @@ def add_scene_element(scene, scene_element):
             # col = bpy.data.collections.get("Foreground")
             # col.objects.link(obj)
             # bpy.context.view_layer.objects.active = obj
-
-            obj.scale = scale_blender
-            obj.location = translate_blender
 
             mat = bpy.data.materials.new(f"Material_{id}")
             mat.use_nodes = True
@@ -142,11 +145,14 @@ def add_scene_element(scene, scene_element):
             verts = []
             edges = []
             faces = []
+
+            valid_points = [point for point in points if point["x"] and point["y"] and point["z"]]
             
-            for point_index, point in enumerate(points):
+            for point_index, point in enumerate(valid_points):
                 x = point["x"]
                 y = point["y"]
                 z = point["z"]
+
                 point_location_webgl = mathutils.Vector((x, y, z))
                 point_location_blender = vec3_transform_webgl_to_blender(point_location_webgl)
 
@@ -187,11 +193,15 @@ def add_scene_element(scene, scene_element):
             color_g_attribute = bm.verts.layers.float['color-g']
             color_b_attribute = bm.verts.layers.float['color-b']
 
-            for point_index, point in enumerate(points):
+            for point_index, point in enumerate(valid_points):
                 size = point["size"]
                 r = point["r"]
                 g = point["g"]
                 b = point["b"]
+                # Convert to Gamma-corrected sRGB
+                r = pow(r, 2.2)
+                g = pow(g, 2.2)
+                b = pow(b, 2.2)
                 bm.verts[point_index][size_attribute] = size
                 bm.verts[point_index][color_r_attribute] = r
                 bm.verts[point_index][color_g_attribute] = g
@@ -204,19 +214,43 @@ def add_scene_element(scene, scene_element):
             
             add_point_rendering_geometry_nodes(obj, mat)
 
+            if (extent_scale_blender != None and extent_compensation_translate_blender != None):
+                extent_transform = mathutils.Matrix.LocRotScale(None, None, extent_scale_blender)
+                translate_blender = extent_compensation_translate_blender
+                obj.data.transform(extent_transform)
+
+            obj.scale = mathutils.Vector((1, -1, scale_z_blender))
+            obj.location = translate_blender
+
         t_end = perf_counter()
         logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
         return
     
     scale_blender = mathutils.Vector((1, 1, scale_z_blender * 2.0))
-    bpy.ops.mesh.primitive_cube_add(size=0.5, location=(translate_blender), scale=(scale_blender))
+    bpy.ops.mesh.primitive_cube_add(size=0.5, scale=(scale_blender))
     obj = bpy.context.object
+
+    if (extent_scale_blender != None and extent_compensation_translate_blender != None):
+        extent_transform = mathutils.Matrix.LocRotScale(None, None, extent_scale_blender)
+        translate_blender = extent_compensation_translate_blender
+        obj.data.transform(extent_transform)
+    
+    obj.location = translate_blender
+
     obj.name = f"Cuboid_{id}"
 
     mat = bpy.data.materials.new(f"Material_{id}")
     mat.use_nodes = True
     principled_bsdf_node = mat.node_tree.nodes['Principled BSDF']
-    principled_bsdf_node.inputs['Base Color'].default_value = (color_srgb.clamped_rgb_r, color_srgb.clamped_rgb_g, color_srgb.clamped_rgb_b, 1)
+    if color_rgb:
+        # Convert to Gamma-corrected sRGB
+        color_rgb = [
+            pow(color_rgb[0], 2.2),
+            pow(color_rgb[1], 2.2),
+            pow(color_rgb[2], 2.2)
+        ]
+        principled_bsdf_node.inputs['Base Color'].default_value = (color_rgb[0], color_rgb[1], color_rgb[2], 1)
+
     obj.data.materials.append(mat)
 
     # Remove object from all collections not used in a scene
@@ -242,7 +276,7 @@ def add_point_rendering_geometry_nodes(object: bpy.types.Object, material: bpy.t
     input_node: bpy.types.NodeGroupInput = geometry_node_tree.nodes.new(type='NodeGroupInput')
     
     ico_sphere_node: bpy.types.GeometryNodeMeshIcoSphere = geometry_node_tree.nodes.new(type='GeometryNodeMeshIcoSphere')
-    ico_sphere_node.inputs['Radius'].default_value = 0.001
+    ico_sphere_node.inputs['Radius'].default_value = 0.002
     ico_sphere_node.inputs['Subdivisions'].default_value = 1
     
     instance_on_points_node: bpy.types.GeometryNodeInstanceOnPoints = geometry_node_tree.nodes.new(type='GeometryNodeInstanceOnPoints')

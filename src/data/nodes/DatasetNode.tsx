@@ -9,6 +9,7 @@ import {
     ColumnHeader as CSVColumnHeader,
     CSV,
     DataType,
+    DateColumn,
     Float32Chunk,
     Float32Column,
     NumberColumn,
@@ -29,6 +30,7 @@ const USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE = true;
 import { NodeWithStateProps } from '../BasicFlow';
 import CollapsibleHandle from './util/CollapsibleHandle';
 import { prettyPrintDataType } from './util/prettyPrintDataType';
+import { DateTime } from 'luxon';
 
 const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
@@ -298,6 +300,10 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         const minMaxString =
             column?.type === 'number'
                 ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
+                : column?.type === 'date'
+                ? `↓ ${DateTime.fromJSDate((column as DateColumn)?.min).toLocaleString()} ↑ ${DateTime.fromJSDate(
+                      (column as DateColumn)?.max,
+                  ).toLocaleString()}`
                 : undefined;
 
         return (
@@ -320,7 +326,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 previousElementsHeight={previousElementsHeights[index]}
                 isCollapsed={isCollapsed}
             >
-                <span className="source-handle-label">
+                <span className="source-handle-label" title={columnHeader.name}>
                     {columnHeader.name}
                     <br />
                     <small>
@@ -332,7 +338,10 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     });
 
     return (
-        <div style={nodeStyleOverrides} className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node`}>
+        <div
+            style={nodeStyleOverrides}
+            className={`react-flow__node-default ${selected && 'selected'} ${isLoading && 'pending'} node category-input`}
+        >
             <div className="title-wrapper">
                 <div className="title hyphenate">
                     {makeTypeHumanReadable(data.type) ? makeTypeHumanReadable(data.type) + ' ' : ''}Dataset{isLoading ? ' …' : ''}
@@ -350,7 +359,10 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                     </span>
                 </div>
             </div>
-            <span className="hyphenate">{data.filename}</span>
+            <span
+                className="hyphenate"
+                dangerouslySetInnerHTML={{ __html: data.filename.replaceAll(/[_. -]/g, (match) => `${match}&shy;`) }}
+            />
 
             {(data.type === undefined || data.type === 'google-sheets') && (
                 <>

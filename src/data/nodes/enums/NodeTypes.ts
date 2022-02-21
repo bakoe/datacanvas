@@ -4,4 +4,5 @@ export enum NodeTypes {
     Dataset = 'dataset',
     ColorMapping = 'color-mapping',
     SyncToScatterplotViewer = 'sync-to-scatterplot-viewer',
+    FixedText = 'fixed-text',
 }

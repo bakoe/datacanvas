@@ -50,11 +50,12 @@ import { DatacubeInformation } from './DatacubesVisualization';
 import { Observable, Subject } from 'rxjs';
 import anime, { AnimeInstance } from 'animejs';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
-import { NumberColumn } from '@lukaswagner/csv-parser';
+import { DateColumn, NumberColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 import { Passes } from './Passes';
-import { GLfloat2 } from 'webgl-operate/lib/tuples';
+
 import { LabelSet } from './label/LabelPass';
+import { GLfloat2 } from 'webgl-operate/lib/tuples';
 
 /* spellchecker: enable */
 
@@ -99,21 +100,39 @@ export interface Cuboid {
 }
 
 // LAB values converted using: https://colors.dopely.top/color-converter/hex/
-const DATACUBE_PENDING_COLOR_LAB = [72.77, -49.48, 12.02] as [number, number, number];
 const DATACUBE_DEFAULT_COLOR_LAB = [98.87, 1.17, -0.14] as [number, number, number];
 const DATACUBE_ERROR_COLOR_LAB = [52.94, 66.39, 42.22] as [number, number, number];
 
-DATACUBE_PENDING_COLOR_LAB[0] /= 100;
-DATACUBE_PENDING_COLOR_LAB[1] = (DATACUBE_PENDING_COLOR_LAB[1] + 128) / 256;
-DATACUBE_PENDING_COLOR_LAB[2] = (DATACUBE_PENDING_COLOR_LAB[2] + 128) / 256;
+// Original:
+// const DATACUBE_INPUT_COLOR_LAB = [21.84, 0.43, 1.57] as [number, number, number];
+// Inverted:
+const DATACUBE_INPUT_COLOR_LAB = [81.59, -0.31, -1.24] as [number, number, number];
+const DATACUBE_FILTERING_COLOR_LAB = [39.86, -18.04, -13.93] as [number, number, number];
+const DATACUBE_MAPPING_COLOR_LAB = [64.85, -6.79, 0.03] as [number, number, number];
+const DATACUBE_RENDERING_COLOR_LAB = [69.33, 26.95, 68.9] as [number, number, number];
 
-DATACUBE_DEFAULT_COLOR_LAB[0] /= 100;
-DATACUBE_DEFAULT_COLOR_LAB[1] = (DATACUBE_DEFAULT_COLOR_LAB[1] + 128) / 256;
-DATACUBE_DEFAULT_COLOR_LAB[2] = (DATACUBE_DEFAULT_COLOR_LAB[2] + 128) / 256;
+// TODO: Move this to utils/colorTransformations.ts
+export const mapLABColorRangeToZeroOne = (labColor: [number, number, number]): [number, number, number] => {
+    return [labColor[0] / 100, (labColor[1] + 128) / 256, (labColor[2] + 128) / 256];
+};
 
-DATACUBE_ERROR_COLOR_LAB[0] /= 100;
-DATACUBE_ERROR_COLOR_LAB[1] = (DATACUBE_ERROR_COLOR_LAB[1] + 128) / 256;
-DATACUBE_ERROR_COLOR_LAB[2] = (DATACUBE_ERROR_COLOR_LAB[2] + 128) / 256;
+export const mapLABColorRangeToNonZeroOne = (labColor: [number, number, number]): [number, number, number] => {
+    return [labColor[0] * 100, labColor[1] * 256 - 128, labColor[2] * 256 - 128];
+};
+
+for (const color of [
+    DATACUBE_DEFAULT_COLOR_LAB,
+    DATACUBE_ERROR_COLOR_LAB,
+    DATACUBE_INPUT_COLOR_LAB,
+    DATACUBE_FILTERING_COLOR_LAB,
+    DATACUBE_MAPPING_COLOR_LAB,
+    DATACUBE_RENDERING_COLOR_LAB,
+]) {
+    const mappedColor = mapLABColorRangeToZeroOne(color);
+    color[0] = mappedColor[0];
+    color[1] = mappedColor[1];
+    color[2] = mappedColor[2];
+}
 
 class DatacubesRenderer extends Renderer {
     protected _extensions = false;
@@ -978,12 +997,8 @@ class DatacubesRenderer extends Renderer {
                 let points = undefined as undefined | PointData[];
                 if (
                     datacube.type === NodeTypes.PointPrimitive &&
-                    datacube.xColumn &&
-                    datacube.yColumn &&
-                    datacube.zColumn &&
+                    datacube.xColumn
                     // Make sure that the points only update after all (subsequently updated) columns were updated
-                    datacube.xColumn.length === datacube.yColumn.length &&
-                    datacube.xColumn.length === datacube.zColumn.length
                 ) {
                     renderCuboidToIdBufferOnly = true;
 
@@ -991,10 +1006,10 @@ class DatacubesRenderer extends Renderer {
 
                     const minX = (datacube.xColumn as NumberColumn).min;
                     const maxX = (datacube.xColumn as NumberColumn).max;
-                    const minY = (datacube.yColumn as NumberColumn).min;
-                    const maxY = (datacube.yColumn as NumberColumn).max;
-                    const minZ = (datacube.zColumn as NumberColumn).min;
-                    const maxZ = (datacube.zColumn as NumberColumn).max;
+                    const minY = (datacube.yColumn as NumberColumn | undefined)?.min ?? 0;
+                    const maxY = (datacube.yColumn as NumberColumn | undefined)?.max ?? 1;
+                    const minZ = (datacube.zColumn as NumberColumn | undefined)?.min ?? 0;
+                    const maxZ = (datacube.zColumn as NumberColumn | undefined)?.max ?? 1;
 
                     let minSize: number;
                     let maxSize: number;
@@ -1014,10 +1029,16 @@ class DatacubesRenderer extends Renderer {
 
                     for (let index = 0; index < datacube.xColumn.length; index++) {
                         const x = datacube.xColumn.get(index) as number;
-                        const y = datacube.yColumn.get(index) as number;
-                        const z = datacube.zColumn.get(index) as number;
+                        const y = (datacube.yColumn?.get(index) as number) ?? 0;
+                        const z = (datacube.zColumn?.get(index) as number) ?? 1;
                         const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
                         const colorValue = datacube.colors?.column ? (datacube.colors.column.get(index) as number) : undefined;
+
+                        let colorIsInvalid = false;
+
+                        if (datacube.colors?.column && isNaN(datacube.colors.column.get(index) as number)) {
+                            colorIsInvalid = true;
+                        }
 
                         const normalizedX = ((x - minX) / (maxX - minX)) * CUBOID_SIZE_X - 0.5 * CUBOID_SIZE_X;
                         const normalizedY = (y - minY) / (maxY - minY) - CUBOID_SIZE_Y * 0.5;
@@ -1032,6 +1053,14 @@ class DatacubesRenderer extends Renderer {
                         let b = 1;
                         if (normalizedColorValue !== undefined) {
                             [r, g, b] = getColorForNormalizedValue(normalizedColorValue, datacube.colors!.colorPalette);
+                        }
+
+                        if (colorIsInvalid) {
+                            continue;
+                            // Comment-in the following to set the color of NaN points to the INVALID_COLOR (red)
+                            // r = 0.92156863;
+                            // g = 0.22745098;
+                            // b = 0.22745098;
                         }
 
                         points.push({
@@ -1050,23 +1079,40 @@ class DatacubesRenderer extends Renderer {
                 const datacubeIsErroneous = datacube.isErroneous;
                 const datacubeIsPending = datacube.isPending;
                 const datacubeIsSelected = datacube.isSelected;
+                const datacubeType = datacube.type;
+                let colorLAB = DATACUBE_DEFAULT_COLOR_LAB;
+                switch (datacubeType as NodeTypes) {
+                    case NodeTypes.Dataset:
+                        colorLAB = DATACUBE_INPUT_COLOR_LAB;
+                        break;
+                    case NodeTypes.DateFilter:
+                        colorLAB = DATACUBE_FILTERING_COLOR_LAB;
+                        break;
+                    case NodeTypes.ColorMapping:
+                        colorLAB = DATACUBE_MAPPING_COLOR_LAB;
+                        break;
+                    case NodeTypes.PointPrimitive:
+                    case NodeTypes.SyncToScatterplotViewer:
+                        colorLAB = DATACUBE_RENDERING_COLOR_LAB;
+                        break;
+                }
                 const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
                 if (existingCuboid) {
                     const from = {
                         translateY: existingCuboid.translateY * 1000,
                         scaleY: existingCuboid.scaleY * 1000,
-                        colorLAB0: existingCuboid.colorLAB ? existingCuboid.colorLAB[0] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
-                        colorLAB1: existingCuboid.colorLAB ? existingCuboid.colorLAB[1] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
-                        colorLAB2: existingCuboid.colorLAB ? existingCuboid.colorLAB[2] * 1000 : DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
+                        colorLAB0: existingCuboid.colorLAB ? existingCuboid.colorLAB[0] * 1000 : colorLAB[0] * 1000,
+                        colorLAB1: existingCuboid.colorLAB ? existingCuboid.colorLAB[1] * 1000 : colorLAB[1] * 1000,
+                        colorLAB2: existingCuboid.colorLAB ? existingCuboid.colorLAB[2] * 1000 : colorLAB[2] * 1000,
                     };
 
                     const to = datacubeIsPending
                         ? {
                               translateY: DATACUBE_PENDING_SCALE_Y * 0.5 * 1000,
                               scaleY: DATACUBE_PENDING_SCALE_Y * 1000,
-                              colorLAB0: DATACUBE_PENDING_COLOR_LAB[0] * 1000,
-                              colorLAB1: DATACUBE_PENDING_COLOR_LAB[1] * 1000,
-                              colorLAB2: DATACUBE_PENDING_COLOR_LAB[2] * 1000,
+                              colorLAB0: colorLAB[0] * 1000,
+                              colorLAB1: colorLAB[1] * 1000,
+                              colorLAB2: colorLAB[2] * 1000,
                           }
                         : datacubeIsErroneous
                         ? {
@@ -1079,9 +1125,9 @@ class DatacubesRenderer extends Renderer {
                         : {
                               translateY: datacube.relativeHeight * 0.5 * 1000,
                               scaleY: datacube.relativeHeight * 1000,
-                              colorLAB0: DATACUBE_DEFAULT_COLOR_LAB[0] * 1000,
-                              colorLAB1: DATACUBE_DEFAULT_COLOR_LAB[1] * 1000,
-                              colorLAB2: DATACUBE_DEFAULT_COLOR_LAB[2] * 1000,
+                              colorLAB0: colorLAB[0] * 1000,
+                              colorLAB1: colorLAB[1] * 1000,
+                              colorLAB2: colorLAB[2] * 1000,
                           };
 
                     // Round the scaled target values to 0 decimals (i.e., the unscaled target values to 3 decimals)
@@ -1160,12 +1206,10 @@ class DatacubesRenderer extends Renderer {
 
                     let translateY = datacube.relativeHeight * 0.5;
                     let scaleY = datacube.relativeHeight;
-                    let colorLAB = DATACUBE_DEFAULT_COLOR_LAB;
 
                     if (datacubeIsPending) {
                         translateY = DATACUBE_PENDING_SCALE_Y * 0.5;
                         scaleY = DATACUBE_PENDING_SCALE_Y;
-                        colorLAB = DATACUBE_PENDING_COLOR_LAB;
                     }
 
                     if (datacubeIsErroneous) {
@@ -1204,6 +1248,11 @@ class DatacubesRenderer extends Renderer {
                 if (cuboid.scaleY > maxHeight) maxHeight = cuboid.scaleY;
             }
 
+            const roundTo2DecimalPlacesMax = (num: number): string => {
+                // See: https://stackoverflow.com/a/11832950
+                return '' + Math.round((num + Number.EPSILON) * 100) / 100;
+            };
+
             for (const cuboid of this.cuboids) {
                 const id = cuboid.id;
                 if (id !== undefined) {
@@ -1213,206 +1262,227 @@ class DatacubesRenderer extends Renderer {
                             const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - id);
                             if (matchingDatacube) {
                                 // x axis labeling
+                                if (matchingDatacube.xColumn !== undefined) {
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name: `${matchingDatacube.xColumn.name}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + (cuboid.extent.maxX + cuboid.extent.minX) * 0.5,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ + 0.15,
+                                                ),
+                                                dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                                up: vec3.fromValues(0.0, 0.0, -1.0),
+                                                alignment: Label.Alignment.Center,
+                                                lineWidth: cuboid.extent.maxX - cuboid.extent.minX,
+                                                elide: Label.Elide.Middle,
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${matchingDatacube.xColumn?.name}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + (cuboid.extent.maxX + cuboid.extent.minX) * 0.5,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ + 0.15,
-                                            ),
-                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
-                                            up: vec3.fromValues(0.0, 0.0, -1.0),
-                                            alignment: Label.Alignment.Center,
-                                            lineWidth: cuboid.extent.maxX - cuboid.extent.minX,
-                                            elide: Label.Elide.Middle,
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.xColumn.type === 'date'
+                                                        ? `${(matchingDatacube.xColumn as DateColumn).min.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.xColumn as NumberColumn).min)}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ + 0.05,
+                                                ),
+                                                dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                                up: vec3.fromValues(0.0, 0.0, -1.0),
+                                                alignment: Label.Alignment.Left,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.xColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ + 0.05,
-                                            ),
-                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
-                                            up: vec3.fromValues(0.0, 0.0, -1.0),
-                                            alignment: Label.Alignment.Left,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
-
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.xColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ + 0.05,
-                                            ),
-                                            dir: vec3.fromValues(1.0, 0.0, 0.0),
-                                            up: vec3.fromValues(0.0, 0.0, -1.0),
-                                            alignment: Label.Alignment.Right,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.xColumn.type === 'date'
+                                                        ? `${(matchingDatacube.xColumn as DateColumn).max.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.xColumn as NumberColumn).max)}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ + 0.05,
+                                                ),
+                                                dir: vec3.fromValues(1.0, 0.0, 0.0),
+                                                up: vec3.fromValues(0.0, 0.0, -1.0),
+                                                alignment: Label.Alignment.Right,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
+                                }
 
                                 // y axis labeling
+                                if (matchingDatacube.yColumn !== undefined) {
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name: `${matchingDatacube.yColumn.name}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX + 0.15,
+                                                    cuboid.scaleY * 0.5,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                                up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Center,
+                                                lineWidth: 1.0,
+                                                elide: Label.Elide.Middle,
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                            // {
+                                            //     name: `${matchingDatacube.xColumn?.name}`,
+                                            //     pos: vec3.fromValues(translateXZ.x - 0.25, cuboid.scaleY * 0.5, translateXZ.y + 0.25),
+                                            //     dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                            //     up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                            //     alignment: Label.Alignment.Center,
+                                            //     lineWidth: 1.0,
+                                            //     elide: Label.Elide.Middle,
+                                            //     lineAnchor: Label.LineAnchor.Descent,
+                                            // },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${matchingDatacube.yColumn?.name}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX + 0.15,
-                                                cuboid.scaleY * 0.5,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Center,
-                                            lineWidth: 1.0,
-                                            elide: Label.Elide.Middle,
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                        // {
-                                        //     name: `${matchingDatacube.xColumn?.name}`,
-                                        //     pos: vec3.fromValues(translateXZ.x - 0.25, cuboid.scaleY * 0.5, translateXZ.y + 0.25),
-                                        //     dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                        //     up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                        //     alignment: Label.Alignment.Center,
-                                        //     lineWidth: 1.0,
-                                        //     elide: Label.Elide.Middle,
-                                        //     lineAnchor: Label.LineAnchor.Descent,
-                                        // },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.yColumn.type === 'date'
+                                                        ? `${(matchingDatacube.yColumn as DateColumn).min.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.yColumn as NumberColumn).min)}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX + 0.05,
+                                                    0,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                                up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Left,
+                                                lineWidth: cuboid.scaleY * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.yColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX + 0.05,
-                                                0,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Left,
-                                            lineWidth: cuboid.scaleY * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
-
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.yColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.maxX + 0.05,
-                                                cuboid.scaleY,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 1.0, 0.0),
-                                            up: vec3.fromValues(-1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Right,
-                                            lineWidth: cuboid.scaleY * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: false,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.yColumn.type === 'date'
+                                                        ? `${(matchingDatacube.yColumn as DateColumn).max.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.yColumn as NumberColumn).max)}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.maxX + 0.05,
+                                                    cuboid.scaleY,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 1.0, 0.0),
+                                                up: vec3.fromValues(-1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Right,
+                                                lineWidth: cuboid.scaleY * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: false,
+                                    });
+                                }
 
                                 // z axis labeling
+                                if (matchingDatacube.zColumn !== undefined) {
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name: `${matchingDatacube.zColumn.name}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX - 0.15,
+                                                    0.0,
+                                                    translateXZ.y + (cuboid.extent.maxZ + cuboid.extent.minZ) * 0.5,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                                up: vec3.fromValues(1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Center,
+                                                lineWidth: cuboid.extent.maxZ - cuboid.extent.minZ,
+                                                elide: Label.Elide.Middle,
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${matchingDatacube.zColumn?.name}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX - 0.15,
-                                                0.0,
-                                                translateXZ.y + (cuboid.extent.maxZ + cuboid.extent.minZ) * 0.5,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
-                                            up: vec3.fromValues(1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Center,
-                                            lineWidth: cuboid.extent.maxZ - cuboid.extent.minZ,
-                                            elide: Label.Elide.Middle,
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.zColumn.type === 'date'
+                                                        ? `${(matchingDatacube.zColumn as DateColumn).min.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.zColumn as NumberColumn).min)}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX - 0.05,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.minZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                                up: vec3.fromValues(1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Left,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
 
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.zColumn as NumberColumn)?.min}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX - 0.05,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.minZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
-                                            up: vec3.fromValues(1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Left,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
-
-                                labelSets.push({
-                                    labels: [
-                                        {
-                                            name: `${(matchingDatacube.zColumn as NumberColumn)?.max}`,
-                                            pos: vec3.fromValues(
-                                                translateXZ.x + cuboid.extent.minX - 0.05,
-                                                0.0,
-                                                translateXZ.y + cuboid.extent.maxZ,
-                                            ),
-                                            dir: vec3.fromValues(0.0, 0.0, 1.0),
-                                            up: vec3.fromValues(1.0, 0.0, 0.0),
-                                            alignment: Label.Alignment.Right,
-                                            lineWidth: 0.5 * 0.45,
-                                            // elide: Label.Elide.Right,
-                                            // ellipsis: '',
-                                            lineAnchor: Label.LineAnchor.Ascent,
-                                        },
-                                    ],
-                                    useNearest: true,
-                                });
+                                    labelSets.push({
+                                        labels: [
+                                            {
+                                                name:
+                                                    matchingDatacube.zColumn.type === 'date'
+                                                        ? `${(matchingDatacube.zColumn as DateColumn)?.max.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.zColumn as NumberColumn)?.max)}`,
+                                                pos: vec3.fromValues(
+                                                    translateXZ.x + cuboid.extent.minX - 0.05,
+                                                    0.0,
+                                                    translateXZ.y + cuboid.extent.maxZ,
+                                                ),
+                                                dir: vec3.fromValues(0.0, 0.0, 1.0),
+                                                up: vec3.fromValues(1.0, 0.0, 0.0),
+                                                alignment: Label.Alignment.Right,
+                                                lineWidth: 0.5 * 0.45,
+                                                // elide: Label.Elide.Right,
+                                                // ellipsis: '',
+                                                lineAnchor: Label.LineAnchor.Ascent,
+                                            },
+                                        ],
+                                        useNearest: true,
+                                    });
+                                }
                             }
                         }
 
@@ -1609,6 +1679,9 @@ class DatacubesRenderer extends Renderer {
                         if (translateXZ) {
                             for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
                                 const point = points[pointIndex];
+                                if (isNaN(point.x) || isNaN(point.y) || isNaN(point.z)) {
+                                    continue;
+                                }
                                 pointsData.push(
                                     // prettier-ignore
                                     point.x,

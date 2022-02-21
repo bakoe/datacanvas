@@ -6,6 +6,8 @@ export const prettyPrintDataType = (dataType: DataType): string => {
             return 'Strings';
         case 'number':
             return 'Numbers';
+        case 'date':
+            return 'Dates';
     }
     return 'Elements';
 };

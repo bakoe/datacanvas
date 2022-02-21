@@ -15,8 +15,8 @@ export function isPointPrimitiveNode(node: Node<unknown>): node is Node<PointPri
 
 export enum PointPrimitiveNodeTargetHandles {
     X = 'x coordinate',
-    Y = 'y coordinate',
-    Z = 'z coordinate',
+    Y = 'y coordinate (optional)',
+    Z = 'z coordinate (optional)',
     Size = 'size (optional)',
     Color = 'color (optional)',
 }
@@ -59,7 +59,7 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
     const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined } = { ...defaultState, ...state };
 
     useEffect(() => {
-        if (xColumn && yColumn && zColumn) {
+        if (xColumn) {
             onChangeState({
                 isPending: false,
             });
@@ -71,9 +71,9 @@ const PointPrimitiveNode: FC<PointPrimitiveNodeProps> = ({ isConnectable, select
     }, [serializeColumnInfo(xColumn), serializeColumnInfo(yColumn), serializeColumnInfo(zColumn)]);
 
     return (
-        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
+        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-rendering`}>
             <div className="title-wrapper">
-                <div className="title">Point Primitive</div>
+                <div className="title">Point Primitive{isPending ? ' …' : ''}</div>
                 <div className="title-actions">
                     <span>
                         <a onPointerUp={onDeleteNode}>✕</a>

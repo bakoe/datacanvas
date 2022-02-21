@@ -169,7 +169,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
     }, [JSON.stringify(availableColorScalePresets)]);
 
     return (
-        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'}`}>
+        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-mapping`}>
             <div className="title-wrapper">
                 <div className="title">Color Mapping{isPending && ' …'}</div>
                 <div className="title-actions">

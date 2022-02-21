@@ -4,7 +4,8 @@ import { ReactFlowProvider, XYPosition } from 'react-flow-renderer/nocss';
 import Split from 'react-split';
 
 import BasicFlow from './data/BasicFlow';
-import { Cuboid } from './visualization/DatacubesApplication';
+import { lab2rgb } from './data/nodes/util/colorTransformations';
+import { Cuboid, mapLABColorRangeToNonZeroOne } from './visualization/DatacubesApplication';
 import { DatacubesVisualization } from './visualization/DatacubesVisualization';
 
 const Controls: React.FC<{
@@ -39,9 +40,15 @@ const Controls: React.FC<{
             if (id !== undefined) {
                 translateXZ = datacubePositions.get(4294967295 - id);
             }
+            const colorRGB = cuboid.colorLAB ? lab2rgb(mapLABColorRangeToNonZeroOne(cuboid.colorLAB)) : undefined;
+            if (colorRGB) {
+                colorRGB[0] /= 255;
+                colorRGB[1] /= 255;
+                colorRGB[2] /= 255;
+            }
             return {
                 id: cuboid.id,
-                colorLAB: cuboid.colorLAB,
+                colorRGB,
                 translateXZ: {
                     '0': translateXZ?.x || 0,
                     '1': translateXZ?.y || 0,
@@ -49,6 +56,7 @@ const Controls: React.FC<{
                 translateY: cuboid.translateY,
                 scaleY: cuboid.scaleY,
                 idBufferOnly: cuboid.idBufferOnly,
+                extent: cuboid.extent,
                 points: cuboid.points,
             };
         });

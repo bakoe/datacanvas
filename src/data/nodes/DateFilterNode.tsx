@@ -5,6 +5,8 @@ import { Node, Handle, Position, Connection } from 'react-flow-renderer/nocss';
 import {
     Column as CSVColumn,
     ColumnHeader as CSVColumnHeader,
+    DateChunk,
+    DateColumn,
     Float32Chunk,
     Float32Column,
     NumberColumn,
@@ -37,8 +39,8 @@ import { serializeColumnInfo } from './util/serializeColumnInfo';
 
 export interface DateFilterNodeState {
     isPending: boolean;
-    from: DateTime;
-    to: DateTime;
+    from?: DateTime;
+    to?: DateTime;
     dataToFilter?: CSVColumn[];
     filteredColumns?: CSVColumn[];
     errorMessage?: string;
@@ -58,6 +60,11 @@ interface DateFilterNodeProps extends NodeWithStateProps<DateFilterNodeState> {
 const guessDateColumn = (columnHeaders: CSVColumnHeader[]): string | undefined => {
     for (const columnHeader of columnHeaders) {
         if (columnHeader.name.includes('Datum') || columnHeader.name.includes('Date')) {
+            return columnHeader.name;
+        }
+    }
+    for (const columnHeader of columnHeaders) {
+        if (columnHeader.type === 'date') {
             return columnHeader.name;
         }
     }
@@ -88,12 +95,22 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
     const rowIndicesInGivenDateRange = [] as number[];
 
     for (let i = 0; i < dateColumn.length; i++) {
-        const date = DateTime.fromFormat(dateColumn.get(i) as string, 'dd.MM.yy HH:mm');
-        if (!date.isValid) {
-            throw new Error(`The date column "${dateColumn.name}" could not be interpreted as a date: ${date.invalidExplanation}`);
-        }
-        if (from.toMillis() <= date.toMillis() && date.toMillis() <= to.toMillis()) {
-            rowIndicesInGivenDateRange.push(i);
+        if (dateColumn.type === 'date') {
+            const date = DateTime.fromJSDate((dateColumn as DateColumn).get(i));
+            if (!date.isValid) {
+                throw new Error(`The date column "${dateColumn.name}" could not be interpreted as a date: ${date.invalidExplanation}`);
+            }
+            if (from.toMillis() <= date.toMillis() && date.toMillis() <= to.toMillis()) {
+                rowIndicesInGivenDateRange.push(i);
+            }
+        } else {
+            const date = DateTime.fromFormat(dateColumn.get(i) as string, 'dd.MM.yy HH:mm');
+            if (!date.isValid) {
+                throw new Error(`The date column "${dateColumn.name}" could not be interpreted as a date: ${date.invalidExplanation}`);
+            }
+            if (from.toMillis() <= date.toMillis() && date.toMillis() <= to.toMillis()) {
+                rowIndicesInGivenDateRange.push(i);
+            }
         }
     }
 
@@ -112,6 +129,15 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
                 const chunk = new StringChunk(values.length, 0);
                 for (let i = 0; i < values.length; i++) {
                     chunk.set(i, values[i] as string);
+                }
+                filteredColumn.push(chunk);
+                return filteredColumn;
+            }
+            case 'date': {
+                const filteredColumn = new DateColumn(column.name);
+                const chunk = new DateChunk(values.length, 0);
+                for (let i = 0; i < values.length; i++) {
+                    chunk.set(i, values[i] as Date);
                 }
                 filteredColumn.push(chunk);
                 return filteredColumn;
@@ -139,7 +165,26 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
 
-    const updateFilteredColumns = (dataToFilter: CSVColumn[] | undefined, from: DateTime, to: DateTime) => {
+    const updateFilteredColumns = (dataToFilter: CSVColumn[] | undefined, from?: DateTime, to?: DateTime) => {
+        if ((!from || !to) && dataToFilter) {
+            const columnHeaders = dataToFilter.map(
+                (column) =>
+                    ({
+                        name: column.name,
+                        type: column.type,
+                    } as CSVColumnHeader),
+            );
+            const dateColumnName = guessDateColumn(columnHeaders);
+            if (dateColumnName) {
+                const dateColumn = dataToFilter.find((column) => column.name === dateColumnName) as DateColumn;
+                if (!from) {
+                    from = DateTime.fromJSDate(dateColumn.min);
+                }
+                if (!to) {
+                    to = DateTime.fromJSDate(dateColumn.max);
+                }
+            }
+        }
         if (dataToFilter && from && to) {
             try {
                 const filteredColumns = filterColumnsByDate(dataToFilter, from, to);
@@ -202,7 +247,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                 previousElementsHeight={previousElementsHeights[index]}
                 isCollapsed={isCollapsed}
             >
-                <span className="source-handle-label">
+                <span className="source-handle-label" title={column.name}>
                     {column.name}
                     <br />
                     <small>
@@ -216,11 +261,13 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     return (
         <div
             style={nodeStyleOverrides}
-            className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${errorMessage && 'erroneous'} node`}
+            className={`react-flow__node-default ${selected && 'selected'} ${isPending && 'pending'} ${
+                errorMessage && 'erroneous'
+            } node category-filtering`}
         >
             <div className="title-wrapper">
                 <div className="title" title={errorMessage}>
-                    Filter: Date Range{isPending ? ' …' : ''}
+                    Date Filter{isPending ? ' …' : ''}
                 </div>
                 <div className="title-actions">
                     <span>
@@ -243,38 +290,54 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                             <strong>{dataToFilter[0].length}</strong> Dates to filter
                         </>
                     ) : (
-                        <em>Data to filter</em>
+                        'Data to filter'
                     )}
                 </span>
             </div>
 
             <hr className="divider" />
 
-            <div className="handle-wrapper nodrag" style={{ alignItems: 'baseline' }}>
-                <span style={{ marginRight: '0.5rem' }}>From:</span>
-                <input
-                    style={{ fontSize: '0.6rem' }}
-                    type="date"
-                    defaultValue={from.toFormat('yyyy-MM-dd')}
-                    max={to.toFormat('yyyy-MM-dd')}
-                    onChange={(event) => {
-                        const updatedFrom = DateTime.fromFormat(event.target.value, 'yyyy-MM-dd');
-                        updateFilteredColumns(dataToFilter, updatedFrom, to);
-                    }}
-                ></input>
-            </div>
-            <div className="handle-wrapper nodrag" style={{ alignItems: 'baseline' }}>
-                <span style={{ marginRight: '0.5rem' }}>To:</span>
-                <input
-                    style={{ fontSize: '0.6rem' }}
-                    type="date"
-                    defaultValue={to.toFormat('yyyy-MM-dd')}
-                    min={from.toFormat('yyyy-MM-dd')}
-                    onChange={(event) => {
-                        const updatedTo = DateTime.fromFormat(event.target.value, 'yyyy-MM-dd');
-                        updateFilteredColumns(dataToFilter, from, updatedTo);
-                    }}
-                ></input>
+            <div className="nodrag">
+                <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <label htmlFor="from">From:</label>
+                            </td>
+                            <td>
+                                <input
+                                    id="from"
+                                    style={{ fontSize: '0.6rem' }}
+                                    type="date"
+                                    defaultValue={from?.toFormat('yyyy-MM-dd')}
+                                    max={to?.toFormat('yyyy-MM-dd')}
+                                    onChange={(event) => {
+                                        const updatedFrom = DateTime.fromFormat(event.target.value, 'yyyy-MM-dd');
+                                        updateFilteredColumns(dataToFilter, updatedFrom, to);
+                                    }}
+                                ></input>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <label htmlFor="to">To:</label>
+                            </td>
+                            <td>
+                                <input
+                                    id="to"
+                                    style={{ fontSize: '0.6rem' }}
+                                    type="date"
+                                    defaultValue={to?.toFormat('yyyy-MM-dd')}
+                                    min={from?.toFormat('yyyy-MM-dd')}
+                                    onChange={(event) => {
+                                        const updatedTo = DateTime.fromFormat(event.target.value, 'yyyy-MM-dd');
+                                        updateFilteredColumns(dataToFilter, from, updatedTo);
+                                    }}
+                                ></input>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <hr className="divider" />
@@ -303,7 +366,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
                             {isCollapsed ? '↓' : '↑'}
                         </a>
                     ) : (
-                        <em>Filtered data</em>
+                        'Filtered data'
                     )}
                 </span>
             </div>
