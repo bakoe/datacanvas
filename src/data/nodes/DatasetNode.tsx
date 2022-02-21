@@ -326,7 +326,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 previousElementsHeight={previousElementsHeights[index]}
                 isCollapsed={isCollapsed}
             >
-                <span className="source-handle-label">
+                <span className="source-handle-label" title={columnHeader.name}>
                     {columnHeader.name}
                     <br />
                     <small>
@@ -359,7 +359,10 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                     </span>
                 </div>
             </div>
-            <span className="hyphenate">{data.filename}</span>
+            <span
+                className="hyphenate"
+                dangerouslySetInnerHTML={{ __html: data.filename.replaceAll(/[_. -]/g, (match) => `${match}&shy;`) }}
+            />
 
             {(data.type === undefined || data.type === 'google-sheets') && (
                 <>
