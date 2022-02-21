@@ -213,7 +213,7 @@ const clampXYPositionByNodeType = (xyPosition: XYPosition, nodeType: NodeTypes):
     const [minX, maxX] = getValidXPositionRangeByNodeType(nodeType);
     return {
         x: Math.max(minX, Math.min(maxX, xyPosition.x)),
-        y: xyPosition.y,
+        y: Math.max(60, xyPosition.y),
     } as XYPosition;
 };
 
