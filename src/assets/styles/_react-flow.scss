@@ -208,6 +208,8 @@ $rendering-color-muted: color.scale($rendering-color, $lightness: -50%);
 .target-handle-label {
     text-align: left;
     width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .source-handle {
@@ -219,6 +221,8 @@ $rendering-color-muted: color.scale($rendering-color, $lightness: -50%);
 .source-handle-label {
     text-align: right;
     width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .title-wrapper {
