@@ -17,6 +17,7 @@ import { ColorPalette } from '../data/nodes/util/EditableColorGradient';
 import { serializeColumnInfo } from '../data/nodes/util/serializeColumnInfo';
 import { isColorMappingNode } from '../data/nodes/ColorMappingNode';
 import { isSyncToScatterplotViewerNode } from '../data/nodes/SyncToScatterplotViewerNode';
+import { isFixedTextNode } from '../data/nodes/FixedTextNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -223,6 +224,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
             let labelString = '';
             const isSelected = node.selected;
+                if (isFixedTextNode(node)) {
+                    return undefined;
+                }
             if (
                 isDatasetNode(node) ||
                 isDateFilterNode(node) ||
