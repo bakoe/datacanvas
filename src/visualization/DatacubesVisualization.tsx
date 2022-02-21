@@ -134,30 +134,34 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     }
 
                     if ((event as any).data !== undefined && (event as any).data.cuboidBboxHovered !== undefined) {
-                        const cuboidBboxHovered = (event as any).data.cuboidBboxHovered as {
-                            xMin: boolean;
-                            xMax: boolean;
-                            yMin: boolean;
-                            yMax: boolean;
-                            zMin: boolean;
-                            zMax: boolean;
-                        };
+                        const datacubeId = (event as any).data.datacubeID;
+                        const matchingDatacube = store.getState().nodeInternals.get(`${datacubeId}`);
+                        if (matchingDatacube?.type === NodeTypes.PointPrimitive) {
+                            const cuboidBboxHovered = (event as any).data.cuboidBboxHovered as {
+                                xMin: boolean;
+                                xMax: boolean;
+                                yMin: boolean;
+                                yMax: boolean;
+                                zMin: boolean;
+                                zMax: boolean;
+                            };
 
-                        const { xMin, xMax, yMin, yMax, zMin, zMax } = cuboidBboxHovered;
+                            const { xMin, xMax, yMin, yMax, zMin, zMax } = cuboidBboxHovered;
 
-                        if (yMin || yMax) {
-                            if ((xMax && zMax) || (xMin && zMin)) {
-                                document.body.style.cursor = 'nwse-resize';
-                                cursorSet = true;
-                            } else if ((xMax && zMin) || (xMin && zMax)) {
-                                document.body.style.cursor = 'nesw-resize';
-                                cursorSet = true;
-                            } else if (xMax || xMin) {
-                                document.body.style.cursor = 'ew-resize';
-                                cursorSet = true;
-                            } else if (zMin || zMax) {
-                                document.body.style.cursor = 'ns-resize';
-                                cursorSet = true;
+                            if (yMin || yMax) {
+                                if ((xMax && zMax) || (xMin && zMin)) {
+                                    document.body.style.cursor = 'nwse-resize';
+                                    cursorSet = true;
+                                } else if ((xMax && zMin) || (xMin && zMax)) {
+                                    document.body.style.cursor = 'nesw-resize';
+                                    cursorSet = true;
+                                } else if (xMax || xMin) {
+                                    document.body.style.cursor = 'ew-resize';
+                                    cursorSet = true;
+                                } else if (zMin || zMax) {
+                                    document.body.style.cursor = 'ns-resize';
+                                    cursorSet = true;
+                                }
                             }
                         }
                     }
