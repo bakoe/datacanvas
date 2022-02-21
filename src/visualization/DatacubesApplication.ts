@@ -1248,6 +1248,11 @@ class DatacubesRenderer extends Renderer {
                 if (cuboid.scaleY > maxHeight) maxHeight = cuboid.scaleY;
             }
 
+            const roundTo2DecimalPlacesMax = (num: number): string => {
+                // See: https://stackoverflow.com/a/11832950
+                return '' + Math.round((num + Number.EPSILON) * 100) / 100;
+            };
+
             for (const cuboid of this.cuboids) {
                 const id = cuboid.id;
                 if (id !== undefined) {
@@ -1283,8 +1288,8 @@ class DatacubesRenderer extends Renderer {
                                             {
                                                 name:
                                                     matchingDatacube.xColumn.type === 'date'
-                                                        ? `${(matchingDatacube.xColumn as DateColumn)?.min.toLocaleDateString('en-US')}`
-                                                        : `${(matchingDatacube.xColumn as NumberColumn)?.min}`,
+                                                        ? `${(matchingDatacube.xColumn as DateColumn).min.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.xColumn as NumberColumn).min)}`,
                                                 pos: vec3.fromValues(
                                                     translateXZ.x + cuboid.extent.minX,
                                                     0.0,
@@ -1307,8 +1312,8 @@ class DatacubesRenderer extends Renderer {
                                             {
                                                 name:
                                                     matchingDatacube.xColumn.type === 'date'
-                                                        ? `${(matchingDatacube.xColumn as DateColumn)?.max.toLocaleDateString('en-US')}`
-                                                        : `${(matchingDatacube.xColumn as NumberColumn)?.max}`,
+                                                        ? `${(matchingDatacube.xColumn as DateColumn).max.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.xColumn as NumberColumn).max)}`,
                                                 pos: vec3.fromValues(
                                                     translateXZ.x + cuboid.extent.maxX,
                                                     0.0,
@@ -1364,8 +1369,8 @@ class DatacubesRenderer extends Renderer {
                                             {
                                                 name:
                                                     matchingDatacube.yColumn.type === 'date'
-                                                        ? `${(matchingDatacube.yColumn as DateColumn)?.min.toLocaleDateString('en-US')}`
-                                                        : `${(matchingDatacube.yColumn as NumberColumn)?.min}`,
+                                                        ? `${(matchingDatacube.yColumn as DateColumn).min.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.yColumn as NumberColumn).min)}`,
                                                 pos: vec3.fromValues(
                                                     translateXZ.x + cuboid.extent.maxX + 0.05,
                                                     0,
@@ -1388,8 +1393,8 @@ class DatacubesRenderer extends Renderer {
                                             {
                                                 name:
                                                     matchingDatacube.yColumn.type === 'date'
-                                                        ? `${(matchingDatacube.yColumn as DateColumn)?.max.toLocaleDateString('en-US')}`
-                                                        : `${(matchingDatacube.yColumn as NumberColumn)?.max}`,
+                                                        ? `${(matchingDatacube.yColumn as DateColumn).max.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.yColumn as NumberColumn).max)}`,
                                                 pos: vec3.fromValues(
                                                     translateXZ.x + cuboid.extent.maxX + 0.05,
                                                     cuboid.scaleY,
@@ -1435,8 +1440,8 @@ class DatacubesRenderer extends Renderer {
                                             {
                                                 name:
                                                     matchingDatacube.zColumn.type === 'date'
-                                                        ? `${(matchingDatacube.zColumn as DateColumn)?.min.toLocaleDateString('en-US')}`
-                                                        : `${(matchingDatacube.zColumn as NumberColumn)?.min}`,
+                                                        ? `${(matchingDatacube.zColumn as DateColumn).min.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.zColumn as NumberColumn).min)}`,
                                                 pos: vec3.fromValues(
                                                     translateXZ.x + cuboid.extent.minX - 0.05,
                                                     0.0,
@@ -1459,8 +1464,8 @@ class DatacubesRenderer extends Renderer {
                                             {
                                                 name:
                                                     matchingDatacube.zColumn.type === 'date'
-                                                        ? `${(matchingDatacube.zColumn as DateColumn)?.max.toLocaleDateString('en-US')}`
-                                                        : `${(matchingDatacube.zColumn as NumberColumn)?.max}`,
+                                                        ? `${(matchingDatacube.zColumn as DateColumn)?.max.toLocaleDateString()}`
+                                                        : `${roundTo2DecimalPlacesMax((matchingDatacube.zColumn as NumberColumn)?.max)}`,
                                                 pos: vec3.fromValues(
                                                     translateXZ.x + cuboid.extent.minX - 0.05,
                                                     0.0,
