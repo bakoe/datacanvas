@@ -53,6 +53,7 @@ import SyncToScatterplotViewerNode, {
     SyncToScatterplotViewerNodeState,
     SyncToScatterplotViewerNodeTargetHandles,
 } from './nodes/SyncToScatterplotViewerNode';
+import FixedTextNode, { FixedTextNodeData } from './nodes/FixedTextNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
 const onNodeClick = (_: MouseEvent, node: Node) => undefined;
@@ -141,6 +142,81 @@ const getFiles = (dataTransfer: DataTransfer): File[] => {
     return files;
 };
 
+const getValidXPositionRangeByNodeType = (nodeType: NodeTypes): [number, number] => {
+    const GROUP_COLUMNS_START_AT = 0;
+
+    const columnWidthsAndGutters = [
+        {
+            width: 0,
+            gutter: 300,
+        },
+        {
+            width: 0,
+            gutter: 300,
+        },
+        {
+            width: 0,
+            gutter: 200,
+        },
+        {
+            width: 0,
+            gutter: 200,
+        },
+    ];
+
+    switch (nodeType as NodeTypes) {
+        case NodeTypes.FixedText:
+            return [-Infinity, Infinity];
+        case NodeTypes.Dataset:
+            return [-Infinity, GROUP_COLUMNS_START_AT + columnWidthsAndGutters[0].width];
+        case NodeTypes.DateFilter:
+            return [
+                GROUP_COLUMNS_START_AT + columnWidthsAndGutters[0].width + columnWidthsAndGutters[0].gutter,
+                GROUP_COLUMNS_START_AT +
+                    columnWidthsAndGutters[0].width +
+                    columnWidthsAndGutters[0].gutter +
+                    columnWidthsAndGutters[1].width,
+            ];
+        case NodeTypes.ColorMapping:
+            return [
+                GROUP_COLUMNS_START_AT +
+                    columnWidthsAndGutters[0].width +
+                    columnWidthsAndGutters[0].gutter +
+                    columnWidthsAndGutters[1].width +
+                    columnWidthsAndGutters[1].gutter,
+                GROUP_COLUMNS_START_AT +
+                    GROUP_COLUMNS_START_AT +
+                    columnWidthsAndGutters[0].width +
+                    columnWidthsAndGutters[0].gutter +
+                    columnWidthsAndGutters[1].width +
+                    columnWidthsAndGutters[1].gutter +
+                    columnWidthsAndGutters[2].width,
+            ];
+        case NodeTypes.PointPrimitive:
+        case NodeTypes.SyncToScatterplotViewer:
+            return [
+                GROUP_COLUMNS_START_AT +
+                    columnWidthsAndGutters[0].width +
+                    columnWidthsAndGutters[0].gutter +
+                    columnWidthsAndGutters[1].width +
+                    columnWidthsAndGutters[1].gutter +
+                    columnWidthsAndGutters[2].width +
+                    columnWidthsAndGutters[2].gutter,
+                Infinity,
+            ];
+        default:
+            return [-Infinity, Infinity];
+    }
+};
+
+const clampXYPositionByNodeType = (xyPosition: XYPosition, nodeType: NodeTypes): XYPosition => {
+    const [minX, maxX] = getValidXPositionRangeByNodeType(nodeType);
+    return {
+        x: Math.max(minX, Math.min(maxX, xyPosition.x)),
+        y: xyPosition.y,
+    } as XYPosition;
+};
+
 let id = 4;
 const getId = () => `${id}`;
 
@@ -159,6 +235,62 @@ const BasicFlow = () => {
 
     const initialNodes: Node[] = [
         {
+            type: NodeTypes.FixedText,
+            id: '-4',
+            data: {
+                text: '1: Input',
+                align: 'left',
+            },
+            selectable: false,
+            draggable: false,
+            position: {
+                x: 0,
+                y: 0,
+            },
+        } as Node<FixedTextNodeData>,
+        {
+            type: NodeTypes.FixedText,
+            id: '-3',
+            data: {
+                text: '2: Filtering',
+                align: 'left',
+            },
+            selectable: false,
+            draggable: false,
+            position: {
+                x: 300,
+                y: 0,
+            },
+        } as Node<FixedTextNodeData>,
+        {
+            type: NodeTypes.FixedText,
+            id: '-2',
+            data: {
+                text: '3: Mapping',
+                align: 'left',
+            },
+            selectable: false,
+            draggable: false,
+            position: {
+                x: 600,
+                y: 0,
+            },
+        } as Node<FixedTextNodeData>,
+        {
+            type: NodeTypes.FixedText,
+            id: '-1',
+            data: {
+                text: '4: Rendering',
+                align: 'left',
+            },
+            selectable: false,
+            draggable: false,
+            position: {
+                x: 800,
+                y: 0,
+            },
+        } as Node<FixedTextNodeData>,
+        {
             type: NodeTypes.DateFilter,
             id: '0',
             data: {
@@ -171,7 +303,7 @@ const BasicFlow = () => {
                 onDeleteNode: () => deleteNode('0'),
                 isValidConnection,
             },
-            position: { x: 200, y: 40 },
+            position: { x: 300, y: 60 },
         } as Node<DateFilterNodeData>,
 
         {
@@ -185,7 +317,7 @@ const BasicFlow = () => {
                 onDeleteNode: () => deleteNode('1'),
                 isValidConnection,
             },
-            position: { x: 500, y: 40 },
+            position: { x: 600, y: 60 },
         } as Node<ColorMappingNodeData>,
 
         {
@@ -199,7 +331,7 @@ const BasicFlow = () => {
                 onDeleteNode: () => deleteNode('2'),
                 isValidConnection,
             },
-            position: { x: 800, y: 40 },
+            position: { x: 800, y: 60 },
         } as Node<SyncToScatterplotViewerNodeData>,
 
         {
@@ -257,8 +389,57 @@ const BasicFlow = () => {
 
     const onNodesChange = useCallback((changes: NodeChange[]) => {
         const { nodeInternals } = store.getState();
+        const filteredChanges = changes
+            .map((change) => {
+                if (change.type !== 'position' || change.position === undefined) {
+                    return change;
+                }
+                const node = nodeInternals.get(change.id);
+
+                if (!node) {
+                    return change;
+                }
+
+                const nodeType = node.type;
+
+                if (!nodeType) {
+                    return change;
+                }
+
+                let updatedChange = change;
+                const [minX, maxX] = getValidXPositionRangeByNodeType(nodeType as NodeTypes);
+
+                switch (nodeType as NodeTypes) {
+                    case NodeTypes.FixedText:
+                        // Prevent changes on the fixed text elements (extra check -- they have `draggable: false` set either way)
+                        return undefined;
+                    default:
+                        if (!(change.position.x >= minX && change.position.x <= maxX)) {
+                            updatedChange = {
+                                ...change,
+                                position: {
+                                    ...change.position,
+                                    x: Math.max(minX, Math.min(maxX, change.position.x)),
+                                },
+                            };
+                        }
+                }
+
+                if (updatedChange.position && updatedChange.position.y <= 60) {
+                    updatedChange = {
+                        ...updatedChange,
+                        position: {
+                            ...updatedChange.position,
+                            y: 60,
+                        },
+                    };
+                }
+
+                return updatedChange;
+            })
+            .filter((change) => change !== undefined) as NodeChange[];
         const nodes = Array.from(nodeInternals.values());
-        const updatedNodes = applyNodeChanges(changes, nodes);
+        const updatedNodes = applyNodeChanges(filteredChanges, nodes);
         setNodes(updatedNodes);
     }, []);
 
@@ -501,7 +682,8 @@ const BasicFlow = () => {
     // See https://github.com/wbkd/react-flow/pull/1555#issue-1016332917 (section "nodeTypes and edgeTypes")
     const nodeTypes = useMemo(() => {
         const mapping = {} as NodeTypesType;
-        mapping['dataset'] = DatasetNode;
+        mapping[NodeTypes.FixedText] = FixedTextNode;
+        mapping[NodeTypes.Dataset] = DatasetNode;
         mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
         mapping[NodeTypes.ColorMapping] = ColorMappingNode;
@@ -531,7 +713,9 @@ const BasicFlow = () => {
         if (!reactFlowInstance) return;
 
         if (dragInProgress) {
-            setDragCoords(reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 }));
+            setDragCoords(
+                clampXYPositionByNodeType(reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 }), NodeTypes.Dataset),
+            );
             return;
         }
 
@@ -540,7 +724,10 @@ const BasicFlow = () => {
         const nodeId = getId();
         const fileMimetype = getFileMimetypes(event.dataTransfer)[0];
         const type = mapMimetypeToNodeFiletype(fileMimetype);
-        const position = reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 });
+        const position = clampXYPositionByNodeType(
+            reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 }),
+            NodeTypes.Dataset,
+        );
 
         const newNode: Node = {
             id: nodeId,
@@ -747,11 +934,13 @@ const BasicFlow = () => {
 
         id++;
 
+        const clampedPosition = clampXYPositionByNodeType(xyPosition, nodeType);
+
         setNodes((nds) =>
             nds.concat({
                 type: nodeType,
                 id: `${nodeId}`,
-                position: xyPosition,
+                position: clampedPosition,
                 data: nodeData,
             }),
         );
