@@ -49,6 +49,7 @@ const Controls: React.FC<{
                 translateY: cuboid.translateY,
                 scaleY: cuboid.scaleY,
                 idBufferOnly: cuboid.idBufferOnly,
+                extent: cuboid.extent,
                 points: cuboid.points,
             };
         });
