@@ -3,16 +3,16 @@ $handle-clickable-area-size: 0.7rem;
 @use 'sass:color';
 
 $input-color: #363432;
-$input-color-muted: color.scale($input-color, $lightness: -50%);
+$input-color-muted: color.scale($input-color, $lightness: 0%);
 
 $filtering-color: #196774;
-$filtering-color-muted: color.scale($filtering-color, $lightness: -50%);
+$filtering-color-muted: color.scale($filtering-color, $lightness: 0%);
 
 $mapping-color: #90a19d;
-$mapping-color-muted: color.scale($mapping-color, $lightness: -50%);
+$mapping-color-muted: color.scale($mapping-color, $lightness: 0%);
 
 $rendering-color: #f0941f;
-$rendering-color-muted: color.scale($rendering-color, $lightness: -50%);
+$rendering-color-muted: color.scale($rendering-color, $lightness: 0%);
 
 .react-flow__handle {
     box-shadow: 0 0 0 2px white;
