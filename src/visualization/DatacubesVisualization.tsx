@@ -22,6 +22,8 @@ import { isFixedTextNode } from '../data/nodes/FixedTextNode';
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
 
+const SET_CUBOID_EXTENT_FROM_FLOW_EDITOR_NODE_SIZE = false;
+
 export interface DatacubeInformation {
     id: number;
     position?: XYPosition;
@@ -211,92 +213,119 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             })
             .filter((maxRowCount) => maxRowCount !== 0);
         const overallMaxRowCount = maxRowCounts.length > 0 ? Math.max(...maxRowCounts) : undefined;
-        return Array.from(state.nodeInternals).map(([, node]) => {
-            let relativeHeight = 1.0;
-            const extent = (node as any).data?.state?.extent || {
-                minX: -0.25,
-                maxX: 0.25,
-                minZ: -0.25,
-                maxZ: 0.25,
-            };
-            let isErroneous = false;
-            let isPending: undefined | boolean = false;
-            let xColumn = undefined as undefined | CSVColumn;
-            let yColumn = undefined as undefined | CSVColumn;
-            let zColumn = undefined as undefined | CSVColumn;
-            let sizeColumn = undefined as undefined | CSVColumn;
-            let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
-            let labelString = '';
-            const isSelected = node.selected;
+        return Array.from(state.nodeInternals)
+            .map(([, node]) => {
+                let relativeHeight = 1.0;
+
+                let defaultExtent = {
+                    minX: -0.25,
+                    maxX: 0.25,
+                    minZ: -0.25,
+                    maxZ: 0.25,
+                };
+
+                if (SET_CUBOID_EXTENT_FROM_FLOW_EDITOR_NODE_SIZE) {
+                    const width = (node as any).width;
+                    const height = (node as any).height;
+
+                    if (width && height) {
+                        let relativeX = width / (272 - 172);
+                        let relativeZ = height / (211 - 95);
+
+                        relativeX = Math.max(1.0, Math.min(8.0, relativeX));
+                        relativeZ = Math.max(1.0, Math.min(8.0, relativeZ));
+                        relativeX *= 0.5;
+                        relativeZ *= 0.5;
+
+                        defaultExtent = {
+                            minX: -0.25,
+                            maxX: relativeX * 0.5 - 0.25,
+                            minZ: -0.25,
+                            maxZ: relativeZ * 0.5 - 0.25,
+                        };
+                    }
+                }
+
+                const extent = (node as any).data?.state?.extent || defaultExtent;
+                let isErroneous = false;
+                let isPending: undefined | boolean = false;
+                let xColumn = undefined as undefined | CSVColumn;
+                let yColumn = undefined as undefined | CSVColumn;
+                let zColumn = undefined as undefined | CSVColumn;
+                let sizeColumn = undefined as undefined | CSVColumn;
+                let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
+                let labelString = '';
+                const isSelected = node.selected;
                 if (isFixedTextNode(node)) {
                     return undefined;
                 }
-            if (
-                isDatasetNode(node) ||
-                isDateFilterNode(node) ||
-                isPointPrimitiveNode(node) ||
-                isColorMappingNode(node) ||
-                isSyncToScatterplotViewerNode(node)
-            ) {
-                if (isDatasetNode(node)) {
-                    // labelString += node.data.filename;
-                    const typeString = makeTypeHumanReadable(node.data.type);
-                    labelString += (typeString ? typeString + ' ' : '') + 'Dataset';
-                    if (overallMaxRowCount) {
-                        const colRowCounts = node.data.state?.columns?.map((col) => col.length);
-                        if (colRowCounts) {
-                            relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
-                            labelString += `\n${node.data.state?.columns?.length} columns • ${colRowCounts[0]} rows`;
+                if (
+                    isDatasetNode(node) ||
+                    isDateFilterNode(node) ||
+                    isPointPrimitiveNode(node) ||
+                    isColorMappingNode(node) ||
+                    isSyncToScatterplotViewerNode(node)
+                ) {
+                    if (isDatasetNode(node)) {
+                        // labelString += node.data.filename;
+                        const typeString = makeTypeHumanReadable(node.data.type);
+                        labelString += (typeString ? typeString + ' ' : '') + 'Dataset';
+                        if (overallMaxRowCount) {
+                            const colRowCounts = node.data.state?.columns?.map((col) => col.length);
+                            if (colRowCounts) {
+                                relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                                labelString += `\n${node.data.state?.columns?.length} columns • ${colRowCounts[0]} rows`;
+                            }
                         }
+                        isPending = node.data.state?.isLoading;
                     }
-                    isPending = node.data.state?.isLoading;
-                }
-                if (isDateFilterNode(node)) {
-                    labelString += 'Filter: Date Range';
-                    if (overallMaxRowCount) {
-                        const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
-                        if (colRowCounts) {
-                            relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                    if (isDateFilterNode(node)) {
+                        labelString += 'Filter: Date Range';
+                        if (overallMaxRowCount) {
+                            const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
+                            if (colRowCounts) {
+                                relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                            }
                         }
+                        isErroneous = node.data.state?.errorMessage !== undefined;
+                        isPending = node.data.state?.isPending;
                     }
-                    isErroneous = node.data.state?.errorMessage !== undefined;
-                    isPending = node.data.state?.isPending;
+                    if (isColorMappingNode(node)) {
+                        labelString += 'Mapping: Color Mapping';
+                        isPending = node.data.state?.isPending;
+                    }
+                    if (isPointPrimitiveNode(node)) {
+                        labelString += 'Rendering: Point Primitive';
+                        isPending = node.data.state?.isPending;
+                        xColumn = node.data.state?.xColumn;
+                        yColumn = node.data.state?.yColumn;
+                        zColumn = node.data.state?.zColumn;
+                        sizeColumn = node.data.state?.sizeColumn;
+                        colors = node.data.state?.colors;
+                    }
+                    if (isSyncToScatterplotViewerNode(node)) {
+                        labelString += 'Rendering: Sync to Scatterplot Viewer';
+                        isPending = node.data.state?.isPending;
+                    }
                 }
-                if (isColorMappingNode(node)) {
-                    labelString += 'Mapping: Color Mapping';
-                    isPending = node.data.state?.isPending;
-                }
-                if (isPointPrimitiveNode(node)) {
-                    labelString += 'Rendering: Point Primitive';
-                    isPending = node.data.state?.isPending;
-                    xColumn = node.data.state?.xColumn;
-                    yColumn = node.data.state?.yColumn;
-                    zColumn = node.data.state?.zColumn;
-                    sizeColumn = node.data.state?.sizeColumn;
-                    colors = node.data.state?.colors;
-                }
-                if (isSyncToScatterplotViewerNode(node)) {
-                    labelString += 'Rendering: Sync to Scatterplot Viewer';
-                    isPending = node.data.state?.isPending;
-                }
-            }
-            return {
-                position: node.position,
-                extent,
-                id: parseInt(node.id, 10),
-                relativeHeight,
-                type: node.type,
-                isErroneous,
-                isPending,
-                xColumn,
-                yColumn,
-                zColumn,
-                sizeColumn,
-                colors,
-                labelString: isSelected ? labelString : '',
-                isSelected,
-            } as DatacubeInformation;
-        });
+                return {
+                    position: node.position,
+                    extent,
+                    id: parseInt(node.id, 10),
+                    relativeHeight,
+                    type: node.type,
+                    isErroneous,
+                    isPending,
+                    xColumn,
+                    yColumn,
+                    zColumn,
+                    sizeColumn,
+                    colors,
+                    labelString: isSelected ? labelString : '',
+                    isSelected,
+                } as DatacubeInformation;
+            })
+            .filter((datacube) => datacube !== undefined) as DatacubeInformation[];
     });
 
     const REACT_FLOW_CANVAS_MIN_X = 400;
