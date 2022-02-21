@@ -271,7 +271,7 @@ def add_point_rendering_geometry_nodes(object: bpy.types.Object, material: bpy.t
     input_node: bpy.types.NodeGroupInput = geometry_node_tree.nodes.new(type='NodeGroupInput')
     
     ico_sphere_node: bpy.types.GeometryNodeMeshIcoSphere = geometry_node_tree.nodes.new(type='GeometryNodeMeshIcoSphere')
-    ico_sphere_node.inputs['Radius'].default_value = 0.001
+    ico_sphere_node.inputs['Radius'].default_value = 0.002
     ico_sphere_node.inputs['Subdivisions'].default_value = 1
     
     instance_on_points_node: bpy.types.GeometryNodeInstanceOnPoints = geometry_node_tree.nodes.new(type='GeometryNodeInstanceOnPoints')
