@@ -730,7 +730,17 @@ const BasicFlow = () => {
                 } as SyncToScatterplotViewerNodeData;
                 break;
             case 'dataset':
-                return;
+                nodeData = {
+                    filename: '',
+                    type: 'google-sheets',
+                    state: {
+                        ...DatasetNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as DatasetNodeData;
+                break;
             default:
                 return;
         }
@@ -748,6 +758,11 @@ const BasicFlow = () => {
     }, []);
 
     const nodesThatCanBeAddedViaContextMenu = [
+        {
+            nodeType: NodeTypes.Dataset,
+            label: 'Input: Dataset (Google Sheets)',
+            highlightString: undefined as undefined | string,
+        },
         {
             nodeType: NodeTypes.DateFilter,
             label: 'Filtering: Date Filter',

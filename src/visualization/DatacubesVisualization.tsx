@@ -1,18 +1,22 @@
 import React, { PropsWithChildren } from 'react';
 
+import { distinctUntilChanged } from 'rxjs/operators';
+
 import { ReactFlowState, useStore, XYPosition, useStoreApi, NodeDiffUpdate } from 'react-flow-renderer/nocss';
 
 import shallow from 'zustand/shallow';
 
 import { DatacubesApplication } from './DatacubesApplication';
 
-import { isDatasetNode } from '../data/nodes/DatasetNode';
+import { isDatasetNode, makeTypeHumanReadable } from '../data/nodes/DatasetNode';
 import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isPointPrimitiveNode } from '../data/nodes/PointPrimitiveNode';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 import { ColorPalette } from '../data/nodes/util/EditableColorGradient';
 import { serializeColumnInfo } from '../data/nodes/util/serializeColumnInfo';
+import { isColorMappingNode } from '../data/nodes/ColorMappingNode';
+import { isSyncToScatterplotViewerNode } from '../data/nodes/SyncToScatterplotViewerNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -22,8 +26,15 @@ export interface DatacubeInformation {
     position?: XYPosition;
     relativeHeight: number;
     type: NodeTypes;
+    extent: {
+        minX: number;
+        maxX: number;
+        minZ: number;
+        maxZ: number;
+    };
     isPending?: boolean;
     isErroneous?: boolean;
+    isSelected?: boolean;
     xColumn?: CSVColumn;
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
@@ -32,11 +43,13 @@ export interface DatacubeInformation {
         column: CSVColumn;
         colorPalette: ColorPalette;
     };
+    labelString?: string;
 }
 
 const selector = (s: ReactFlowState) => ({
     updateNodePosition: s.updateNodePosition,
     unselectNodesAndEdges: s.unselectNodesAndEdges,
+    nodeInternals: s.nodeInternals,
 });
 
 export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: PropsWithChildren<DatacubesProps>) => {
@@ -47,6 +60,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
 
     const { updateNodePosition, unselectNodesAndEdges } = useStore(selector, shallow);
 
+    const [nodeIdSelectedFromWebGL, setNodeIdSelectedFromWebGL] = React.useState(undefined);
+
     // Initialization -- runs only once (due to the empty list of dependencies passed to useEffect as its 2nd parameter)
     React.useEffect(() => {
         if (canvasRef.current) {
@@ -54,7 +69,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             exampleInstance.initialize(canvasRef.current, spinnerRef.current || undefined);
             setApplication(exampleInstance);
             exampleInstance.datacubes$?.subscribe((datacubes: Array<DatacubeInformation>) => {
-                unselectNodesAndEdges();
+                if (!nodeIdSelectedFromWebGL) {
+                    unselectNodesAndEdges();
+                }
 
                 const nodeInternals = store.getState().nodeInternals;
                 nodeInternals.forEach((node) => {
@@ -76,8 +93,78 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                             diff: { x: deltaX, y: deltaY },
                         } as NodeDiffUpdate);
                     }
+                    if (datacube && datacube.extent) {
+                        store.setState({
+                            nodeInternals: store.getState().nodeInternals.set(`${id}`, {
+                                ...(store.getState().nodeInternals.get(`${id}`) as any),
+                                data: {
+                                    ...(store.getState().nodeInternals.get(`${id}`) as any).data,
+                                    state: {
+                                        ...(store.getState().nodeInternals.get(`${id}`) as any).data.state,
+                                        extent: {
+                                            ...(store.getState().nodeInternals.get(`${id}`) as any).data.state.extent,
+                                            ...datacube.extent,
+                                        },
+                                    },
+                                },
+                            }),
+                        });
+                    }
                 });
             });
+
+            exampleInstance.datacubesPointerUpEvents$?.subscribe((event: PointerEvent) => {
+                if ((event as any).data !== undefined && (event as any).data.datacubeID !== undefined) {
+                    setNodeIdSelectedFromWebGL((event as any).data.datacubeID);
+                } else {
+                    setNodeIdSelectedFromWebGL(undefined);
+                }
+            });
+
+            exampleInstance.datacubesPointerMoveEvents$
+                ?.pipe(distinctUntilChanged((prev: any, curr: any) => prev.data === curr.data))
+                .subscribe((event: PointerEvent) => {
+                    let cursorSet = false;
+
+                    if ((event as any).data !== undefined && (event as any).data.datacubeID !== undefined) {
+                        setNodeIdSelectedFromWebGL((event as any).data.datacubeID);
+                    } else {
+                        setNodeIdSelectedFromWebGL(undefined);
+                    }
+
+                    if ((event as any).data !== undefined && (event as any).data.cuboidBboxHovered !== undefined) {
+                        const cuboidBboxHovered = (event as any).data.cuboidBboxHovered as {
+                            xMin: boolean;
+                            xMax: boolean;
+                            yMin: boolean;
+                            yMax: boolean;
+                            zMin: boolean;
+                            zMax: boolean;
+                        };
+
+                        const { xMin, xMax, yMin, yMax, zMin, zMax } = cuboidBboxHovered;
+
+                        if (yMin || yMax) {
+                            if ((xMax && zMax) || (xMin && zMin)) {
+                                document.body.style.cursor = 'nwse-resize';
+                                cursorSet = true;
+                            } else if ((xMax && zMin) || (xMin && zMax)) {
+                                document.body.style.cursor = 'nesw-resize';
+                                cursorSet = true;
+                            } else if (xMax || xMin) {
+                                document.body.style.cursor = 'ew-resize';
+                                cursorSet = true;
+                            } else if (zMin || zMax) {
+                                document.body.style.cursor = 'ns-resize';
+                                cursorSet = true;
+                            }
+                        }
+                    }
+
+                    if (!cursorSet) {
+                        document.body.style.cursor = 'unset';
+                    }
+                });
         }
 
         // Commented-out to avoid infinite recursion in application's uninitialization(?)
@@ -87,6 +174,21 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
         //     }
         // };
     }, []);
+
+    React.useEffect(() => {
+        unselectNodesAndEdges();
+
+        if (nodeIdSelectedFromWebGL === undefined) {
+            return;
+        }
+
+        store.setState({
+            nodeInternals: store.getState().nodeInternals.set(`${nodeIdSelectedFromWebGL}`, {
+                ...(store.getState().nodeInternals.get(`${nodeIdSelectedFromWebGL}`) as any),
+                selected: true,
+            }),
+        });
+    }, [nodeIdSelectedFromWebGL]);
 
     const nodeInformations = useStore((state: ReactFlowState) => {
         const maxRowCounts = Array.from(state.nodeInternals)
@@ -106,6 +208,12 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
         const overallMaxRowCount = maxRowCounts.length > 0 ? Math.max(...maxRowCounts) : undefined;
         return Array.from(state.nodeInternals).map(([, node]) => {
             let relativeHeight = 1.0;
+            const extent = (node as any).data?.state?.extent || {
+                minX: -0.25,
+                maxX: 0.25,
+                minZ: -0.25,
+                maxZ: 0.25,
+            };
             let isErroneous = false;
             let isPending: undefined | boolean = false;
             let xColumn = undefined as undefined | CSVColumn;
@@ -113,17 +221,30 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             let zColumn = undefined as undefined | CSVColumn;
             let sizeColumn = undefined as undefined | CSVColumn;
             let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
-            if (isDatasetNode(node) || isDateFilterNode(node) || isPointPrimitiveNode(node)) {
+            let labelString = '';
+            const isSelected = node.selected;
+            if (
+                isDatasetNode(node) ||
+                isDateFilterNode(node) ||
+                isPointPrimitiveNode(node) ||
+                isColorMappingNode(node) ||
+                isSyncToScatterplotViewerNode(node)
+            ) {
                 if (isDatasetNode(node)) {
+                    // labelString += node.data.filename;
+                    const typeString = makeTypeHumanReadable(node.data.type);
+                    labelString += (typeString ? typeString + ' ' : '') + 'Dataset';
                     if (overallMaxRowCount) {
                         const colRowCounts = node.data.state?.columns?.map((col) => col.length);
                         if (colRowCounts) {
                             relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
+                            labelString += `\n${node.data.state?.columns?.length} columns • ${colRowCounts[0]} rows`;
                         }
                     }
                     isPending = node.data.state?.isLoading;
                 }
                 if (isDateFilterNode(node)) {
+                    labelString += 'Filter: Date Range';
                     if (overallMaxRowCount) {
                         const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
                         if (colRowCounts) {
@@ -133,7 +254,12 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     isErroneous = node.data.state?.errorMessage !== undefined;
                     isPending = node.data.state?.isPending;
                 }
+                if (isColorMappingNode(node)) {
+                    labelString += 'Mapping: Color Mapping';
+                    isPending = node.data.state?.isPending;
+                }
                 if (isPointPrimitiveNode(node)) {
+                    labelString += 'Rendering: Point Primitive';
                     isPending = node.data.state?.isPending;
                     xColumn = node.data.state?.xColumn;
                     yColumn = node.data.state?.yColumn;
@@ -141,9 +267,14 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     sizeColumn = node.data.state?.sizeColumn;
                     colors = node.data.state?.colors;
                 }
+                if (isSyncToScatterplotViewerNode(node)) {
+                    labelString += 'Rendering: Sync to Scatterplot Viewer';
+                    isPending = node.data.state?.isPending;
+                }
             }
             return {
                 position: node.position,
+                extent,
                 id: parseInt(node.id, 10),
                 relativeHeight,
                 type: node.type,
@@ -154,6 +285,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 zColumn,
                 sizeColumn,
                 colors,
+                labelString: isSelected ? labelString : '',
+                isSelected,
             } as DatacubeInformation;
         });
     });
@@ -172,6 +305,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             nodeInformations.map((nodeInfo) => ({
                 // Caution: No nodeInfo.position here -> this update is handled in 2nd useEffect hook below!
                 id: nodeInfo.id,
+                extent: nodeInfo.extent,
                 relativeHeight: nodeInfo.relativeHeight,
                 type: nodeInfo.type,
                 isErroneous: nodeInfo.isErroneous,
@@ -183,6 +317,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 colorsLengthAndPalette: nodeInfo.colors
                     ? `${serializeColumnInfo(nodeInfo.colors.column)}_${JSON.stringify(nodeInfo.colors.colorPalette)}`
                     : undefined,
+                labelString: nodeInfo.labelString,
+                isSelected: nodeInfo.isSelected,
             })),
         ),
     ]);
