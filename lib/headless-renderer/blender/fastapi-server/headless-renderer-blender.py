@@ -81,8 +81,21 @@ def add_scene_element(scene, scene_element):
 
     scale_y_webgl = scene_element['scaleY']
     scale_z_blender = scale_y_webgl
-
     scale_blender = mathutils.Vector((1, 1, scale_z_blender))
+
+    extent_webgl = scene_element['extent']
+    if extent_webgl:
+        CUBOID_SIZE_X = 0.5;
+        CUBOID_SIZE_Z = 0.5;
+        extent_scale_webgl = mathutils.Vector(((extent_webgl["maxX"] - extent_webgl["minX"]) / CUBOID_SIZE_X, 1.0, (extent_webgl["maxZ"] - extent_webgl["minZ"]) / CUBOID_SIZE_Z))
+        extent_scale_blender = vec3_transform_webgl_to_blender(extent_scale_webgl)
+
+        extent_compensation_translate_webgl = mathutils.Vector((
+            translate_x + (extent_webgl["maxX"] + extent_webgl["minX"]) / 2, 
+            translate_y, 
+            translate_z + (extent_webgl["maxZ"] + extent_webgl["minZ"]) / 2)
+        )
+        extent_compensation_translate_blender = vec3_transform_webgl_to_blender(extent_compensation_translate_webgl)
     
     hide = scene_element["idBufferOnly"] == True
     if hide:
@@ -98,9 +111,6 @@ def add_scene_element(scene, scene_element):
             # col = bpy.data.collections.get("Foreground")
             # col.objects.link(obj)
             # bpy.context.view_layer.objects.active = obj
-
-            obj.scale = scale_blender
-            obj.location = translate_blender
 
             mat = bpy.data.materials.new(f"Material_{id}")
             mat.use_nodes = True
@@ -142,11 +152,14 @@ def add_scene_element(scene, scene_element):
             verts = []
             edges = []
             faces = []
+
+            valid_points = [point for point in points if point["x"] and point["y"] and point["z"]]
             
-            for point_index, point in enumerate(points):
+            for point_index, point in enumerate(valid_points):
                 x = point["x"]
                 y = point["y"]
                 z = point["z"]
+
                 point_location_webgl = mathutils.Vector((x, y, z))
                 point_location_blender = vec3_transform_webgl_to_blender(point_location_webgl)
 
@@ -187,7 +200,7 @@ def add_scene_element(scene, scene_element):
             color_g_attribute = bm.verts.layers.float['color-g']
             color_b_attribute = bm.verts.layers.float['color-b']
 
-            for point_index, point in enumerate(points):
+            for point_index, point in enumerate(valid_points):
                 size = point["size"]
                 r = point["r"]
                 g = point["g"]
@@ -204,13 +217,29 @@ def add_scene_element(scene, scene_element):
             
             add_point_rendering_geometry_nodes(obj, mat)
 
+            if (extent_scale_blender != None and extent_compensation_translate_blender != None):
+                extent_transform = mathutils.Matrix.LocRotScale(None, None, extent_scale_blender)
+                translate_blender = extent_compensation_translate_blender
+                obj.data.transform(extent_transform)
+
+            obj.scale = mathutils.Vector((1, -1, scale_z_blender))
+            obj.location = translate_blender
+
         t_end = perf_counter()
         logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
         return
     
     scale_blender = mathutils.Vector((1, 1, scale_z_blender * 2.0))
-    bpy.ops.mesh.primitive_cube_add(size=0.5, location=(translate_blender), scale=(scale_blender))
+    bpy.ops.mesh.primitive_cube_add(size=0.5, scale=(scale_blender))
     obj = bpy.context.object
+
+    if (extent_scale_blender != None and extent_compensation_translate_blender != None):
+        extent_transform = mathutils.Matrix.LocRotScale(None, None, extent_scale_blender)
+        translate_blender = extent_compensation_translate_blender
+        obj.data.transform(extent_transform)
+    
+    obj.location = translate_blender
+
     obj.name = f"Cuboid_{id}"
 
     mat = bpy.data.materials.new(f"Material_{id}")
