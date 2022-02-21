@@ -3,4 +3,5 @@ export enum NodeTypes {
     PointPrimitive = 'point-primitive',
     Dataset = 'dataset',
     ColorMapping = 'color-mapping',
+    SyncToScatterplotViewer = 'sync-to-scatterplot-viewer',
 }
