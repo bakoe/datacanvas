@@ -839,6 +839,7 @@ const BasicFlow = () => {
         };
 
         setContextMenuVirtualReference(virtualReference);
+        setFocusedContextMenuEntry(0);
 
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
