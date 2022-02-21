@@ -296,8 +296,8 @@ const BasicFlow = () => {
             data: {
                 state: {
                     ...DateFilterNodeDefaultState,
-                    from: DateTime.fromISO('2021-11-15'),
-                    to: DateTime.fromISO('2021-12-19'),
+                    from: undefined,
+                    to: undefined,
                 },
                 onChangeState: (newState) => updateNodeState('0', newState),
                 onDeleteNode: () => deleteNode('0'),
@@ -878,8 +878,8 @@ const BasicFlow = () => {
                 nodeData = {
                     state: {
                         ...DateFilterNodeDefaultState,
-                        from: DateTime.fromISO('2021-11-15'),
-                        to: DateTime.fromISO('2021-12-19'),
+                        from: undefined,
+                        to: undefined,
                     },
                     onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
                     onDeleteNode: () => deleteNode(`${nodeId}`),

@@ -9,6 +9,7 @@ import {
     ColumnHeader as CSVColumnHeader,
     CSV,
     DataType,
+    DateColumn,
     Float32Chunk,
     Float32Column,
     NumberColumn,
@@ -29,6 +30,7 @@ const USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE = true;
 import { NodeWithStateProps } from '../BasicFlow';
 import CollapsibleHandle from './util/CollapsibleHandle';
 import { prettyPrintDataType } from './util/prettyPrintDataType';
+import { DateTime } from 'luxon';
 
 const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
@@ -298,6 +300,10 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         const minMaxString =
             column?.type === 'number'
                 ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
+                : column?.type === 'date'
+                ? `↓ ${DateTime.fromJSDate((column as DateColumn)?.min).toLocaleString()} ↑ ${DateTime.fromJSDate(
+                      (column as DateColumn)?.max,
+                  ).toLocaleString()}`
                 : undefined;
 
         return (
