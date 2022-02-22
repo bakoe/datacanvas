@@ -3,15 +3,13 @@ import { memo, FC, useEffect, useState, CSSProperties } from 'react';
 import { Node, Handle, Position, Connection } from 'react-flow-renderer/nocss';
 
 import {
+    AnyChunk,
+    buildChunk,
+    buildColumn,
     Column as CSVColumn,
     ColumnHeader as CSVColumnHeader,
-    DateChunk,
     DateColumn,
-    Float32Chunk,
-    Float32Column,
     NumberColumn,
-    StringChunk,
-    StringColumn,
 } from '@lukaswagner/csv-parser';
 
 const nodeStyleOverrides: CSSProperties = { width: '250px' };
@@ -94,6 +92,10 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
 
     const rowIndicesInGivenDateRange = [] as number[];
 
+    if (rowIndicesInGivenDateRange.length === columns[0].length) {
+        return columns;
+    }
+
     for (let i = 0; i < dateColumn.length; i++) {
         if (dateColumn.type === 'date') {
             const date = DateTime.fromJSDate((dateColumn as DateColumn).get(i));
@@ -114,46 +116,22 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
         }
     }
 
-    return columns.map((column) => {
-        const values = [];
+    const orig = columns;
+    const chunks = orig.map((column) => {
+        return buildChunk(column.type, rowIndicesInGivenDateRange.length, 0) as AnyChunk;
+    });
+    for (let index = 0; index < rowIndicesInGivenDateRange.length; index++) {
+        chunks.forEach((chunk, columnIndex) => {
+            chunk.set(index, orig[columnIndex].get(rowIndicesInGivenDateRange[index]) as never);
+        });
+    }
+    const filtered = orig.map((column, columnIndex) => {
+        const filteredColumn = buildColumn(column.name, column.type);
+        filteredColumn.push(chunks[columnIndex]);
+        return filteredColumn;
+    });
 
-        for (let i = 0; i < column.length; i++) {
-            if (rowIndicesInGivenDateRange.includes(i)) {
-                values.push(column.get(i));
-            }
-        }
-
-        switch (column.type.valueOf()) {
-            case 'string': {
-                const filteredColumn = new StringColumn(column.name);
-                const chunk = new StringChunk(values.length, 0);
-                for (let i = 0; i < values.length; i++) {
-                    chunk.set(i, values[i] as string);
-                }
-                filteredColumn.push(chunk);
-                return filteredColumn;
-            }
-            case 'date': {
-                const filteredColumn = new DateColumn(column.name);
-                const chunk = new DateChunk(values.length, 0);
-                for (let i = 0; i < values.length; i++) {
-                    chunk.set(i, values[i] as Date);
-                }
-                filteredColumn.push(chunk);
-                return filteredColumn;
-            }
-            case 'number':
-            default: {
-                const filteredColumn = new Float32Column(column.name);
-                const chunk = new Float32Chunk(values.length, 0);
-                for (let i = 0; i < values.length; i++) {
-                    chunk.set(i, values[i] as number);
-                }
-                filteredColumn.push(chunk);
-                return filteredColumn;
-            }
-        }
-    }) as CSVColumn[];
+    return filtered;
 };
 
 export const defaultState = { isPending: true } as DateFilterNodeState;
@@ -166,6 +144,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
 
     const updateFilteredColumns = (dataToFilter: CSVColumn[] | undefined, from?: DateTime, to?: DateTime) => {
+        console.log(`DateFilterNode → updateFilteredColumns:`, dataToFilter);
         if ((!from || !to) && dataToFilter) {
             const columnHeaders = dataToFilter.map(
                 (column) =>
