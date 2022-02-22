@@ -190,7 +190,6 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
 
                 const loader = new CSV<string>({
                     includesHeader: true,
-                    delimiter: ',',
                 });
 
                 loader.addDataSource(fileId, file);
