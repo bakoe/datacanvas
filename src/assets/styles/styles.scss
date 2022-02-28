@@ -39,6 +39,10 @@
     }
 }
 
+.has-additional-info {
+    border-bottom: 1px dotted gray;
+}
+
 #context-menu-destination {
     & * {
         z-index: 5;

@@ -54,6 +54,11 @@ export const makeTypeHumanReadable = (type: DatasetNodeValidTypes): string | und
 
 export type DatasetNodeValidTypes = 'csv' | 'json' | 'google-sheets' | undefined;
 
+export const getDistinctValuesInStringColumn = (column: StringColumn): string[] => {
+    const data = column.chunks.map((chunk) => (chunk as StringChunk as any)._data).flat();
+    return Array.from(new Set(data));
+};
+
 export interface DatasetNodeState {
     columnHeaders?: CSVColumnHeader[];
     columns?: CSVColumn[];
@@ -296,6 +301,11 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     const collapsibleHandles = columnHeaders?.map((columnHeader, index) => {
         const column = columns?.find((column) => column.name === columnHeader.name);
 
+        let distinctValuesInStringColumn = undefined;
+        if (column?.type === 'string') {
+            distinctValuesInStringColumn = getDistinctValuesInStringColumn(column as StringColumn);
+        }
+
         const minMaxString =
             column?.type === 'number'
                 ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
@@ -303,6 +313,8 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 ? `↓ ${DateTime.fromJSDate((column as DateColumn)?.min).toLocaleString()} ↑ ${DateTime.fromJSDate(
                       (column as DateColumn)?.max,
                   ).toLocaleString()}`
+                : column?.type === 'string'
+                ? `${distinctValuesInStringColumn!.length} Unique`
                 : undefined;
 
         return (
@@ -329,7 +341,17 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                     {columnHeader.name}
                     <br />
                     <small>
-                        <strong>{column && column.length}</strong> {prettyPrintDataType(columnHeader.type)} {minMaxString}
+                        <strong>{column && column.length}</strong> {prettyPrintDataType(columnHeader.type)}{' '}
+                        {column?.type === 'string' ? (
+                            <>
+                                {'• '}
+                                <span className="has-additional-info" title={'[' + distinctValuesInStringColumn!.join(', ') + ']'}>
+                                    {minMaxString}
+                                </span>
+                            </>
+                        ) : (
+                            minMaxString
+                        )}
                     </small>
                 </span>
             </CollapsibleHandle>

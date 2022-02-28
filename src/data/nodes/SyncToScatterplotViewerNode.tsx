@@ -1,7 +1,17 @@
 import { CSSProperties, FC, memo, useCallback, useEffect, useState } from 'react';
 import { Connection, Handle, Node, Position } from 'react-flow-renderer/nocss';
 
-import { AnyChunk, buildChunk, buildColumn, ColorChunk, ColorColumn, Column as CSVColumn, NumberColumn } from '@lukaswagner/csv-parser';
+import {
+    AnyChunk,
+    buildChunk,
+    buildColumn,
+    ColorChunk,
+    ColorColumn,
+    Column as CSVColumn,
+    DateColumn,
+    NumberColumn,
+    StringColumn,
+} from '@lukaswagner/csv-parser';
 
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
@@ -13,6 +23,8 @@ import { getColorForNormalizedValue } from './util/getColorForNormalizedValue';
 import { Collapse } from 'react-collapse';
 import CollapsibleHandle from './util/CollapsibleHandle';
 import { prettyPrintDataType } from './util/prettyPrintDataType';
+import { getDistinctValuesInStringColumn } from './DatasetNode';
+import { DateTime } from 'luxon';
 
 const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
@@ -298,9 +310,20 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
     const collapsibleHandles = filteredColumns
         ? filteredColumns
               .map((column: CSVColumn, index: number) => {
+                  let distinctValuesInStringColumn = undefined;
+                  if (column?.type === 'string') {
+                      distinctValuesInStringColumn = getDistinctValuesInStringColumn(column as StringColumn);
+                  }
+
                   const minMaxString =
                       column?.type === 'number'
                           ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
+                          : column?.type === 'date'
+                          ? `↓ ${DateTime.fromJSDate((column as DateColumn)?.min).toLocaleString()} ↑ ${DateTime.fromJSDate(
+                                (column as DateColumn)?.max,
+                            ).toLocaleString()}`
+                          : column?.type === 'string'
+                          ? `${distinctValuesInStringColumn!.length} Unique`
                           : undefined;
 
                   return (
@@ -327,7 +350,20 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
                               {column.name}
                               <br />
                               <small>
-                                  <strong>{column && column.length}</strong> {prettyPrintDataType(column.type)} {minMaxString}
+                                  <strong>{column && column.length}</strong> {prettyPrintDataType(column.type)}{' '}
+                                  {column?.type === 'string' ? (
+                                      <>
+                                          {'• '}
+                                          <span
+                                              className="has-additional-info"
+                                              title={'[' + distinctValuesInStringColumn!.join(', ') + ']'}
+                                          >
+                                              {minMaxString}
+                                          </span>
+                                      </>
+                                  ) : (
+                                      minMaxString
+                                  )}
                               </small>
                           </span>
                       </CollapsibleHandle>
