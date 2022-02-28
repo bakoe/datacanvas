@@ -88,7 +88,7 @@ const ANIME_JS_SPRING_PARAMS = {
 };
 
 const DEBUG_SHOW_POINTS_ON_INTERACTION = false;
-const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
 
 // 4294967295 is the maximum to-be-encoded ID (due to 4 8-bit integer components -> 2^(4 * 8) - 1 = 4294967295)
 // -> With, e.g., 5000000 max elements per object, this allows for up to 858 elements with 5000000 indexed elements each.
@@ -220,6 +220,7 @@ class DatacubesRenderer extends Renderer {
     protected _uPointsViewProjection: WebGLUniformLocation | undefined;
     protected _uPointsNdcOffset: WebGLUniformLocation | undefined;
     protected _uPointsModel: WebGLUniformLocation | undefined;
+    protected _uPointsSelectedPointEncodedId: WebGLUniformLocation | undefined;
     protected _uPointsRenderIDToFragColor: WebGLUniformLocation | undefined;
 
     // Keeping track of whether a cuboid is resized
@@ -355,6 +356,7 @@ class DatacubesRenderer extends Renderer {
         this._uPointsViewProjection = this._pointsProgram.uniform('u_viewProjection');
         this._uPointsNdcOffset = this._pointsProgram.uniform('u_ndcOffset');
         this._uPointsModel = this._pointsProgram.uniform('u_model');
+        this._uPointsSelectedPointEncodedId = this._pointsProgram.uniform('u_selectedPointEncodedID');
         this._uPointsRenderIDToFragColor = this._pointsProgram.uniform('u_renderIDToFragColor');
 
         this._debugPointsProgram = new Program(this._context, 'PointProgram');
@@ -448,8 +450,8 @@ class DatacubesRenderer extends Renderer {
         this._debugPass.enforceProgramBlit = true;
         this._debugPass.debug = DebugPass.Mode.None;
 
-        this._debugPass.framebuffer = this._preDepthFBO;
-        // this._debugPass.framebuffer = this._intermediateFBOs[1];
+        // this._debugPass.framebuffer = this._preDepthFBO;
+        this._debugPass.framebuffer = this._intermediateFBOs[1];
         this._debugPass.readBuffer = gl.COLOR_ATTACHMENT0;
 
         this._debugPass.target = this._defaultFBO;
@@ -900,7 +902,21 @@ class DatacubesRenderer extends Renderer {
 
         if (decodedId > 0) {
             const cuboidID = decodedId;
-            const datacubeID = 4294967295 - cuboidID;
+            let datacubeID = 4294967295 - cuboidID;
+            let pointIndex = undefined;
+            if (datacubeID > MAX_AMOUNT_OF_INDEXED_ELEMENTS_PER_OBJECT - 1) {
+                // return event;
+                pointIndex =
+                    datacubeID -
+                    (Math.floor((datacubeID - MAX_AMOUNT_OF_INDEXED_ELEMENTS_PER_OBJECT) / MAX_AMOUNT_OF_INDEXED_ELEMENTS_PER_OBJECT) + 1) *
+                        MAX_AMOUNT_OF_INDEXED_ELEMENTS_PER_OBJECT;
+                datacubeID = Math.floor(
+                    (datacubeID - MAX_AMOUNT_OF_INDEXED_ELEMENTS_PER_OBJECT) / MAX_AMOUNT_OF_INDEXED_ELEMENTS_PER_OBJECT,
+                );
+                // index: 4294967295 - ((datacube.id + 1) * MAX_AMOUNT_OF_INDEXED_ELEMENTS_PER_OBJECT + index),
+            }
+            // console.log(datacubeID);
+            // console.log(pointIndex);
             const matchingCuboid = this.cuboids.find((cuboid) => cuboid.id === cuboidID);
             const translateXZ = this.datacubePositions.get(datacubeID);
             let cuboidBboxHovered = undefined;
@@ -955,7 +971,7 @@ class DatacubesRenderer extends Renderer {
                     }
                 }
             }
-            (event as any).data = { datacubeID, cuboidBboxHovered };
+            (event as any).data = { datacubeID, cuboidBboxHovered, pointIndex };
         } else {
             (event as any).data = undefined;
         }
@@ -2045,19 +2061,17 @@ class DatacubesRenderer extends Renderer {
         // this._intermediateFBOs[1].clearColor([1.0, 0.0, 0.0, 1.0]);
         this._intermediateFBOs[1].clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, false, false);
 
+        // ID Buffer step 1/3: Render back-faces of cuboids containing points (or other) visual primitives, i.e., render AABB backgrounds
         if (this._cuboids.length > 0) {
             this._cuboidsProgram?.bind();
-
-            // gl.uniform2fv(this._uNdcOffsetCuboids, ndcOffset);
-
             gl.uniform1i(this._uRenderIDToFragColorCuboids, 1);
-
             gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
-            gl.cullFace(gl.BACK);
+
+            // Important: Front-face culling
+            gl.cullFace(gl.FRONT);
 
             for (const { geometry, translateY, scaleY, id, extent, points } of cuboidsSortedByCameraDistance) {
-                // TODO: Find a better way to still render the cuboid/AABB of the Point Primitive nodes to the ID buffer
-                if (points) {
+                if (points === undefined || points.length === 0) {
                     continue;
                 }
 
@@ -2101,7 +2115,6 @@ class DatacubesRenderer extends Renderer {
 
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call
                     gl.uniform4fv(this._uEncodedIdCuboids, encodedIdFloat);
-                    // console.log(id);
                 } else {
                     gl.uniform4fv(this._uEncodedIdCuboids, [0, 0, 0, 0]);
                 }
@@ -2114,10 +2127,10 @@ class DatacubesRenderer extends Renderer {
             this._cuboidsProgram?.unbind();
         }
 
-        // Render points
+        // ID Buffer step 2/3: Render points (or other visual primitives) of all cuboids containing such elements (with disabled DEPTH TEST -- TODO: necessary?)
         if (this.points && this.points.length > 0) {
             gl.disable(gl.CULL_FACE);
-            gl.enable(gl.DEPTH_TEST);
+            gl.disable(gl.DEPTH_TEST);
 
             for (const { id, pointsFrom, pointsCount, translateY, points, extent } of cuboidsSortedByCameraDistance) {
                 if (id === undefined || points === undefined || points.length === 0) {
@@ -2148,6 +2161,72 @@ class DatacubesRenderer extends Renderer {
             gl.enable(gl.DEPTH_TEST);
         }
 
+        // ID Buffer step 3/3: Render all cuboids without contained points (or other visual primitives) with regular back-face culling and DEPTH TEST enabled
+        if (this._cuboids.length > 0) {
+            this._cuboidsProgram?.bind();
+            gl.uniform1i(this._uRenderIDToFragColorCuboids, 1);
+            gl.uniformMatrix4fv(this._uViewProjectionCuboids, false, this._camera?.viewProjection);
+
+            // Important: Back-face culling
+            gl.cullFace(gl.BACK);
+
+            for (const { geometry, translateY, scaleY, id, extent, points } of cuboidsSortedByCameraDistance) {
+                if (points !== undefined && points.length > 0) {
+                    continue;
+                }
+
+                if (id === undefined) {
+                    continue;
+                }
+
+                const translateXZ = this.datacubePositions.get(4294967295 - id);
+
+                if (!translateXZ) {
+                    continue;
+                }
+
+                geometry.bind();
+
+                const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
+                const extentScale = mat4.fromScaling(
+                    mat4.create(),
+                    vec3.fromValues((extent.maxX - extent.minX) / CUBOID_SIZE_X, 1.0, (extent.maxZ - extent.minZ) / CUBOID_SIZE_Z),
+                );
+                const translate = mat4.fromTranslation(mat4.create(), [
+                    translateXZ.x + (extent.maxX + extent.minX) / 2,
+                    translateY,
+                    translateXZ.y + (extent.maxZ + extent.minZ) / 2,
+                ]);
+
+                let transform = mat4.multiply(mat4.create(), extentScale, scale);
+                transform = mat4.multiply(mat4.create(), translate, transform);
+
+                gl.uniformMatrix4fv(this._uModelCuboids, false, transform);
+
+                if (id !== undefined) {
+                    const encodedId = vec4.create();
+                    // Maximum to-be-encoded ID: 4294967295 (equals [255, 255, 255, 255])
+                    gl_matrix_extensions.encode_uint32_to_rgba8(encodedId, id);
+                    const encodedIdFloat = new Float32Array(encodedId);
+                    encodedIdFloat[0] /= 255.0;
+                    encodedIdFloat[1] /= 255.0;
+                    encodedIdFloat[2] /= 255.0;
+                    encodedIdFloat[3] /= 255.0;
+
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call
+                    gl.uniform4fv(this._uEncodedIdCuboids, encodedIdFloat);
+                } else {
+                    gl.uniform4fv(this._uEncodedIdCuboids, [0, 0, 0, 0]);
+                }
+
+                geometry.draw();
+
+                geometry.unbind();
+            }
+
+            this._cuboidsProgram?.unbind();
+        }
+
         this._intermediateFBOs[1].unbind();
 
         this._accumulate?.frame(frameNumber);
@@ -2165,6 +2244,7 @@ class DatacubesRenderer extends Renderer {
         count: number,
         modelTransform: mat4,
         renderToIdBuffer = false,
+        selectedPointIndex?: number,
     ): void {
         const gl = this._context.gl;
         this._pointsProgram?.bind();
@@ -2180,6 +2260,21 @@ class DatacubesRenderer extends Renderer {
         }
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this._pointsBuffer);
+
+        if (selectedPointIndex !== undefined) {
+            const encodedId = vec4.create();
+            // Maximum to-be-encoded ID: 4294967295 (equals [255, 255, 255, 255])
+            gl_matrix_extensions.encode_uint32_to_rgba8(encodedId, selectedPointIndex);
+            const encodedIdFloat = new Float32Array(encodedId);
+            encodedIdFloat[0] /= 255.0;
+            encodedIdFloat[1] /= 255.0;
+            encodedIdFloat[2] /= 255.0;
+            encodedIdFloat[3] /= 255.0;
+
+            gl.uniform4fv(this._uPointsSelectedPointEncodedId, encodedIdFloat);
+        } else {
+            gl.uniform4fv(this._uPointsSelectedPointEncodedId, [0, 0, 0, 0]);
+        }
 
         // refer to https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer for more information
         gl.vertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 11 * Float32Array.BYTES_PER_ELEMENT, 0);
