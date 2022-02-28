@@ -2132,7 +2132,12 @@ class DatacubesRenderer extends Renderer {
             gl.disable(gl.CULL_FACE);
             gl.disable(gl.DEPTH_TEST);
 
-            for (const { id, pointsFrom, pointsCount, translateY, points, extent } of cuboidsSortedByCameraDistance) {
+            for (const { id, pointsFrom, pointsCount, translateY, points, extent, isSelected } of cuboidsSortedByCameraDistance) {
+                // Only render object IDs of sub-objects of currently selected (i.e., hovered-over) objects
+                if (!isSelected) {
+                    continue;
+                }
+
                 if (id === undefined || points === undefined || points.length === 0) {
                     continue;
                 }
