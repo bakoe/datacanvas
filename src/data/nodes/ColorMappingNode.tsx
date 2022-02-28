@@ -1,7 +1,7 @@
 import { FC, memo, useEffect, useState } from 'react';
 import { Connection, Edge, Handle, Node, Position } from 'react-flow-renderer/nocss';
 
-import { Column as CSVColumn } from '@lukaswagner/csv-parser';
+import { Column as CSVColumn, StringColumn } from '@lukaswagner/csv-parser';
 
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
@@ -9,6 +9,7 @@ import { NodeTypes } from './enums/NodeTypes';
 import { ColorScale } from 'webgl-operate';
 import EditableColorGradient, { ColorPalette } from './util/EditableColorGradient';
 import { serializeColumnInfo } from './util/serializeColumnInfo';
+import { getDistinctValuesInStringColumn } from './DatasetNode';
 
 export function isColorMappingNode(node: Node<unknown>): node is Node<ColorMappingNodeData> {
     return node.type === NodeTypes.ColorMapping;
@@ -113,20 +114,13 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                 const extendedColorPalette = [] as ColorPalette;
                 for (let stopIndex = 0; stopIndex < colorPalette.length; stopIndex++) {
                     const stop = colorPalette[stopIndex];
-                    if (stopIndex !== 0 && stopIndex !== colorPalette.length - 1) {
-                        // For all non-start and non-end elements, add one element before and one after the stop
-                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) - 0.5 / (colorScale.length - 1) + 1e-5}` });
-                        extendedColorPalette.push(stop);
-                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) + 0.5 / (colorScale.length - 1) - 1e-5}` });
-                    } else if (stopIndex === 0) {
-                        // For the start element, add only one element after it
-                        extendedColorPalette.push(stop);
-                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) + 0.5 / (colorScale.length - 1) - 1e-5}` });
-                    } else if (stopIndex === colorPalette.length - 1) {
-                        // For the end element, add only one element before it
-                        extendedColorPalette.push({ ...stop, offset: `${parseFloat(stop.offset) - 0.5 / (colorScale.length - 1) + 1e-5}` });
-                        extendedColorPalette.push(stop);
-                    }
+                    const correctedStopOffset = (parseFloat(stop.offset) - 0.5) * ((colorScale.length - 1) / colorScale.length) + 0.5;
+                    extendedColorPalette.push({ ...stop, offset: `${correctedStopOffset - 0.5 / colorScale.length + 1e-5}` });
+                    extendedColorPalette.push({
+                        ...stop,
+                        offset: `${correctedStopOffset}`,
+                    });
+                    extendedColorPalette.push({ ...stop, offset: `${correctedStopOffset + 0.5 / colorScale.length - 1e-5}` });
                 }
                 colorPalette = extendedColorPalette;
             }
@@ -142,7 +136,11 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
             onChangeState({
                 isPending: false,
             });
+            return;
         }
+        onChangeState({
+            isPending: true,
+        });
     }, [serializeColumnInfo(column), JSON.stringify(colorPalette)]);
 
     const availableColorScaleTypes = availableColorScales.reduce(
@@ -167,6 +165,20 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
             });
         }
     }, [JSON.stringify(availableColorScalePresets)]);
+
+    useEffect(() => {
+        if (column?.type === 'string') {
+            const distinctValuesInStringColumn = getDistinctValuesInStringColumn(column as StringColumn);
+            if (distinctValuesInStringColumn.length <= 20) {
+                onChangeState({
+                    colorScaleConfig: {
+                        type: 'qualitative',
+                    },
+                    numberOfStops: distinctValuesInStringColumn.length,
+                });
+            }
+        }
+    }, [column?.type]);
 
     return (
         <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-mapping`}>
@@ -263,6 +275,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                                             numberOfStops: event.target.valueAsNumber,
                                         });
                                     }}
+                                    disabled={column?.type === 'string'}
                                     type="number"
                                     min="1"
                                     max="32"

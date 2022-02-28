@@ -50,12 +50,13 @@ import { DatacubeInformation } from './DatacubesVisualization';
 import { Observable, Subject } from 'rxjs';
 import anime, { AnimeInstance } from 'animejs';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
-import { DateColumn, NumberColumn } from '@lukaswagner/csv-parser';
+import { DateColumn, NumberColumn, StringColumn } from '@lukaswagner/csv-parser';
 import { getColorForNormalizedValue } from '../data/nodes/util/getColorForNormalizedValue';
 import { Passes } from './Passes';
 
 import { LabelSet } from './label/LabelPass';
 import { GLfloat2 } from 'webgl-operate/lib/tuples';
+import { getDistinctValuesInStringColumn } from '../data/nodes/DatasetNode';
 
 /* spellchecker: enable */
 
@@ -1021,10 +1022,17 @@ class DatacubesRenderer extends Renderer {
 
                     let minColorValue: number;
                     let maxColorValue: number;
+                    let distinctValuesInStringColumn = undefined;
 
                     if (datacube.colors && datacube.colors.column.length === datacube.xColumn.length) {
-                        minColorValue = (datacube.colors.column as NumberColumn).min;
-                        maxColorValue = (datacube.colors.column as NumberColumn).max;
+                        if (datacube.colors.column.type === 'number') {
+                            minColorValue = (datacube.colors.column as NumberColumn).min;
+                            maxColorValue = (datacube.colors.column as NumberColumn).max;
+                        } else {
+                            distinctValuesInStringColumn = getDistinctValuesInStringColumn(datacube.colors.column as StringColumn);
+                            minColorValue = 0;
+                            maxColorValue = distinctValuesInStringColumn.length - 1;
+                        }
                     }
 
                     for (let index = 0; index < datacube.xColumn.length; index++) {
@@ -1032,11 +1040,21 @@ class DatacubesRenderer extends Renderer {
                         const y = (datacube.yColumn?.get(index) as number) ?? 0;
                         const z = (datacube.zColumn?.get(index) as number) ?? 1;
                         const size = datacube.sizeColumn ? (datacube.sizeColumn.get(index) as number) : undefined;
-                        const colorValue = datacube.colors?.column ? (datacube.colors.column.get(index) as number) : undefined;
+                        const colorValue = datacube.colors?.column
+                            ? datacube.colors.column.type === 'number'
+                                ? (datacube.colors.column.get(index) as number)
+                                : datacube.colors.column.type === 'string'
+                                ? distinctValuesInStringColumn!.indexOf(datacube.colors.column.get(index) as string)
+                                : undefined
+                            : undefined;
 
                         let colorIsInvalid = false;
 
-                        if (datacube.colors?.column && isNaN(datacube.colors.column.get(index) as number)) {
+                        if (
+                            datacube.colors?.column &&
+                            datacube.colors.column.type === 'number' &&
+                            isNaN(datacube.colors.column.get(index) as number)
+                        ) {
                             colorIsInvalid = true;
                         }
 
@@ -1056,11 +1074,11 @@ class DatacubesRenderer extends Renderer {
                         }
 
                         if (colorIsInvalid) {
+                            // Comment-out the following to set the color of NaN points to the INVALID_COLOR (red)
                             continue;
-                            // Comment-in the following to set the color of NaN points to the INVALID_COLOR (red)
-                            // r = 0.92156863;
-                            // g = 0.22745098;
-                            // b = 0.22745098;
+                            r = 0.92156863;
+                            g = 0.22745098;
+                            b = 0.22745098;
                         }
 
                         points.push({
