@@ -141,7 +141,6 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     if ((event as any).data !== undefined && (event as any).data.pointIndex !== undefined) {
                         setPointIndexSelectedFromWebGL((event as any).data.pointIndex);
                     } else {
-                        setNodeIdSelectedFromWebGL(undefined);
                         setPointIndexSelectedFromWebGL(undefined);
                     }
 
