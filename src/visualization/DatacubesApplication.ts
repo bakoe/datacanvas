@@ -24,7 +24,6 @@ import {
     Renderbuffer,
     ReadbackPass,
     gl_matrix_extensions,
-    DebugPass,
     vec4,
     vec2,
     ray_math,
@@ -57,6 +56,7 @@ import { Passes } from './Passes';
 import { LabelSet } from './label/LabelPass';
 import { GLfloat2 } from 'webgl-operate/lib/tuples';
 import { getDistinctValuesInStringColumn } from '../data/nodes/DatasetNode';
+import { DebugPassSupportingIDBuffer } from './webgl-operate-extensions/DebugPassSupportingIDBuffer';
 
 /* spellchecker: enable */
 
@@ -212,7 +212,7 @@ class DatacubesRenderer extends Renderer {
     protected _uDepthHideFromDepthBuffer: WebGLUniformLocation | undefined;
 
     // Debug pass
-    protected _debugPass: DebugPass | undefined;
+    protected _debugPass: DebugPassSupportingIDBuffer | undefined;
 
     protected _points: Float32Array | undefined; // x, y, z, r, g, b, data=size
     protected _pointsBuffer: any;
@@ -444,11 +444,11 @@ class DatacubesRenderer extends Renderer {
         this._cuboidsProgram.unbind();
 
         /* Create and configure debug pass */
-        this._debugPass = new DebugPass(this._context);
+        this._debugPass = new DebugPassSupportingIDBuffer(this._context);
         this._debugPass.initialize();
 
         this._debugPass.enforceProgramBlit = true;
-        this._debugPass.debug = DebugPass.Mode.None;
+        this._debugPass.debug = DebugPassSupportingIDBuffer.Mode.IDBuffer;
 
         // this._debugPass.framebuffer = this._preDepthFBO;
         this._debugPass.framebuffer = this._intermediateFBOs[1];

@@ -45,9 +45,7 @@ void main(void)
     }
 
     else if (u_mode == 5) {   /* IDBuffer */
-        // source.rgb = vec3(0.0, 1.0, 0.0);
-        source.g = 0.0;
-        source.b = 0.0;
+        source.a = 1.0;
     }
 
     source.rgb *= source.a;
