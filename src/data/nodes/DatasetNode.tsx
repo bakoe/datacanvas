@@ -65,6 +65,7 @@ export interface DatasetNodeState {
     isLoading?: boolean;
     googleSheetsUri?: string;
     forceRefreshGoogleSheets?: boolean;
+    delimiter?: string;
 }
 
 export const defaultState = { isLoading: true } as DatasetNodeState;
@@ -195,6 +196,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
 
                 const loader = new CSV<string>({
                     includesHeader: true,
+                    delimiter: state?.delimiter || undefined,
                 });
 
                 loader.addDataSource(fileId, file);
@@ -217,7 +219,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                     download: true,
                     header: true,
                     dynamicTyping: true,
-                    delimiter: ',',
+                    delimiter: state?.delimiter || ',',
                     skipEmptyLines: true,
                     complete: (data) => {
                         // https://stackoverflow.com/a/9436948
@@ -285,7 +287,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         if (data.file) {
             readColumnsFromCSVFile(data.file);
         }
-    }, [data.file]);
+    }, [data.file, state?.delimiter]);
 
     const { isLoading, columnHeaders, columns } = { ...defaultState, ...data.state };
 
@@ -405,6 +407,34 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                                                 });
                                             }}
                                         />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            )}
+
+            {data.type !== 'google-sheets' && columnHeaders?.length === 1 && (
+                <>
+                    <hr className="divider" />
+                    <div className="nodrag">
+                        <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <label htmlFor="delimiter">Delimiter:</label>
+                                    </td>
+                                    <td>
+                                        <input
+                                            id="delimiter"
+                                            type="text"
+                                            defaultValue={state?.delimiter}
+                                            onChange={(event) => {
+                                                const updatedDelimiter = event.target.value;
+                                                onChangeState({ delimiter: updatedDelimiter });
+                                            }}
+                                        ></input>
                                     </td>
                                 </tr>
                             </tbody>
