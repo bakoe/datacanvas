@@ -238,7 +238,7 @@ const BasicFlow = () => {
             type: NodeTypes.FixedText,
             id: '-4',
             data: {
-                text: '1: Input',
+                text: '1: Data Sources',
                 align: 'left',
             },
             selectable: false,
