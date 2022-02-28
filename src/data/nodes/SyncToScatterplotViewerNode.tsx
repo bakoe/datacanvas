@@ -1,7 +1,7 @@
-import { FC, memo, useCallback, useEffect, useState } from 'react';
+import { CSSProperties, FC, memo, useCallback, useEffect, useState } from 'react';
 import { Connection, Handle, Node, Position } from 'react-flow-renderer/nocss';
 
-import { ColorChunk, ColorColumn, Column as CSVColumn, NumberColumn } from '@lukaswagner/csv-parser';
+import { AnyChunk, buildChunk, buildColumn, ColorChunk, ColorColumn, Column as CSVColumn, NumberColumn } from '@lukaswagner/csv-parser';
 
 import { NodeWithStateProps } from '../BasicFlow';
 import { Datatypes } from './enums/Datatypes';
@@ -10,6 +10,11 @@ import { serializeColumnInfo } from './util/serializeColumnInfo';
 import { ColorPalette } from './util/EditableColorGradient';
 import { DataSource } from '@lukaswagner/csv-parser/lib/types/types/dataSource';
 import { getColorForNormalizedValue } from './util/getColorForNormalizedValue';
+import { Collapse } from 'react-collapse';
+import CollapsibleHandle from './util/CollapsibleHandle';
+import { prettyPrintDataType } from './util/prettyPrintDataType';
+
+const nodeStyleOverrides: CSSProperties = { width: '250px' };
 
 export function isSyncToScatterplotViewerNode(node: Node<unknown>): node is Node<SyncToScatterplotViewerNodeData> {
     return node.type === NodeTypes.SyncToScatterplotViewer;
@@ -23,12 +28,20 @@ export enum SyncToScatterplotViewerNodeTargetHandles {
     Color = 'color (optional)',
 }
 
+export enum SyncToScatterplotViewerNodeSourceHandles {
+    FilteredDataset = 'Filtered data',
+}
+
 export const SyncToScatterplotViewerNodeTargetHandlesDatatypes: Map<SyncToScatterplotViewerNodeTargetHandles, Datatypes> = new Map([
     [SyncToScatterplotViewerNodeTargetHandles.X, Datatypes.Column],
     [SyncToScatterplotViewerNodeTargetHandles.Y, Datatypes.Column],
     [SyncToScatterplotViewerNodeTargetHandles.Z, Datatypes.Column],
     [SyncToScatterplotViewerNodeTargetHandles.Size, Datatypes.Column],
     [SyncToScatterplotViewerNodeTargetHandles.Color, Datatypes.Color],
+]);
+
+export const SyncToScatterplotViewerNodeSourceHandlesDatatypes: Map<SyncToScatterplotViewerNodeSourceHandles, Datatypes> = new Map([
+    [SyncToScatterplotViewerNodeSourceHandles.FilteredDataset, Datatypes.Dataset],
 ]);
 
 export interface SyncToScatterplotViewerNodeState {
@@ -41,6 +54,9 @@ export interface SyncToScatterplotViewerNodeState {
         column: CSVColumn;
         colorPalette: ColorPalette;
     };
+    filteringMaskUint8?: number[];
+    filteredColumns?: CSVColumn[];
+    filteredColorColumn?: CSVColumn;
 }
 
 export const defaultState = { isPending: true } as SyncToScatterplotViewerNodeState;
@@ -63,10 +79,16 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
         zColumn = defaultState.zColumn,
         sizeColumn = defaultState.sizeColumn,
         colors = defaultState.colors,
+        filteringMaskUint8 = defaultState.filteringMaskUint8,
+        filteredColumns = defaultState.filteredColumns,
+        filteredColorColumn = defaultState.filteredColorColumn,
     } = { ...defaultState, ...state };
 
     const [childWindow, setChildWindow] = useState(null as Window | null);
     const [childWindowIsReady, setChildWindowIsReady] = useState(false);
+
+    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
 
     const onChildWindowClose = useCallback(() => {
         // TODO: Prevent automatic re-opening of closed tabs/windows on closing them (due to childWindowIsReady being changed)
@@ -82,6 +104,70 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
     };
 
     useEffect(() => {
+        if (!filteringMaskUint8) {
+            return;
+        }
+
+        const indices = [];
+        for (let index = 0; index < filteringMaskUint8.length; index++) {
+            if (filteringMaskUint8[index] === 1) {
+                indices.push(index);
+            }
+        }
+
+        const filterColumns = (columns: CSVColumn[], indices: number[]): CSVColumn[] => {
+            const orig = columns;
+            const chunks = orig.map((column) => {
+                return buildChunk(column.type, indices.length, 0) as AnyChunk;
+            });
+            for (let index = 0; index < indices.length; index++) {
+                chunks.forEach((chunk, columnIndex) => {
+                    chunk.set(index, orig[columnIndex].get(indices[index]) as never);
+                });
+            }
+            const filtered = orig.map((column, columnIndex) => {
+                const filteredColumn = buildColumn(column.name, column.type);
+                filteredColumn.push(chunks[columnIndex]);
+                return filteredColumn;
+            });
+
+            return filtered;
+        };
+
+        let filteredColorColumn;
+        const columnsToBeFiltered = [];
+        if (xColumn) {
+            columnsToBeFiltered.push(xColumn);
+        }
+        if (yColumn) {
+            columnsToBeFiltered.push(yColumn);
+        }
+        if (zColumn) {
+            columnsToBeFiltered.push(zColumn);
+        }
+        if (sizeColumn) {
+            columnsToBeFiltered.push(sizeColumn);
+        }
+        if (colors && colors.column) {
+            filteredColorColumn = filterColumns([colors.column], indices)[0];
+        }
+
+        const filteredColumns = filterColumns(columnsToBeFiltered, indices);
+
+        onChangeState({
+            filteredColumns,
+            filteredColorColumn,
+        });
+    }, [
+        filteringMaskUint8,
+        serializeColumnInfo(xColumn),
+        serializeColumnInfo(yColumn),
+        serializeColumnInfo(zColumn),
+        serializeColumnInfo(sizeColumn),
+        colors ? `${serializeColumnInfo(colors.column)}_${JSON.stringify(colors.colorPalette)}` : 'undefined',
+    ]);
+
+    useEffect(() => {
         const initializeWindow = () => {
             let child = childWindow;
             console.log(child);
@@ -95,6 +181,12 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
                             child?.focus();
                             setChildWindowIsReady(true);
                             child?.addEventListener('beforeunload', onChildWindowClose);
+                        }
+                        if (msg.data.type === 'filter') {
+                            const booleanMaskUint8 = msg.data.data;
+                            onChangeState({
+                                filteringMaskUint8: booleanMaskUint8,
+                            });
                         }
                     });
                 }
@@ -194,8 +286,87 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
         childWindowIsReady,
     ]);
 
+    const previousElementsHeights = [] as number[];
+    for (let index = 0; index < collapsibleHandlesHeights.length; index++) {
+        let sumOfPrevElementsHeight = 0;
+        for (let prevIndex = 0; prevIndex < index; prevIndex++) {
+            sumOfPrevElementsHeight += collapsibleHandlesHeights[prevIndex];
+        }
+        previousElementsHeights[index] = sumOfPrevElementsHeight;
+    }
+
+    const collapsibleHandles = filteredColumns
+        ? filteredColumns
+              .map((column: CSVColumn, index: number) => {
+                  const minMaxString =
+                      column?.type === 'number'
+                          ? `↓ ${(column as NumberColumn)?.min.toLocaleString()} ↑ ${(column as NumberColumn)?.max.toLocaleString()}`
+                          : undefined;
+
+                  return (
+                      <CollapsibleHandle
+                          key={column.name}
+                          handleElement={
+                              <Handle
+                                  type="source"
+                                  position={Position.Right}
+                                  id={column.name}
+                                  className="source-handle"
+                                  isConnectable={isConnectable}
+                                  isValidConnection={isValidConnection}
+                              ></Handle>
+                          }
+                          onElementHeightChange={(height) => {
+                              collapsibleHandlesHeights[index] = height;
+                              setCollapsibleHandlesHeights(collapsibleHandlesHeights);
+                          }}
+                          previousElementsHeight={previousElementsHeights[index]}
+                          isCollapsed={isCollapsed}
+                      >
+                          <span className="source-handle-label" title={column.name}>
+                              {column.name}
+                              <br />
+                              <small>
+                                  <strong>{column && column.length}</strong> {prettyPrintDataType(column.type)} {minMaxString}
+                              </small>
+                          </span>
+                      </CollapsibleHandle>
+                  );
+              })
+              .concat(
+                  filteredColorColumn ? (
+                      <CollapsibleHandle
+                          key={`${filteredColorColumn.name}_name`}
+                          handleElement={
+                              <Handle
+                                  type="source"
+                                  position={Position.Right}
+                                  id={`${filteredColorColumn.name}_name`}
+                                  className="source-handle"
+                                  isConnectable={isConnectable}
+                                  isValidConnection={isValidConnection}
+                              ></Handle>
+                          }
+                          onElementHeightChange={(height) => {
+                              collapsibleHandlesHeights[filteredColorColumn.length] = height;
+                              setCollapsibleHandlesHeights(collapsibleHandlesHeights);
+                          }}
+                          previousElementsHeight={previousElementsHeights[filteredColorColumn.length]}
+                          isCollapsed={isCollapsed}
+                      >
+                          <span className="source-handle-label" title={filteredColorColumn.name}>
+                              Color: {filteredColorColumn.name}
+                          </span>
+                      </CollapsibleHandle>
+                  ) : undefined,
+              )
+        : [];
+
     return (
-        <div className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-rendering`}>
+        <div
+            style={nodeStyleOverrides}
+            className={`react-flow__node-default node ${selected && 'selected'} ${isPending && 'pending'} category-rendering`}
+        >
             <div className="title-wrapper">
                 <div className="title">
                     <a
@@ -236,6 +407,38 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
                     </div>
                 );
             })}
+
+            <hr className="divider" />
+
+            <div className="handle-wrapper">
+                <Handle
+                    type="source"
+                    position={Position.Right}
+                    id={SyncToScatterplotViewerNodeSourceHandles.FilteredDataset}
+                    className="source-handle handle-dataset"
+                    isConnectable={isConnectable}
+                    isValidConnection={isValidConnection}
+                ></Handle>
+                <span className="source-handle-label">
+                    {filteredColumns ? (
+                        <a
+                            className="nodrag link"
+                            onClick={() => {
+                                setIsCollapsed(!isCollapsed);
+                            }}
+                        >
+                            <strong>
+                                {filteredColumns && filteredColumns[0] ? `${filteredColumns[0].length} Rows | ` : ''}
+                                {filteredColumns?.length + (filteredColorColumn ? 1 : 0)}&nbsp;Columns
+                            </strong>{' '}
+                            {isCollapsed ? '↓' : '↑'}
+                        </a>
+                    ) : (
+                        'Filtered data'
+                    )}
+                </span>
+            </div>
+            {filteredColumns && <Collapse isOpened={!isCollapsed}>{collapsibleHandles}</Collapse>}
         </div>
     );
 };

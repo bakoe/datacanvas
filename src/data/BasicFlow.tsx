@@ -69,6 +69,20 @@ const findSourceColumn = (sourceNode: Node<any>, params: Edge<any> | Connection)
                 (column) => column.name === params.sourceHandle,
             );
             break;
+        case NodeTypes.SyncToScatterplotViewer:
+            // TODO: Find a cleaner solution here, e.g., taking the Datatypes.Color enum value into account
+            if (params.targetHandle?.includes('color')) {
+                sourceColumn = {
+                    column: (sourceNode as Node<SyncToScatterplotViewerNodeData>).data.state?.filteredColorColumn,
+                    colorPalette: (sourceNode as Node<SyncToScatterplotViewerNodeData>).data.state?.colors?.colorPalette,
+                };
+            } else {
+                sourceColumn = (sourceNode as Node<SyncToScatterplotViewerNodeData>).data.state?.filteredColumns?.find(
+                    (column) => column.name === params.sourceHandle,
+                );
+            }
+
+            break;
         case NodeTypes.ColorMapping:
             sourceColumn = {
                 column: (sourceNode as Node<ColorMappingNodeData>).data.state?.column,
@@ -345,7 +359,7 @@ const BasicFlow = () => {
                 onDeleteNode: () => deleteNode('3'),
                 isValidConnection,
             },
-            position: { x: 800, y: 240 },
+            position: { x: 800, y: 300 },
         } as Node<PointPrimitiveNodeData>,
     ];
 
