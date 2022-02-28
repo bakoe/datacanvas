@@ -36,7 +36,7 @@ void main()
     gl_Position = vertex;
     if (u_renderIDToFragColor)
     {
-        gl_PointSize = 10.0 * a_data;
+        gl_PointSize = a_data;
     }
     else
     {
