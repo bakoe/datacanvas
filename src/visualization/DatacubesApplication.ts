@@ -74,6 +74,18 @@ const CUBOID_SIZE_X = 0.5;
 const CUBOID_SIZE_Y = 1.0;
 const CUBOID_SIZE_Z = 0.5;
 
+// https://animejs.com/documentation/#springPhysicsEasing
+const ANIME_JS_SPRING_PARAMS = {
+    // default: 1, min: 0, max: 100
+    mass: 1,
+    // default: 100, min: 0, max: 100
+    stiffness: 80,
+    // default: 10, min: 10, max: 100
+    damping: 80,
+    // default: 0, min: 0, max: 100
+    velocity: 0,
+};
+
 const DEBUG_SHOW_POINTS_ON_INTERACTION = false;
 const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
 
@@ -156,6 +168,7 @@ class DatacubesRenderer extends Renderer {
     protected _uModelCuboids: WebGLUniformLocation | undefined;
 
     protected _camera: Camera | undefined;
+    protected _cameraRunningAnimeJSAnimation: AnimeInstance | undefined;
     protected _navigation: PausableNavigation | undefined;
 
     // Multi-frame rendering
@@ -1156,18 +1169,6 @@ class DatacubesRenderer extends Renderer {
                     to.colorLAB1 = parseFloat(to.colorLAB1.toFixed(0));
                     to.colorLAB2 = parseFloat(to.colorLAB2.toFixed(0));
 
-                    // https://animejs.com/documentation/#springPhysicsEasing
-                    const springParams = {
-                        // default: 1, min: 0, max: 100
-                        mass: 1,
-                        // default: 100, min: 0, max: 100
-                        stiffness: 80,
-                        // default: 10, min: 10, max: 100
-                        damping: 80,
-                        // default: 0, min: 0, max: 100
-                        velocity: 0,
-                    };
-
                     const changedSignificantly = (fromLocal: any, toLocal: any) => {
                         return (
                             Math.abs(fromLocal.translateY - toLocal.translateY) > 1.0 ||
@@ -1191,7 +1192,7 @@ class DatacubesRenderer extends Renderer {
                             colorLAB1: to.colorLAB1,
                             colorLAB2: to.colorLAB2,
                             round: 1,
-                            easing: `spring(${springParams.mass}, ${springParams.stiffness}, ${springParams.damping}, ${springParams.velocity})`,
+                            easing: `spring(${ANIME_JS_SPRING_PARAMS.mass}, ${ANIME_JS_SPRING_PARAMS.stiffness}, ${ANIME_JS_SPRING_PARAMS.damping}, ${ANIME_JS_SPRING_PARAMS.velocity})`,
                             update: () => {
                                 const translateY = from.translateY / 1000;
                                 const scaleY = from.scaleY / 1000;
@@ -2224,6 +2225,59 @@ class DatacubesRenderer extends Renderer {
         }
 
         updatedDatacubes = updatedDatacubes.filter((datacube) => datacubesNotDeleted.includes(datacube.id));
+
+        const focusedDatacube = updatedDatacubes.find((datacube) => datacube.isFocused === true);
+        if (focusedDatacube && this._camera && this.datacubePositions.get(focusedDatacube.id)) {
+            if (this._cameraRunningAnimeJSAnimation !== undefined) {
+                this._cameraRunningAnimeJSAnimation.pause();
+                this._cameraRunningAnimeJSAnimation = undefined;
+            }
+
+            const datacubePosition = this.datacubePositions.get(focusedDatacube.id) as XYPosition;
+
+            const from = {
+                centerX: this._camera.center[0] * 1000,
+                centerY: this._camera.center[1] * 1000,
+                centerZ: this._camera.center[2] * 1000,
+                upX: this._camera.up[0] * 1000,
+                upY: this._camera.up[1] * 1000,
+                upZ: this._camera.up[2] * 1000,
+            };
+
+            this._cameraRunningAnimeJSAnimation = anime({
+                targets: from,
+                centerX: datacubePosition.x * 1000,
+                centerY: this._camera.center[1] * 1000,
+                centerZ: datacubePosition.y * 1000,
+                upX: 0.0 * 1000,
+                upY: 1.0 * 1000,
+                upZ: 0.0 * 1000,
+                round: 1,
+                easing: `spring(${ANIME_JS_SPRING_PARAMS.mass}, ${ANIME_JS_SPRING_PARAMS.stiffness}, ${ANIME_JS_SPRING_PARAMS.damping}, ${ANIME_JS_SPRING_PARAMS.velocity})`,
+                update: () => {
+                    if (!this._cameraRunningAnimeJSAnimation) {
+                        return;
+                    }
+
+                    const centerX = from.centerX / 1000;
+                    const centerY = from.centerY / 1000;
+                    const centerZ = from.centerZ / 1000;
+                    const upX = from.upX / 1000;
+                    const upY = from.upY / 1000;
+                    const upZ = from.upZ / 1000;
+
+                    if (this._camera) {
+                        this._camera.center = vec3.fromValues(centerX, centerY, centerZ);
+                        this._camera.up = vec3.fromValues(upX, upY, upZ);
+                    }
+
+                    this._invalidate(true);
+                },
+                complete: () => {
+                    this._cameraRunningAnimeJSAnimation = undefined;
+                },
+            });
+        }
 
         this._datacubes = updatedDatacubes;
         this._altered.alter('datacubes');

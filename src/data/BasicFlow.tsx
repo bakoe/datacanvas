@@ -1021,6 +1021,20 @@ const BasicFlow = () => {
             onNodeDragStop={onNodeDragStop}
             className="react-flow-basic-example"
             defaultZoom={1.5}
+            onNodeDoubleClick={(_event, doubleClickedNode) => {
+                setNodes((nodes) =>
+                    nodes.map((node) =>
+                        node.id === doubleClickedNode.id
+                            ? { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: true } } }
+                            : { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: false } } },
+                    ),
+                );
+                setTimeout(() => {
+                    setNodes((nodes) =>
+                        nodes.map((node) => ({ ...node, data: { ...node.data, state: { ...node.data.state, isFocused: false } } })),
+                    );
+                }, 100);
+            }}
             onPaneContextMenu={onContextMenuOpen}
             onPointerDown={(event) => {
                 setPointerDownStartPosition(vec2.fromValues(event.clientX, event.clientY));

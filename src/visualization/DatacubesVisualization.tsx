@@ -38,6 +38,7 @@ export interface DatacubeInformation {
     isPending?: boolean;
     isErroneous?: boolean;
     isSelected?: boolean;
+    isFocused?: boolean;
     xColumn?: CSVColumn;
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
@@ -316,6 +317,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     type: node.type,
                     isErroneous,
                     isPending,
+                    isFocused: node.data?.state?.isFocused ?? false,
                     xColumn,
                     yColumn,
                     zColumn,
@@ -347,6 +349,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 type: nodeInfo.type,
                 isErroneous: nodeInfo.isErroneous,
                 isPending: nodeInfo.isPending,
+                isFocused: nodeInfo.isFocused,
                 xColumn: serializeColumnInfo(nodeInfo.xColumn),
                 yColumn: serializeColumnInfo(nodeInfo.yColumn),
                 zColumn: serializeColumnInfo(nodeInfo.zColumn),
