@@ -1,4 +1,3 @@
-import { DateTime } from 'luxon';
 import { MouseEvent, useMemo, useState, DragEvent, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -22,7 +21,9 @@ import ReactFlow, {
 } from 'react-flow-renderer/nocss';
 import ColorMappingNode, {
     ColorMappingNodeData,
+    ColorMappingNodeSourceHandles,
     ColorMappingNodeState,
+    ColorMappingNodeTargetHandles,
     defaultState as ColorMappingNodeDefaultState,
 } from './nodes/ColorMappingNode';
 
@@ -38,6 +39,7 @@ import DateFilterNode, {
     DateFilterNodeData,
     DateFilterNodeState,
     defaultState as DateFilterNodeDefaultState,
+    guessDateColumn,
 } from './nodes/DateFilterNode';
 import { NodeTypes } from './nodes/enums/NodeTypes';
 import PointPrimitiveNode, {
@@ -223,6 +225,11 @@ const getValidXPositionRangeByNodeType = (nodeType: NodeTypes): [number, number]
     }
 };
 
+const getNextXYPositionForNodeType = (nodeType: NodeTypes): XYPosition => {
+    // TODO: Implement, based on either nodeInternals or useState-kept look-up table
+    return { x: 100, y: 100 } as XYPosition;
+};
+
 const clampXYPositionByNodeType = (xyPosition: XYPosition, nodeType: NodeTypes): XYPosition => {
     const [minX, maxX] = getValidXPositionRangeByNodeType(nodeType);
     return {
@@ -304,63 +311,6 @@ const BasicFlow = () => {
                 y: 0,
             },
         } as Node<FixedTextNodeData>,
-        {
-            type: NodeTypes.DateFilter,
-            id: '0',
-            data: {
-                state: {
-                    ...DateFilterNodeDefaultState,
-                    from: undefined,
-                    to: undefined,
-                },
-                onChangeState: (newState) => updateNodeState('0', newState),
-                onDeleteNode: () => deleteNode('0'),
-                isValidConnection,
-            },
-            position: { x: 300, y: 60 },
-        } as Node<DateFilterNodeData>,
-
-        {
-            type: NodeTypes.ColorMapping,
-            id: '1',
-            data: {
-                state: {
-                    ...ColorMappingNodeDefaultState,
-                },
-                onChangeState: (newState) => updateNodeState('1', newState),
-                onDeleteNode: () => deleteNode('1'),
-                isValidConnection,
-            },
-            position: { x: 600, y: 60 },
-        } as Node<ColorMappingNodeData>,
-
-        {
-            type: NodeTypes.SyncToScatterplotViewer,
-            id: '2',
-            data: {
-                state: {
-                    ...SyncToScatterplotViewerNodeDefaultState,
-                },
-                onChangeState: (newState) => updateNodeState('2', newState),
-                onDeleteNode: () => deleteNode('2'),
-                isValidConnection,
-            },
-            position: { x: 800, y: 60 },
-        } as Node<SyncToScatterplotViewerNodeData>,
-
-        {
-            type: NodeTypes.PointPrimitive,
-            id: '3',
-            data: {
-                state: {
-                    ...PointPrimitiveNodeDefaultState,
-                },
-                onChangeState: (newState) => updateNodeState('3', newState),
-                onDeleteNode: () => deleteNode('3'),
-                isValidConnection,
-            },
-            position: { x: 800, y: 300 },
-        } as Node<PointPrimitiveNodeData>,
     ];
 
     const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance>();
@@ -392,6 +342,7 @@ const BasicFlow = () => {
         const { nodeInternals, setNodes } = store.getState();
         const nodes = Array.from(nodeInternals.values());
         const nextNodes = typeof payload === 'function' ? payload(nodes) : payload;
+
         setNodes(nextNodes);
     }, []);
 
@@ -504,8 +455,196 @@ const BasicFlow = () => {
             }
             return node;
         });
+        const newlyInitializedDatasetNodes = updatedNodes.filter(
+            (node) =>
+                // Dataset node that ...
+                node.type === NodeTypes.Dataset &&
+                // // ... previously had no columns yet ...
+                // (nodeInternals.get(node.id)?.data as DatasetNodeData).state?.columns === undefined &&
+                // // ... and now got its columns set (i.e., has successfully loaded data)
+                // (node.data as DatasetNodeData).state?.columns !== undefined &&
+                // ((node.data as DatasetNodeData).state?.columns as CSVColumn[]).length > 0,
+                // ... previously was loading ...
+                (nodeInternals.get(node.id)?.data as DatasetNodeData).state?.isLoading === true &&
+                // ... and now is not loading anymore
+                (node.data as DatasetNodeData).state?.isLoading === false,
+        );
         setNodes(updatedNodes);
         propagateNodeChanges(nodeId);
+        if (newlyInitializedDatasetNodes.length > 0) {
+            for (const newlyInitializedDatasetNode of newlyInitializedDatasetNodes) {
+                autoCreateFlowForDatasetNode(newlyInitializedDatasetNode);
+            }
+        }
+    };
+
+    const autoCreateFlowForDatasetNode = (node: Node<DatasetNodeData>): void => {
+        // const addedNodes = [] as Node<any>[];
+        let dateFilterNode = undefined as Node<DateFilterNodeData> | undefined;
+        let pointPrimitiveNode = undefined as Node<PointPrimitiveNodeData> | undefined;
+        let colorMappingNode = undefined as Node<ColorMappingNodeData> | undefined;
+        const addedConnections = [] as Connection[];
+
+        const potentialDateColumnName =
+            node.data.state!.columnHeaders!.find((columnHeader) => columnHeader.type === 'date')?.name ||
+            guessDateColumn(node.data.state!.columnHeaders!);
+        if (potentialDateColumnName !== undefined) {
+            const nodeId = getId();
+            const nodeData = {
+                state: {
+                    ...DateFilterNodeDefaultState,
+                    from: undefined,
+                    to: undefined,
+                },
+                onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                onDeleteNode: () => deleteNode(`${nodeId}`),
+                isValidConnection,
+            } as DateFilterNodeData;
+            id++;
+            // const xyPosition = getNextXYPositionForNodeType(NodeTypes.DateFilter);
+            const xyPosition = node.position;
+            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.DateFilter);
+            dateFilterNode = {
+                type: NodeTypes.DateFilter,
+                id: `${nodeId}`,
+                position: clampedPosition,
+                data: nodeData,
+            };
+            addedConnections.push({
+                source: node.id,
+                target: `${nodeId}`,
+                // TODO: Extract and use enum entries here and in DatasetNode.tsx and DateFilterNode.tsx (instead of magic strings)
+                sourceHandle: 'dataset',
+                targetHandle: 'x',
+            });
+        }
+
+        if (dateFilterNode !== undefined) {
+            setNodes((nds) => {
+                return nds.concat(dateFilterNode!);
+            });
+        }
+
+        const potentialDataColumns = [];
+        for (const columnHeader of node.data.state!.columnHeaders!) {
+            if ((columnHeader.type === 'number' || columnHeader.type === 'date') && potentialDataColumns.length < 5) {
+                potentialDataColumns.push(columnHeader.name);
+            }
+        }
+
+        if (potentialDataColumns.length > 0) {
+            const nodeId = getId();
+            const nodeData = {
+                state: {
+                    ...PointPrimitiveNodeDefaultState,
+                    extent: {
+                        minX: -0.25,
+                        maxX: 0.75,
+                        minZ: -0.25,
+                        maxZ: 0.75,
+                    },
+                },
+                onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                onDeleteNode: () => deleteNode(`${nodeId}`),
+                isValidConnection,
+            } as PointPrimitiveNodeData;
+            id++;
+            // const xyPosition = getNextXYPositionForNodeType(NodeTypes.DateFilter);
+            const xyPosition = node.position;
+            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.PointPrimitive);
+            pointPrimitiveNode = {
+                type: NodeTypes.PointPrimitive,
+                id: `${nodeId}`,
+                position: clampedPosition,
+                data: nodeData,
+            };
+
+            let connectionsSource = node.id;
+            if (dateFilterNode !== undefined) {
+                connectionsSource = dateFilterNode.id;
+            }
+
+            if (potentialDataColumns.length === 5) {
+                const nodeId = getId();
+                const nodeData = {
+                    state: {
+                        ...ColorMappingNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as ColorMappingNodeData;
+                id++;
+                // const xyPosition = getNextXYPositionForNodeType(NodeTypes.DateFilter);
+                const xyPosition = node.position;
+                const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.ColorMapping);
+                colorMappingNode = {
+                    type: NodeTypes.ColorMapping,
+                    id: `${nodeId}`,
+                    position: clampedPosition,
+                    data: nodeData,
+                };
+            }
+
+            if (colorMappingNode !== undefined) {
+                addedConnections.push({
+                    source: dateFilterNode ? dateFilterNode.id : node.id,
+                    target: `${colorMappingNode.id}`,
+                    sourceHandle: potentialDataColumns[4],
+                    targetHandle: ColorMappingNodeTargetHandles.Column,
+                });
+
+                setNodes((nds) => {
+                    return nds.concat(colorMappingNode!);
+                });
+            }
+
+            for (let dataColumnIndex = 0; dataColumnIndex < potentialDataColumns.length; dataColumnIndex++) {
+                const dataColumn = potentialDataColumns[dataColumnIndex];
+                const targetHandle =
+                    dataColumnIndex === 0
+                        ? PointPrimitiveNodeTargetHandles.X
+                        : dataColumnIndex === 1
+                        ? PointPrimitiveNodeTargetHandles.Y
+                        : dataColumnIndex === 2
+                        ? PointPrimitiveNodeTargetHandles.Z
+                        : dataColumnIndex === 3
+                        ? PointPrimitiveNodeTargetHandles.Size
+                        : PointPrimitiveNodeTargetHandles.Color;
+                addedConnections.push({
+                    source: dataColumnIndex < 4 ? connectionsSource : colorMappingNode!.id,
+                    target: `${nodeId}`,
+                    // TODO: Extract and use enum entries here and in DatasetNode.tsx and DateFilterNode.tsx (instead of magic strings)
+                    sourceHandle: dataColumnIndex < 4 ? dataColumn : ColorMappingNodeSourceHandles.Color,
+                    targetHandle: targetHandle,
+                });
+            }
+        }
+
+        if (pointPrimitiveNode !== undefined) {
+            setNodes((nds) => {
+                return nds.concat(pointPrimitiveNode!);
+            });
+        }
+
+        for (const connection of addedConnections) {
+            onConnect(connection);
+        }
+
+        setNodes((nodes) =>
+            nodes.map((node) =>
+                node.id === (pointPrimitiveNode ? pointPrimitiveNode.id : node.id)
+                    ? { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: true } } }
+                    : { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: false } } },
+            ),
+        );
+
+        setTimeout(() => {
+            reactFlowInstance?.fitView();
+            setNodes((nodes) =>
+                nodes.map((node) => ({ ...node, data: { ...node.data, state: { ...node.data.state, isFocused: false } } })),
+            );
+        }, 100);
     };
 
     // Count drag events to be able to detect drag event leaving the flow's DOM element
@@ -800,6 +939,8 @@ const BasicFlow = () => {
     }, [draggingInPage]);
 
     const onDrop = (event: DragEvent) => {
+        reactFlowInstance?.fitView();
+
         event.preventDefault();
 
         setEventCounter(0);
@@ -1214,7 +1355,7 @@ const BasicFlow = () => {
                     document.querySelector('#context-menu-destination')!,
                 )}
 
-            {store.getState().nodeInternals.size === 0 && (
+            {store.getState().nodeInternals.size === 4 && (
                 <div style={{ position: 'absolute', top: 0, marginLeft: '1rem', marginTop: '1rem', zIndex: 4 }}>
                     Right-click (or long-press on a mobile device) on the canvas to add a new node. You can also drag-and-drop datasets
                     (e.g., CSV files) here.

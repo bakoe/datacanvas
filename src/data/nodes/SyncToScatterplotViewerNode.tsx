@@ -257,7 +257,7 @@ const SyncToScatterplotViewerNode: FC<SyncToScatterplotViewerNodeProps> = ({ isC
                 let g = 1;
                 let b = 1;
                 if (normalizedColorValue !== undefined) {
-                    [r, g, b] = getColorForNormalizedValue(normalizedColorValue, colors.colorPalette);
+                    [r, g, b] = getColorForNormalizedValue(normalizedColorValue, colors.colorPalette) || [1, 1, 1];
                 }
                 chunk.set(index, [r, g, b, 1.0]);
             }

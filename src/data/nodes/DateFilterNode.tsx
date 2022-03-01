@@ -55,9 +55,9 @@ interface DateFilterNodeProps extends NodeWithStateProps<DateFilterNodeState> {
     data: DateFilterNodeData;
 }
 
-const guessDateColumn = (columnHeaders: CSVColumnHeader[]): string | undefined => {
+export const guessDateColumn = (columnHeaders: CSVColumnHeader[]): string | undefined => {
     for (const columnHeader of columnHeaders) {
-        if (columnHeader.name.includes('Datum') || columnHeader.name.includes('Date')) {
+        if (columnHeader.name.toLowerCase().includes('datum') || columnHeader.name.toLowerCase().includes('date')) {
             return columnHeader.name;
         }
     }
@@ -106,12 +106,23 @@ const filterColumnsByDate = (columns: CSVColumn[], from: DateTime, to: DateTime,
                 rowIndicesInGivenDateRange.push(i);
             }
         } else {
-            const date = DateTime.fromFormat(dateColumn.get(i) as string, 'dd.MM.yy HH:mm');
-            if (!date.isValid) {
-                throw new Error(`The date column "${dateColumn.name}" could not be interpreted as a date: ${date.invalidExplanation}`);
-            }
-            if (from.toMillis() <= date.toMillis() && date.toMillis() <= to.toMillis()) {
-                rowIndicesInGivenDateRange.push(i);
+            const formatOptions = [
+                'dd.MM.yy HH:mm',
+                'dd.MM.yy'
+            ]
+            for (let formatOptionIndex = 0; formatOptionIndex < formatOptions.length; formatOptionIndex++) {
+                const formatOption = formatOptions[formatOptionIndex];
+                const date = DateTime.fromFormat(dateColumn.get(i) as string, formatOption);
+                if (!date.isValid) {
+                    if (formatOptionIndex === formatOptions.length - 1) {
+                        throw new Error(`The date column "${dateColumn.name}" could not be interpreted as a date: ${date.invalidExplanation}`);
+                    } else {
+                        continue;
+                    }
+                }
+                if (from.toMillis() <= date.toMillis() && date.toMillis() <= to.toMillis()) {
+                    rowIndicesInGivenDateRange.push(i);
+                }
             }
         }
     }
@@ -140,7 +151,7 @@ const DateFilterNode: FC<DateFilterNodeProps> = ({ data, selected, isConnectable
     const { state, onChangeState, onDeleteNode, isValidConnection } = data;
     const { isPending, from, to, filteredColumns, dataToFilter, errorMessage } = { ...defaultState, ...state };
 
-    const [isCollapsed, setIsCollapsed] = useState(true);
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const [collapsibleHandlesHeights, setCollapsibleHandlesHeights] = useState([] as number[]);
 
     const updateFilteredColumns = (dataToFilter: CSVColumn[] | undefined, from?: DateTime, to?: DateTime) => {

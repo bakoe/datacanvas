@@ -15,7 +15,11 @@ const extractRGBColorFromCSSString = (cssString: string): [number, number, numbe
     return [1, 1, 1, 1];
 };
 
-export const getColorForNormalizedValue = (value: number, colorPalette: ColorPalette): [number, number, number] => {
+export const getColorForNormalizedValue = (value: number, colorPalette: ColorPalette): [number, number, number] | undefined => {
+    if (isNaN(value) || colorPalette === undefined) {
+        return;
+    }
+
     let previousStop = undefined;
     let nextStop = undefined;
     let previousStopDistance = Infinity;

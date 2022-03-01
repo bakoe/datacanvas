@@ -1037,7 +1037,11 @@ class DatacubesRenderer extends Renderer {
                     let maxColorValue: number;
                     let distinctValuesInStringColumn = undefined;
 
-                    if (datacube.colors && datacube.colors.column.length === datacube.xColumn.length) {
+                    if (
+                        datacube.colors &&
+                        datacube.colors.column.length === datacube.xColumn.length &&
+                        datacube.colors.colorPalette !== undefined
+                    ) {
                         if (datacube.colors.column.type === 'number') {
                             minColorValue = (datacube.colors.column as NumberColumn).min;
                             maxColorValue = (datacube.colors.column as NumberColumn).max;
@@ -1083,7 +1087,7 @@ class DatacubesRenderer extends Renderer {
                         let g = 1;
                         let b = 1;
                         if (normalizedColorValue !== undefined) {
-                            [r, g, b] = getColorForNormalizedValue(normalizedColorValue, datacube.colors!.colorPalette);
+                            [r, g, b] = getColorForNormalizedValue(normalizedColorValue, datacube.colors!.colorPalette) || [1, 1, 1];
                         }
 
                         if (colorIsInvalid) {
@@ -1101,7 +1105,7 @@ class DatacubesRenderer extends Renderer {
                             r,
                             g,
                             b,
-                            size: normalizedSize ? 2.5 * normalizedSize : 2.5,
+                            size: normalizedSize ? 10.0 * normalizedSize : 10.0,
                         });
                     }
                 }
@@ -2246,9 +2250,9 @@ class DatacubesRenderer extends Renderer {
 
             this._cameraRunningAnimeJSAnimation = anime({
                 targets: from,
-                centerX: datacubePosition.x * 1000,
+                centerX: (datacubePosition.x + (focusedDatacube.extent.maxX + focusedDatacube.extent.minX) * CUBOID_SIZE_X) * 1000,
                 centerY: this._camera.center[1] * 1000,
-                centerZ: datacubePosition.y * 1000,
+                centerZ: (datacubePosition.y + (focusedDatacube.extent.maxZ + focusedDatacube.extent.minZ) * CUBOID_SIZE_Z) * 1000,
                 upX: 0.0 * 1000,
                 upY: 1.0 * 1000,
                 upZ: 0.0 * 1000,
