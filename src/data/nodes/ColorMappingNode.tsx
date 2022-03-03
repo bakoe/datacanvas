@@ -51,6 +51,8 @@ export interface ColorMappingNodeData {
     isValidConnection?: (connection: Connection) => boolean;
 }
 
+const AVAILABLE_COLOR_SCALE_PRESETS = ['smithwalt', 'colorbrewer', 'marcosci', 'mikhailov'];
+
 type ColorMappingNodeProps = NodeWithStateProps<ColorMappingNodeData>;
 
 const onConnect = (params: Connection | Edge) => console.log('handle onConnect on ColorMappingNode', params);
@@ -95,7 +97,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
             setAvailableColorScales((availableColorScalePresets) => availableColorScalePresets.concat(colorScales));
         };
 
-        for (const preset of ['smithwalt', 'colorbrewer']) {
+        for (const preset of AVAILABLE_COLOR_SCALE_PRESETS) {
             loadColorScales(preset);
         }
     }, []);
@@ -159,7 +161,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
 
     const availableColorScaleTypes = availableColorScales.reduce(
         (types, colorScale) =>
-            colorScale.preset === colorScale.type && colorScaleConfig.preset && !types.includes(colorScale.type)
+            colorScale.preset === colorScaleConfig.preset && colorScale.type && !types.includes(colorScale.type)
                 ? types.concat(colorScale.type)
                 : types,
         [] as string[],
@@ -263,7 +265,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                                         });
                                     }}
                                 >
-                                    {['colorbrewer', 'smithwalt'].map((presetName) => (
+                                    {AVAILABLE_COLOR_SCALE_PRESETS.map((presetName) => (
                                         <option key={presetName} value={presetName}>
                                             {presetName}
                                         </option>
