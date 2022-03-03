@@ -1278,18 +1278,22 @@ class DatacubesRenderer extends Renderer {
                         // return rootNode;
                         return loader.meshes[0].primitives[0];
                     };
-                    loadAsset(datacube.gltfAssetUri).then((primitive) => {
-                        const cuboidToSetAssetFor = existingCuboid || newCuboid;
-                        // cuboidToSetAssetFor!.gltfAssetRootNode = rootNode;
-                        cuboidToSetAssetFor!.gltfAssetPrimitive = primitive;
-                        cuboidToSetAssetFor!.idBufferOnly = true;
-                        const gltfAssetPass = new GltfAssetPass(this._context);
-                        gltfAssetPass.initialize();
-                        gltfAssetPass.primitive = primitive;
-                        Passes.gltfAssets = [gltfAssetPass];
-                        this._altered.alter('cuboids');
-                        this._invalidate(true);
-                    });
+                    if (existingCuboid && existingCuboid.gltfAssetPrimitive !== undefined) {
+                        // Do nothing
+                    } else {
+                        loadAsset(datacube.gltfAssetUri).then((primitive) => {
+                            const cuboidToSetAssetFor = existingCuboid || newCuboid;
+                            // cuboidToSetAssetFor!.gltfAssetRootNode = rootNode;
+                            cuboidToSetAssetFor!.gltfAssetPrimitive = primitive;
+                            cuboidToSetAssetFor!.idBufferOnly = true;
+                            const gltfAssetPass = new GltfAssetPass(this._context);
+                            gltfAssetPass.initialize();
+                            gltfAssetPass.primitive = primitive;
+                            Passes.gltfAssets = [...Passes.gltfAssets, gltfAssetPass];
+                            this._altered.alter('cuboids');
+                            this._invalidate(true);
+                        });
+                    }
                 }
             }
 
@@ -1993,6 +1997,15 @@ class DatacubesRenderer extends Renderer {
         // Render GLTF assets
         Passes.gltfAssets.forEach((pass) => (pass.target = this._intermediateFBOs[0]));
         if (ndcOffset) Passes.gltfAssets.forEach((pass) => (pass.ndcOffset = ndcOffset as GLfloat2));
+        Passes.gltfAssets.forEach(
+            (pass) =>
+                (pass.positions = [
+                    vec3.fromValues(0, 0, 0),
+                    vec3.fromValues(0, 1, 0),
+                    vec3.fromValues(4, 0.5, 0),
+                    vec3.fromValues(-2, 0.5, 0),
+                ]),
+        );
         Passes.gltfAssets.forEach((pass) => pass.frame());
 
         // Render points

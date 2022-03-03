@@ -1,5 +1,19 @@
-import { ChangeLookup, Context, Framebuffer, GLTFPbrMaterial, GLTFPrimitive, Initializable, mat4, Program, Shader } from 'webgl-operate';
+import {
+    ChangeLookup,
+    Context,
+    Framebuffer,
+    GLTFPbrMaterial,
+    GLTFPrimitive,
+    Initializable,
+    mat4,
+    Program,
+    Shader,
+    vec3,
+    gl_matrix_extensions,
+} from 'webgl-operate';
 import { GLfloat2 } from 'webgl-operate/lib/tuples';
+
+const { m4 } = gl_matrix_extensions;
 
 import gltfAssetVert from '../shaders/gltfAsset.vert';
 import gltfAssetFrag from '../shaders/gltfAsset.frag';
@@ -9,6 +23,7 @@ export class GltfAssetPass extends Initializable {
         any: false,
 
         primitive: false,
+        positions: false,
     });
 
     private _viewProjection: mat4 | undefined;
@@ -25,6 +40,9 @@ export class GltfAssetPass extends Initializable {
     protected _uNdcOffset: WebGLUniformLocation | undefined;
 
     protected _primitive: GLTFPrimitive | undefined;
+
+    protected _positions: vec3[] = [];
+    protected _modelTransformsBuffer: any;
 
     public constructor(context: Context) {
         super();
@@ -45,6 +63,7 @@ export class GltfAssetPass extends Initializable {
 
         this._program.attribute('a_vertex', 0);
         this._program.attribute('a_color', 1);
+        this._program.attribute('a_model', 2);
         this._program.link();
 
         this._uViewProjection = this._program.uniform('u_viewProjection');
@@ -56,6 +75,7 @@ export class GltfAssetPass extends Initializable {
     @Initializable.uninitialize()
     public uninitialize(): void {
         this._program?.uninitialize();
+        this._gl.deleteBuffer(this._modelTransformsBuffer);
         this._primitive?.uninitialize();
 
         this._uViewProjection = undefined;
@@ -69,7 +89,7 @@ export class GltfAssetPass extends Initializable {
 
     @Initializable.assert_initialized()
     public frame(): void {
-        if (!this._target || !this._primitive) {
+        if (!this._target || !this._primitive || this._positions.length === 0 || this._modelTransformsBuffer === undefined) {
             return;
         }
 
@@ -123,10 +143,28 @@ export class GltfAssetPass extends Initializable {
             true,
         );
 
+        // Setup within-model matrix transforms
+        gl.enableVertexAttribArray(2);
+        gl.enableVertexAttribArray(2 + 1);
+        gl.enableVertexAttribArray(2 + 2);
+        gl.enableVertexAttribArray(2 + 3);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._modelTransformsBuffer);
+
+        // refer to https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/vertexAttribPointer for more information
+        gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 4 * 4 * Float32Array.BYTES_PER_ELEMENT, 0);
+        gl.vertexAttribPointer(2 + 1, 4, gl.FLOAT, false, 4 * 4 * Float32Array.BYTES_PER_ELEMENT, 1 * 4 * Float32Array.BYTES_PER_ELEMENT);
+        gl.vertexAttribPointer(2 + 2, 4, gl.FLOAT, false, 4 * 4 * Float32Array.BYTES_PER_ELEMENT, 2 * 4 * Float32Array.BYTES_PER_ELEMENT);
+        gl.vertexAttribPointer(2 + 3, 4, gl.FLOAT, false, 4 * 4 * Float32Array.BYTES_PER_ELEMENT, 3 * 4 * Float32Array.BYTES_PER_ELEMENT);
+        // this line says this attribute only changes for each 1 instance
+        (gl as any).vertexAttribDivisor(2, 1);
+        (gl as any).vertexAttribDivisor(2 + 1, 1);
+        (gl as any).vertexAttribDivisor(2 + 2, 1);
+        (gl as any).vertexAttribDivisor(2 + 3, 1);
+
         if (this._uViewProjection && this._viewProjection) gl.uniformMatrix4fv(this._uViewProjection, false, this._viewProjection);
         if (this._uNdcOffset && this._ndcOffset) gl.uniform2fv(this._uNdcOffset, this._ndcOffset);
 
-        const instanceCount = 32 ** 3;
+        const instanceCount = this._positions.length;
         if (indexBufferInformation === undefined) {
             (gl as any).drawArrays(this._primitive.drawMode, 0, positionBufferInformation.numVertices, instanceCount);
         } else {
@@ -145,6 +183,10 @@ export class GltfAssetPass extends Initializable {
 
         gl.disableVertexAttribArray(0);
         gl.disableVertexAttribArray(1);
+        gl.disableVertexAttribArray(2);
+        gl.disableVertexAttribArray(2 + 1);
+        gl.disableVertexAttribArray(2 + 2);
+        gl.disableVertexAttribArray(2 + 3);
 
         this._program.unbind();
 
@@ -155,6 +197,49 @@ export class GltfAssetPass extends Initializable {
     public set target(target: Framebuffer) {
         this.assertInitialized();
         this._target = target;
+    }
+
+    public set positions(positions: vec3[]) {
+        this.assertInitialized();
+
+        if (JSON.stringify(positions) === JSON.stringify(this._positions)) {
+            return;
+        }
+
+        this._positions = positions;
+
+        // TODO: Use a more efficient and better debug-able approach,
+        // i.e., use Float32Array views as indicated on https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html
+        const modelTransforms = [] as number[];
+        for (let index = 0; index < positions.length; index++) {
+            const position = positions[index];
+            const translateMatrix = mat4.fromTranslation(m4(), position);
+            modelTransforms.push(
+                translateMatrix[0],
+                translateMatrix[1],
+                translateMatrix[2],
+                translateMatrix[3],
+                translateMatrix[4],
+                translateMatrix[5],
+                translateMatrix[6],
+                translateMatrix[7],
+                translateMatrix[8],
+                translateMatrix[9],
+                translateMatrix[10],
+                translateMatrix[11],
+                translateMatrix[12],
+                translateMatrix[13],
+                translateMatrix[14],
+                translateMatrix[15],
+            );
+        }
+
+        const gl = this._gl;
+        this._modelTransformsBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this._modelTransformsBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelTransforms.flat()), gl.DYNAMIC_DRAW);
+
+        this._altered.alter('positions');
     }
 
     public get altered(): boolean {
