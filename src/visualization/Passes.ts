@@ -1,5 +1,6 @@
 import { Context, Framebuffer, Invalidate } from 'webgl-operate';
 import { FloorPass } from './floor/FloorPass';
+import { GltfAssetPass } from './gltfAsset/GltfAssetPass';
 import { LabelPass } from './label/LabelPass';
 import { LinePass } from './line/LinePass';
 
@@ -21,6 +22,8 @@ export class Passes {
 
     protected _labels: LabelPass;
     protected _lines: LinePass;
+
+    protected _gltfAssets: GltfAssetPass[] = [];
 
     // // To-be-created
     // protected _cuboids: CuboidPass;
@@ -58,6 +61,7 @@ export class Passes {
 
     public static initialize(context: Context, invalidate: Invalidate): void {
         this._instance = new Passes(context, invalidate);
+        (window as any)['passes'] = this._instance;
     }
 
     public static get floor(): FloorPass {
@@ -72,19 +76,31 @@ export class Passes {
         return this._instance._lines;
     }
 
+    public static get gltfAssets(): GltfAssetPass[] {
+        return this._instance._gltfAssets;
+    }
+
+    public static set gltfAssets(gltfAssetPasses: GltfAssetPass[]) {
+        this._instance._gltfAssets = gltfAssetPasses;
+        this.renderFBO = this._instance._floor.target;
+        this.update();
+    }
+
     public static set renderFBO(fbo: Framebuffer) {
         Passes.floor.target = fbo;
         Passes.labels.target = fbo;
         Passes.lines.target = fbo;
+        Passes.gltfAssets.forEach((pass) => (pass.target = fbo));
     }
 
     public static get altered(): boolean {
-        return Passes.floor.altered || Passes.labels.altered || Passes.lines.altered;
+        return Passes.floor.altered || Passes.labels.altered || Passes.lines.altered || Passes.gltfAssets.some((pass) => pass.altered);
     }
 
     public static update(): void {
         Passes.floor.update();
         Passes.labels.update();
         Passes.lines.update();
+        Passes.gltfAssets.forEach((pass) => pass.update());
     }
 }

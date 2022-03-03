@@ -31,6 +31,9 @@ import {
     ChangeLookup,
     FrameCapture,
     Label,
+    GLTFLoader,
+    SceneNode,
+    GLTFPrimitive,
 } from 'webgl-operate';
 
 const { v3, m4 } = gl_matrix_extensions;
@@ -57,6 +60,7 @@ import { Passes } from './Passes';
 import { LabelSet } from './label/LabelPass';
 import { GLfloat2 } from 'webgl-operate/lib/tuples';
 import { getDistinctValuesInStringColumn } from '../data/nodes/DatasetNode';
+import { GltfAssetPass } from './gltfAsset/GltfAssetPass';
 
 /* spellchecker: enable */
 
@@ -110,6 +114,8 @@ export interface Cuboid {
     points?: Array<PointData>;
     pointsFrom?: number;
     pointsCount?: number;
+    // gltfAssetRootNode?: SceneNode;
+    gltfAssetPrimitive?: GLTFPrimitive;
 }
 
 // LAB values converted using: https://colors.dopely.top/color-converter/hex/
@@ -274,6 +280,8 @@ class DatacubesRenderer extends Renderer {
 
         const gl = this._context.gl;
         const gl2facade = this._context.gl2facade;
+
+        this._context.enable(['ANGLE_INSTANCED_ARRAYS']);
 
         this._altered = Object.assign(this._altered, {
             points: false,
@@ -1001,6 +1009,7 @@ class DatacubesRenderer extends Renderer {
 
         Passes.floor.viewProjection = this._camera?.viewProjection;
         Passes.lines.viewProjection = this._camera?.viewProjection;
+        Passes.gltfAssets.forEach((pass) => (pass.viewProjection = this._camera?.viewProjection));
         if (this._altered.datacubes) {
             const updatedCuboids = [];
 
@@ -1010,7 +1019,7 @@ class DatacubesRenderer extends Renderer {
                 let renderCuboidToIdBufferOnly = false;
                 let points = undefined as undefined | PointData[];
                 if (
-                    datacube.type === NodeTypes.PointPrimitive &&
+                    (datacube.type === NodeTypes.PointPrimitive || datacube.type === NodeTypes.CubePrimitive) &&
                     datacube.xColumn
                     // Make sure that the points only update after all (subsequently updated) columns were updated
                 ) {
@@ -1105,7 +1114,7 @@ class DatacubesRenderer extends Renderer {
                             r,
                             g,
                             b,
-                            size: normalizedSize ? 10.0 * normalizedSize : 10.0,
+                            size: normalizedSize ? 2.5 * normalizedSize : 2.5,
                         });
                     }
                 }
@@ -1127,11 +1136,14 @@ class DatacubesRenderer extends Renderer {
                         colorLAB = DATACUBE_MAPPING_COLOR_LAB;
                         break;
                     case NodeTypes.PointPrimitive:
+                    case NodeTypes.CubePrimitive:
+                    case NodeTypes.MeshPrimitive:
                     case NodeTypes.SyncToScatterplotViewer:
                         colorLAB = DATACUBE_RENDERING_COLOR_LAB;
                         break;
                 }
                 const existingCuboid = this._cuboids.find((cuboid) => cuboid.id === 4294967295 - datacubeId);
+                let newCuboid = undefined as undefined | Cuboid;
                 if (existingCuboid) {
                     const from = {
                         translateY: existingCuboid.translateY * 1000,
@@ -1239,7 +1251,7 @@ class DatacubesRenderer extends Renderer {
                         colorLAB = DATACUBE_ERROR_COLOR_LAB;
                     }
 
-                    const newCuboid = {
+                    newCuboid = {
                         geometry: cuboid,
                         translateY,
                         scaleY,
@@ -1255,6 +1267,29 @@ class DatacubesRenderer extends Renderer {
                     } as Cuboid;
 
                     updatedCuboids.push(newCuboid);
+                }
+
+                if (datacube.type === NodeTypes.MeshPrimitive && datacube.gltfAssetUri !== undefined) {
+                    const loadAsset = async (uri: string) => {
+                        console.log('Loading asset now');
+                        const loader = new GLTFLoader(this._context);
+                        await loader.loadAsset(uri);
+                        // const rootNode = loader.defaultScene;
+                        // return rootNode;
+                        return loader.meshes[0].primitives[0];
+                    };
+                    loadAsset(datacube.gltfAssetUri).then((primitive) => {
+                        const cuboidToSetAssetFor = existingCuboid || newCuboid;
+                        // cuboidToSetAssetFor!.gltfAssetRootNode = rootNode;
+                        cuboidToSetAssetFor!.gltfAssetPrimitive = primitive;
+                        cuboidToSetAssetFor!.idBufferOnly = true;
+                        const gltfAssetPass = new GltfAssetPass(this._context);
+                        gltfAssetPass.initialize();
+                        gltfAssetPass.primitive = primitive;
+                        Passes.gltfAssets = [gltfAssetPass];
+                        this._altered.alter('cuboids');
+                        this._invalidate(true);
+                    });
                 }
             }
 
@@ -1954,6 +1989,11 @@ class DatacubesRenderer extends Renderer {
 
             this._cuboidsProgram?.unbind();
         }
+
+        // Render GLTF assets
+        Passes.gltfAssets.forEach(pass => pass.target = this._intermediateFBOs[0]);
+        // if (ndcOffset) Passes.lines.ndcOffset = ndcOffset as GLfloat2;
+        Passes.gltfAssets.forEach((pass) => pass.frame());
 
         // Render points
         if (this.points && this.points.length > 0) {

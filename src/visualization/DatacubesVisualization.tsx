@@ -18,6 +18,8 @@ import { serializeColumnInfo } from '../data/nodes/util/serializeColumnInfo';
 import { isColorMappingNode } from '../data/nodes/ColorMappingNode';
 import { isSyncToScatterplotViewerNode } from '../data/nodes/SyncToScatterplotViewerNode';
 import { isFixedTextNode } from '../data/nodes/FixedTextNode';
+import { isMeshPrimitiveNode } from '../data/nodes/MeshPrimitiveNode';
+import { isCubePrimitiveNode } from '../data/nodes/CubePrimitiveNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -47,6 +49,9 @@ export interface DatacubeInformation {
         column: CSVColumn;
         colorPalette: ColorPalette;
     };
+    // TODO: Make gltfloader's loadAsset method accept File objects (as gltf-loader's load method accepts either way) to pass File instead of data URL
+    // gltfAssetFile?: File;
+    gltfAssetUri?: string;
     labelString?: string;
 }
 
@@ -255,6 +260,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 let zColumn = undefined as undefined | CSVColumn;
                 let sizeColumn = undefined as undefined | CSVColumn;
                 let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
+                let gltfAssetUri = undefined as undefined | string;
                 let labelString = '';
                 const isSelected = node.selected;
                 if (isFixedTextNode(node)) {
@@ -264,6 +270,8 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     isDatasetNode(node) ||
                     isDateFilterNode(node) ||
                     isPointPrimitiveNode(node) ||
+                    isCubePrimitiveNode(node) ||
+                    isMeshPrimitiveNode(node) ||
                     isColorMappingNode(node) ||
                     isSyncToScatterplotViewerNode(node)
                 ) {
@@ -304,6 +312,24 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                         sizeColumn = node.data.state?.sizeColumn;
                         colors = node.data.state?.colors;
                     }
+                    if (isCubePrimitiveNode(node)) {
+                        labelString += 'Rendering: Cube Primitive';
+                        isPending = node.data.state?.isPending;
+                        xColumn = node.data.state?.xColumn;
+                        yColumn = node.data.state?.yColumn;
+                        zColumn = node.data.state?.zColumn;
+                        sizeColumn = node.data.state?.sizeColumn;
+                        colors = node.data.state?.colors;
+                    }
+                    if (isMeshPrimitiveNode(node)) {
+                        labelString += 'Rendering: Mesh Primitive';
+                        gltfAssetUri = node.data.gltfAssetUri;
+                        xColumn = node.data.state?.xColumn;
+                        yColumn = node.data.state?.yColumn;
+                        zColumn = node.data.state?.zColumn;
+                        sizeColumn = node.data.state?.sizeColumn;
+                        colors = node.data.state?.colors;
+                    }
                     if (isSyncToScatterplotViewerNode(node)) {
                         labelString += 'Rendering: Sync to Scatterplot Viewer';
                         isPending = node.data.state?.isPending;
@@ -323,6 +349,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     zColumn,
                     sizeColumn,
                     colors,
+                    gltfAssetUri,
                     labelString: isSelected ? labelString : '',
                     isSelected,
                 } as DatacubeInformation;
@@ -357,6 +384,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 colorsLengthAndPalette: nodeInfo.colors
                     ? `${serializeColumnInfo(nodeInfo.colors.column)}_${JSON.stringify(nodeInfo.colors.colorPalette)}`
                     : undefined,
+                gltfAssetUri: nodeInfo.gltfAssetUri,
                 labelString: nodeInfo.labelString,
                 isSelected: nodeInfo.isSelected,
             })),

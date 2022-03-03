@@ -48,6 +48,12 @@ import PointPrimitiveNode, {
     PointPrimitiveNodeState,
     PointPrimitiveNodeTargetHandles,
 } from './nodes/PointPrimitiveNode';
+import CubePrimitiveNode, {
+    defaultState as CubePrimitiveNodeDefaultState,
+    CubePrimitiveNodeData,
+    CubePrimitiveNodeState,
+    CubePrimitiveNodeTargetHandles,
+} from './nodes/CubePrimitiveNode';
 import { vec2 } from 'webgl-operate';
 import SyncToScatterplotViewerNode, {
     defaultState as SyncToScatterplotViewerNodeDefaultState,
@@ -56,6 +62,12 @@ import SyncToScatterplotViewerNode, {
     SyncToScatterplotViewerNodeTargetHandles,
 } from './nodes/SyncToScatterplotViewerNode';
 import FixedTextNode, { FixedTextNodeData } from './nodes/FixedTextNode';
+import MeshPrimitiveNode, {
+    defaultState as MeshPrimitiveNodeDefaultState,
+    MeshPrimitiveNodeData,
+    MeshPrimitiveNodeState,
+    MeshPrimitiveNodeTargetHandles,
+} from './nodes/MeshPrimitiveNode';
 
 const onNodeDragStop = (_: MouseEvent, node: Node) => undefined;
 const onNodeClick = (_: MouseEvent, node: Node) => undefined;
@@ -209,6 +221,8 @@ const getValidXPositionRangeByNodeType = (nodeType: NodeTypes): [number, number]
                     columnWidthsAndGutters[2].width,
             ];
         case NodeTypes.PointPrimitive:
+        case NodeTypes.CubePrimitive:
+        case NodeTypes.MeshPrimitive:
         case NodeTypes.SyncToScatterplotViewer:
             return [
                 GROUP_COLUMNS_START_AT +
@@ -481,7 +495,7 @@ const BasicFlow = () => {
     const autoCreateFlowForDatasetNode = (node: Node<DatasetNodeData>): void => {
         // const addedNodes = [] as Node<any>[];
         let dateFilterNode = undefined as Node<DateFilterNodeData> | undefined;
-        let pointPrimitiveNode = undefined as Node<PointPrimitiveNodeData> | undefined;
+        let cubePrimitiveNode = undefined as Node<CubePrimitiveNodeData> | undefined;
         let colorMappingNode = undefined as Node<ColorMappingNodeData> | undefined;
         const addedConnections = [] as Connection[];
 
@@ -536,7 +550,7 @@ const BasicFlow = () => {
             const nodeId = getId();
             const nodeData = {
                 state: {
-                    ...PointPrimitiveNodeDefaultState,
+                    ...CubePrimitiveNodeDefaultState,
                     extent: {
                         minX: -0.25,
                         maxX: 0.75,
@@ -547,13 +561,13 @@ const BasicFlow = () => {
                 onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
                 onDeleteNode: () => deleteNode(`${nodeId}`),
                 isValidConnection,
-            } as PointPrimitiveNodeData;
+            } as CubePrimitiveNodeData;
             id++;
             // const xyPosition = getNextXYPositionForNodeType(NodeTypes.DateFilter);
             const xyPosition = node.position;
-            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.PointPrimitive);
-            pointPrimitiveNode = {
-                type: NodeTypes.PointPrimitive,
+            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.CubePrimitive);
+            cubePrimitiveNode = {
+                type: NodeTypes.CubePrimitive,
                 id: `${nodeId}`,
                 position: clampedPosition,
                 data: nodeData,
@@ -603,22 +617,22 @@ const BasicFlow = () => {
                 const dataColumn = potentialDataColumns[dataColumnIndex];
                 let targetHandle =
                     dataColumnIndex === 0
-                        ? PointPrimitiveNodeTargetHandles.X
+                        ? CubePrimitiveNodeTargetHandles.X
                         : dataColumnIndex === 1
-                        ? PointPrimitiveNodeTargetHandles.Z
+                        ? CubePrimitiveNodeTargetHandles.Z
                         : dataColumnIndex === 2
-                        ? PointPrimitiveNodeTargetHandles.Y
+                        ? CubePrimitiveNodeTargetHandles.Y
                         : dataColumnIndex === 3
-                        ? PointPrimitiveNodeTargetHandles.Color
-                        : PointPrimitiveNodeTargetHandles.Size;
+                        ? CubePrimitiveNodeTargetHandles.Color
+                        : CubePrimitiveNodeTargetHandles.Size;
                 if (dataColumn.toLowerCase() === 'x') {
-                    targetHandle = PointPrimitiveNodeTargetHandles.X;
+                    targetHandle = CubePrimitiveNodeTargetHandles.X;
                 }
                 if (dataColumn.toLowerCase() === 'y') {
-                    targetHandle = PointPrimitiveNodeTargetHandles.Y;
+                    targetHandle = CubePrimitiveNodeTargetHandles.Y;
                 }
                 if (dataColumn.toLowerCase() === 'z') {
-                    targetHandle = PointPrimitiveNodeTargetHandles.Z;
+                    targetHandle = CubePrimitiveNodeTargetHandles.Z;
                 }
                 addedConnections.push({
                     source: dataColumnIndex < 3 || dataColumnIndex > 3 ? connectionsSource : colorMappingNode!.id,
@@ -630,9 +644,9 @@ const BasicFlow = () => {
             }
         }
 
-        if (pointPrimitiveNode !== undefined) {
+        if (cubePrimitiveNode !== undefined) {
             setNodes((nds) => {
-                return nds.concat(pointPrimitiveNode!);
+                return nds.concat(cubePrimitiveNode!);
             });
         }
 
@@ -642,7 +656,7 @@ const BasicFlow = () => {
 
         setNodes((nodes) =>
             nodes.map((node) =>
-                node.id === (pointPrimitiveNode ? pointPrimitiveNode.id : node.id)
+                node.id === (cubePrimitiveNode ? cubePrimitiveNode.id : node.id)
                     ? { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: true } } }
                     : { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: false } } },
             ),
@@ -807,6 +821,64 @@ const BasicFlow = () => {
             }
         }
 
+        if (targetNode.type === NodeTypes.CubePrimitive) {
+            let stateKey;
+            switch (params.targetHandle as CubePrimitiveNodeTargetHandles) {
+                case CubePrimitiveNodeTargetHandles.X:
+                    stateKey = 'xColumn';
+                    break;
+                case CubePrimitiveNodeTargetHandles.Y:
+                    stateKey = 'yColumn';
+                    break;
+                case CubePrimitiveNodeTargetHandles.Z:
+                    stateKey = 'zColumn';
+                    break;
+                case CubePrimitiveNodeTargetHandles.Size:
+                    stateKey = 'sizeColumn';
+                    break;
+                case CubePrimitiveNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
+            }
+            if (stateKey) {
+                const sourceColumn = findSourceColumn(sourceNode, params);
+                if (sourceColumn) {
+                    const updatedState = {} as Partial<CubePrimitiveNodeState>;
+                    (updatedState as any)[stateKey] = sourceColumn;
+                    updateNodeState(targetNode.id, updatedState);
+                }
+            }
+        }
+
+        if (targetNode.type === NodeTypes.MeshPrimitive) {
+            let stateKey;
+            switch (params.targetHandle as MeshPrimitiveNodeTargetHandles) {
+                case MeshPrimitiveNodeTargetHandles.X:
+                    stateKey = 'xColumn';
+                    break;
+                case MeshPrimitiveNodeTargetHandles.Y:
+                    stateKey = 'yColumn';
+                    break;
+                case MeshPrimitiveNodeTargetHandles.Z:
+                    stateKey = 'zColumn';
+                    break;
+                case MeshPrimitiveNodeTargetHandles.Size:
+                    stateKey = 'sizeColumn';
+                    break;
+                case MeshPrimitiveNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
+            }
+            if (stateKey) {
+                const sourceColumn = findSourceColumn(sourceNode, params);
+                if (sourceColumn) {
+                    const updatedState = {} as Partial<MeshPrimitiveNodeState>;
+                    (updatedState as any)[stateKey] = sourceColumn;
+                    updateNodeState(targetNode.id, updatedState);
+                }
+            }
+        }
+
         if (targetNode.type === NodeTypes.SyncToScatterplotViewer) {
             let stateKey;
             switch (params.targetHandle as SyncToScatterplotViewerNodeTargetHandles) {
@@ -847,6 +919,8 @@ const BasicFlow = () => {
         mapping[NodeTypes.FixedText] = FixedTextNode;
         mapping[NodeTypes.Dataset] = DatasetNode;
         mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
+        mapping[NodeTypes.CubePrimitive] = CubePrimitiveNode;
+        mapping[NodeTypes.MeshPrimitive] = MeshPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
         mapping[NodeTypes.ColorMapping] = ColorMappingNode;
         mapping[NodeTypes.SyncToScatterplotViewer] = SyncToScatterplotViewerNode;
@@ -871,42 +945,52 @@ const BasicFlow = () => {
         event.preventDefault();
 
         if (!event.dataTransfer) return;
-
         if (!reactFlowInstance) return;
 
+        const fileMimetype = getFileMimetypes(event.dataTransfer)[0];
+        const nodeType = fileMimetype === 'text/csv' ? NodeTypes.Dataset : NodeTypes.MeshPrimitive;
+
         if (dragInProgress) {
-            setDragCoords(
-                clampXYPositionByNodeType(reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 }), NodeTypes.Dataset),
-            );
+            setDragCoords(clampXYPositionByNodeType(reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 }), nodeType));
             return;
         }
 
         const creatingNewNode = !dragInProgress;
 
         const nodeId = getId();
-        const fileMimetype = getFileMimetypes(event.dataTransfer)[0];
         const type = mapMimetypeToNodeFiletype(fileMimetype);
-        const position = clampXYPositionByNodeType(
-            reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 }),
-            NodeTypes.Dataset,
-        );
+        const position = clampXYPositionByNodeType(reactFlowInstance.project({ x: event.clientX, y: event.clientY - 40 }), nodeType);
 
-        const newNode: Node = {
-            id: nodeId,
-            type: 'dataset',
-            position,
-            data: {
-                type,
-                label: `${type} node`,
-                columns: [],
-                filename: `Loading ${type?.toUpperCase() ?? ''}…`,
-                onChangeState: (newState: DatasetNodeState) => updateNodeState(nodeId, newState),
-                onDeleteNode: () => deleteNode(nodeId),
-                state: {
-                    ...DatasetNodeDefaultState,
-                },
-            },
-        } as Node<DatasetNodeData>;
+        const newNode: Node =
+            nodeType === NodeTypes.Dataset
+                ? ({
+                      id: nodeId,
+                      type: 'dataset',
+                      position,
+                      data: {
+                          type,
+                          label: `${type} node`,
+                          columns: [],
+                          filename: `Loading ${type?.toUpperCase() ?? ''}…`,
+                          onChangeState: (newState: DatasetNodeState) => updateNodeState(nodeId, newState),
+                          onDeleteNode: () => deleteNode(nodeId),
+                          state: {
+                              ...DatasetNodeDefaultState,
+                          },
+                      },
+                  } as Node<DatasetNodeData>)
+                : ({
+                      id: nodeId,
+                      type: 'mesh-primitive',
+                      position,
+                      data: {
+                          onChangeState: (newState: MeshPrimitiveNodeState) => updateNodeState(nodeId, newState),
+                          onDeleteNode: () => deleteNode(nodeId),
+                          state: {
+                              ...MeshPrimitiveNodeDefaultState,
+                          },
+                      },
+                  } as Node<MeshPrimitiveNodeData>);
 
         setNodes((nds) => {
             if (creatingNewNode) {
@@ -922,6 +1006,60 @@ const BasicFlow = () => {
 
         setDragInProgress(true);
 
+        id++;
+    };
+
+    const onDrop = (event: DragEvent) => {
+        reactFlowInstance?.fitView();
+
+        event.preventDefault();
+
+        setEventCounter(0);
+        setDraggingInPage(false);
+
+        const fileName = getFileNames(event.dataTransfer)[0];
+        const fileMimetype = getFileMimetypes(event.dataTransfer)[0];
+        const nodeType = fileMimetype === 'text/csv' ? NodeTypes.Dataset : NodeTypes.MeshPrimitive;
+
+        const type = mapMimetypeToNodeFiletype(fileMimetype);
+        const file = getFiles(event.dataTransfer)[0];
+
+        if (nodeType === NodeTypes.Dataset) {
+            setNodes((nds) => {
+                return nds.map((node, index) => {
+                    if (index === nds.length - 1) {
+                        (node as Node<DatasetNodeData>).data = {
+                            ...(node as Node<DatasetNodeData>).data,
+                            filename: fileName,
+                            type,
+                            file,
+                        };
+                    }
+                    return node;
+                });
+            });
+        } else {
+            setNodes((nds) => {
+                return nds.map((node, index) => {
+                    if (index === nds.length - 1) {
+                        const URLObj = window.URL || window.webkitURL;
+                        const source = URLObj.createObjectURL(file);
+                        (node as Node<MeshPrimitiveNodeData>).data = {
+                            ...(node as Node<MeshPrimitiveNodeData>).data,
+                            // TODO: Make gltfloader's loadAsset method accept File objects (as gltf-loader's load method accepts either way) to pass File instead of data URL
+                            // gltfAssetFile: file,
+                            // gltfAssetUri: source,
+                            gltfAssetUri:
+                                'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoxTextured/glTF/BoxTextured.gltf',
+                        };
+                    }
+                    return node;
+                });
+            });
+        }
+
+        setDragInProgress(false);
+        setDragCoords(undefined);
         id++;
     };
 
@@ -946,38 +1084,6 @@ const BasicFlow = () => {
             setNodes((nds) => nds.slice(0, nds.length - 1));
         }
     }, [draggingInPage]);
-
-    const onDrop = (event: DragEvent) => {
-        reactFlowInstance?.fitView();
-
-        event.preventDefault();
-
-        setEventCounter(0);
-        setDraggingInPage(false);
-
-        const fileName = getFileNames(event.dataTransfer)[0];
-        const fileMimetype = getFileMimetypes(event.dataTransfer)[0];
-        const type = mapMimetypeToNodeFiletype(fileMimetype);
-        const file = getFiles(event.dataTransfer)[0];
-
-        setNodes((nds) => {
-            return nds.map((node, index) => {
-                if (index === nds.length - 1) {
-                    (node as Node<DatasetNodeData>).data = {
-                        ...(node as Node<DatasetNodeData>).data,
-                        filename: fileName,
-                        type,
-                        file,
-                    };
-                }
-                return node;
-            });
-        });
-
-        setDragInProgress(false);
-        setDragCoords(undefined);
-        id++;
-    };
 
     const [contextMenuPopperElement, setContextMenuPopperElement] = useState(null as HTMLElement | null);
     const [contextMenuVirtualReference, setContextMenuVirtualReference] = useState(null as any);
@@ -1061,6 +1167,16 @@ const BasicFlow = () => {
                     isValidConnection,
                 } as PointPrimitiveNodeData;
                 break;
+            case 'cube-primitive':
+                nodeData = {
+                    state: {
+                        ...CubePrimitiveNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as CubePrimitiveNodeData;
+                break;
             case 'color-mapping':
                 nodeData = {
                     state: {
@@ -1130,6 +1246,11 @@ const BasicFlow = () => {
         {
             nodeType: NodeTypes.PointPrimitive,
             label: 'Rendering: Point Primitive',
+            highlightString: undefined as undefined | string,
+        },
+        {
+            nodeType: NodeTypes.CubePrimitive,
+            label: 'Rendering: Cube Primitive',
             highlightString: undefined as undefined | string,
         },
         {
