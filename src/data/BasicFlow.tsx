@@ -564,7 +564,7 @@ const BasicFlow = () => {
                 connectionsSource = dateFilterNode.id;
             }
 
-            if (potentialDataColumns.length === 5) {
+            if (potentialDataColumns.length > 3) {
                 const nodeId = getId();
                 const nodeData = {
                     state: {
@@ -590,7 +590,7 @@ const BasicFlow = () => {
                 addedConnections.push({
                     source: dateFilterNode ? dateFilterNode.id : node.id,
                     target: `${colorMappingNode.id}`,
-                    sourceHandle: potentialDataColumns[4],
+                    sourceHandle: potentialDataColumns[3],
                     targetHandle: ColorMappingNodeTargetHandles.Column,
                 });
 
@@ -601,21 +601,30 @@ const BasicFlow = () => {
 
             for (let dataColumnIndex = 0; dataColumnIndex < potentialDataColumns.length; dataColumnIndex++) {
                 const dataColumn = potentialDataColumns[dataColumnIndex];
-                const targetHandle =
+                let targetHandle =
                     dataColumnIndex === 0
                         ? PointPrimitiveNodeTargetHandles.X
                         : dataColumnIndex === 1
-                        ? PointPrimitiveNodeTargetHandles.Y
-                        : dataColumnIndex === 2
                         ? PointPrimitiveNodeTargetHandles.Z
+                        : dataColumnIndex === 2
+                        ? PointPrimitiveNodeTargetHandles.Y
                         : dataColumnIndex === 3
-                        ? PointPrimitiveNodeTargetHandles.Size
-                        : PointPrimitiveNodeTargetHandles.Color;
+                        ? PointPrimitiveNodeTargetHandles.Color
+                        : PointPrimitiveNodeTargetHandles.Size;
+                if (dataColumn.toLowerCase() === 'x') {
+                    targetHandle = PointPrimitiveNodeTargetHandles.X;
+                }
+                if (dataColumn.toLowerCase() === 'y') {
+                    targetHandle = PointPrimitiveNodeTargetHandles.Y;
+                }
+                if (dataColumn.toLowerCase() === 'z') {
+                    targetHandle = PointPrimitiveNodeTargetHandles.Z;
+                }
                 addedConnections.push({
-                    source: dataColumnIndex < 4 ? connectionsSource : colorMappingNode!.id,
+                    source: dataColumnIndex < 3 || dataColumnIndex > 3 ? connectionsSource : colorMappingNode!.id,
                     target: `${nodeId}`,
                     // TODO: Extract and use enum entries here and in DatasetNode.tsx and DateFilterNode.tsx (instead of magic strings)
-                    sourceHandle: dataColumnIndex < 4 ? dataColumn : ColorMappingNodeSourceHandles.Color,
+                    sourceHandle: dataColumnIndex < 3 || dataColumnIndex > 3 ? dataColumn : ColorMappingNodeSourceHandles.Color,
                     targetHandle: targetHandle,
                 });
             }
