@@ -54,6 +54,7 @@ export interface DatacubeInformation {
     gltfAssetUri?: string;
     gltfAssetScale?: number;
     labelString?: string;
+    selectedPointIndex?: number;
 }
 
 const selector = (s: ReactFlowState) => ({
@@ -71,6 +72,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
     const { updateNodePosition, unselectNodesAndEdges } = useStore(selector, shallow);
 
     const [nodeIdSelectedFromWebGL, setNodeIdSelectedFromWebGL] = React.useState(undefined);
+    const [pointIndexSelectedFromWebGL, setPointIndexSelectedFromWebGL] = React.useState(undefined);
 
     // Initialization -- runs only once (due to the empty list of dependencies passed to useEffect as its 2nd parameter)
     React.useEffect(() => {
@@ -142,6 +144,12 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                         setNodeIdSelectedFromWebGL(undefined);
                     }
 
+                    if ((event as any).data !== undefined && (event as any).data.pointIndex !== undefined) {
+                        setPointIndexSelectedFromWebGL((event as any).data.pointIndex);
+                    } else {
+                        setPointIndexSelectedFromWebGL(undefined);
+                    }
+
                     if ((event as any).data !== undefined && (event as any).data.cuboidBboxHovered !== undefined) {
                         const datacubeId = (event as any).data.datacubeID;
                         const matchingDatacube = store.getState().nodeInternals.get(`${datacubeId}`);
@@ -203,6 +211,23 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
             }),
         });
     }, [nodeIdSelectedFromWebGL]);
+
+    React.useEffect(() => {
+        if (nodeIdSelectedFromWebGL) {
+            store.setState({
+                nodeInternals: store.getState().nodeInternals.set(`${nodeIdSelectedFromWebGL}`, {
+                    ...(store.getState().nodeInternals.get(`${nodeIdSelectedFromWebGL}`) as any),
+                    data: {
+                        ...(store.getState().nodeInternals.get(`${nodeIdSelectedFromWebGL}`) as any).data,
+                        state: {
+                            ...(store.getState().nodeInternals.get(`${nodeIdSelectedFromWebGL}`) as any).data.state,
+                            selectedPointIndex: pointIndexSelectedFromWebGL,
+                        },
+                    },
+                }),
+            });
+        }
+    }, [nodeIdSelectedFromWebGL, pointIndexSelectedFromWebGL]);
 
     const nodeInformations = useStore((state: ReactFlowState) => {
         const maxRowCounts = Array.from(state.nodeInternals)
@@ -356,6 +381,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     gltfAssetScale,
                     labelString: isSelected ? labelString : '',
                     isSelected,
+                    selectedPointIndex: node.data?.state?.selectedPointIndex ?? undefined,
                 } as DatacubeInformation;
             })
             .filter((datacube) => datacube !== undefined) as DatacubeInformation[];
@@ -392,6 +418,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 gltfAssetScale: nodeInfo.gltfAssetScale,
                 labelString: nodeInfo.labelString,
                 isSelected: nodeInfo.isSelected,
+                selectedPointIndex: nodeInfo.selectedPointIndex,
             })),
         ),
     ]);
