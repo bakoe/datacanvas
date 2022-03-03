@@ -48,7 +48,7 @@ export class GltfAssetPass extends Initializable {
         this._program.link();
 
         this._uViewProjection = this._program.uniform('u_viewProjection');
-        // this._uNdcOffset = this._program.uniform('u_ndcOffset');
+        this._uNdcOffset = this._program.uniform('u_ndcOffset');
 
         return true;
     }
@@ -59,7 +59,7 @@ export class GltfAssetPass extends Initializable {
         this._primitive?.uninitialize();
 
         this._uViewProjection = undefined;
-        // this._uNdcOffset = undefined;
+        this._uNdcOffset = undefined;
     }
 
     @Initializable.assert_initialized()
@@ -124,7 +124,7 @@ export class GltfAssetPass extends Initializable {
         );
 
         if (this._uViewProjection && this._viewProjection) gl.uniformMatrix4fv(this._uViewProjection, false, this._viewProjection);
-        // if (this._uNdcOffset && this._ndcOffset) gl.uniform2fv(this._uNdcOffset, this._ndcOffset);
+        if (this._uNdcOffset && this._ndcOffset) gl.uniform2fv(this._uNdcOffset, this._ndcOffset);
 
         const instanceCount = 32 ** 3;
         if (indexBufferInformation === undefined) {

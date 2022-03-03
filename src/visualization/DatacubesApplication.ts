@@ -1991,8 +1991,8 @@ class DatacubesRenderer extends Renderer {
         }
 
         // Render GLTF assets
-        Passes.gltfAssets.forEach(pass => pass.target = this._intermediateFBOs[0]);
-        // if (ndcOffset) Passes.lines.ndcOffset = ndcOffset as GLfloat2;
+        Passes.gltfAssets.forEach((pass) => (pass.target = this._intermediateFBOs[0]));
+        if (ndcOffset) Passes.gltfAssets.forEach((pass) => (pass.ndcOffset = ndcOffset as GLfloat2));
         Passes.gltfAssets.forEach((pass) => pass.frame());
 
         // Render points

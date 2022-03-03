@@ -19,6 +19,8 @@ varying vec3 v_position;
 
 uniform mat4 u_viewProjection;
 
+uniform vec2 u_ndcOffset;
+
 void main(void)
 {
     v_uv = a_uv;
@@ -28,4 +30,5 @@ void main(void)
     vec3 position = a_position.xyz;
     v_position = position * 0.6 + 0.5;
     gl_Position = u_viewProjection * vec4(position * 0.1 + offset * 0.25, 1.0);
+    gl_Position.xy = u_ndcOffset * vec2(gl_Position.w) + gl_Position.xy;
 }
