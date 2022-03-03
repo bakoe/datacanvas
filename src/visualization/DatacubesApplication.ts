@@ -1020,7 +1020,9 @@ class DatacubesRenderer extends Renderer {
                 let renderCuboidToIdBufferOnly = false;
                 let points = undefined as undefined | PointData[];
                 if (
-                    (datacube.type === NodeTypes.PointPrimitive || datacube.type === NodeTypes.CubePrimitive) &&
+                    (datacube.type === NodeTypes.PointPrimitive ||
+                        datacube.type === NodeTypes.CubePrimitive ||
+                        datacube.type === NodeTypes.MeshPrimitive) &&
                     datacube.xColumn
                     // Make sure that the points only update after all (subsequently updated) columns were updated
                 ) {
@@ -1291,7 +1293,8 @@ class DatacubesRenderer extends Renderer {
                             const gltfAssetPass = new GltfAssetPass(this._context);
                             gltfAssetPass.initialize();
                             gltfAssetPass.primitive = primitive;
-                            Passes.gltfAssets = [...Passes.gltfAssets, gltfAssetPass];
+                            Passes.gltfAssets.set(cuboidToSetAssetFor!.id!, gltfAssetPass);
+                            // Passes.gltfAssets = [...Passes.gltfAssets, gltfAssetPass];
                             this._altered.alter('cuboids');
                             this._invalidate(true);
                         });
@@ -1999,29 +2002,34 @@ class DatacubesRenderer extends Renderer {
         // Render GLTF assets
         Passes.gltfAssets.forEach((pass) => (pass.target = this._intermediateFBOs[0]));
         if (ndcOffset) Passes.gltfAssets.forEach((pass) => (pass.ndcOffset = ndcOffset as GLfloat2));
-        Passes.gltfAssets.forEach(
-            (pass) =>
-                (pass.positions = [
-                    vec3.fromValues(0, 0, 0),
-                    vec3.fromValues(0, 1, 0),
-                    vec3.fromValues(4, 0.5, 0),
-                    vec3.fromValues(-2, 0.5, 0),
-                ]),
-        );
-        Passes.gltfAssets.forEach(
-            (pass) =>
-                (pass.modelGlobal = mat4.fromTranslation(
-                    m4(),
-                    vec3.fromValues(Array.from(this.datacubePositions)[0][1].x, 0.5, Array.from(this.datacubePositions)[0][1].y),
-                )),
-        );
-        Passes.gltfAssets.forEach((pass) => {
-            pass.scale = vec3.fromValues(
-                this.datacubes[0].gltfAssetScale || 1,
-                this.datacubes[0].gltfAssetScale || 1,
-                this.datacubes[0].gltfAssetScale || 1,
-            );
-        });
+
+        const cuboidsWithGltfAsset = this._cuboids.filter((cuboid) => cuboid.gltfAssetPrimitive !== undefined);
+        for (const cuboidWithGltfAsset of cuboidsWithGltfAsset) {
+            if (cuboidWithGltfAsset.id === undefined) {
+                continue;
+            }
+            const pass = Passes.gltfAssets.get(cuboidWithGltfAsset.id);
+            if (pass) {
+                if (cuboidWithGltfAsset.points !== undefined && cuboidWithGltfAsset.points.length > 0) {
+                    pass.positions = cuboidWithGltfAsset.points.map((pointData) => vec3.fromValues(pointData.x, pointData.y, pointData.z));
+                } else {
+                    pass.positions = [vec3.fromValues(0.5, 0.5, 0.5)];
+                }
+                const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - cuboidWithGltfAsset.id!);
+                if (matchingDatacube) {
+                    const datacubePosition = this._datacubePositions.get(matchingDatacube.id);
+                    if (datacubePosition) {
+                        pass.modelGlobal = mat4.fromTranslation(m4(), vec3.fromValues(datacubePosition.x, 0.0, datacubePosition.y));
+                    }
+                    pass.scale = vec3.fromValues(
+                        matchingDatacube.gltfAssetScale || 1,
+                        matchingDatacube.gltfAssetScale || 1,
+                        matchingDatacube.gltfAssetScale || 1,
+                    );
+                }
+            }
+        }
+
         Passes.gltfAssets.forEach((pass) => pass.frame());
 
         // Render points
@@ -2294,6 +2302,20 @@ class DatacubesRenderer extends Renderer {
                     updatedDatacubes.push(datacube);
                 }
                 datacubesNotDeleted.push(id);
+            }
+        }
+
+        const datacubesDeleted = this._datacubes.map((datacube) => datacube.id).filter((id) => !datacubesNotDeleted.includes(id));
+        datacubesDeleted.length > 0 ? console.log('Deleted datacubes: ', datacubesDeleted) : undefined;
+
+        if (datacubesDeleted.length > 0) {
+            for (const deletedDatacubeID of datacubesDeleted) {
+                const cuboidID = 4294967295 - deletedDatacubeID;
+                const matchingCuboid = this.cuboids.find((cuboid) => cuboid.id === cuboidID);
+                if (matchingCuboid && matchingCuboid.id && Passes.gltfAssets.has(matchingCuboid.id)) {
+                    Passes.gltfAssets.get(matchingCuboid.id)?.uninitialize();
+                    Passes.gltfAssets.delete(matchingCuboid.id);
+                }
             }
         }
 

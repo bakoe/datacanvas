@@ -495,7 +495,7 @@ const BasicFlow = () => {
     const autoCreateFlowForDatasetNode = (node: Node<DatasetNodeData>): void => {
         // const addedNodes = [] as Node<any>[];
         let dateFilterNode = undefined as Node<DateFilterNodeData> | undefined;
-        let cubePrimitiveNode = undefined as Node<CubePrimitiveNodeData> | undefined;
+        let meshPrimitiveNode = undefined as Node<MeshPrimitiveNodeData> | undefined;
         let colorMappingNode = undefined as Node<ColorMappingNodeData> | undefined;
         const addedConnections = [] as Connection[];
 
@@ -550,7 +550,7 @@ const BasicFlow = () => {
             const nodeId = getId();
             const nodeData = {
                 state: {
-                    ...CubePrimitiveNodeDefaultState,
+                    ...MeshPrimitiveNodeDefaultState,
                     extent: {
                         minX: -0.25,
                         maxX: 0.75,
@@ -558,16 +558,18 @@ const BasicFlow = () => {
                         maxZ: 0.75,
                     },
                 },
+                gltfAssetUri:
+                    'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoxTextured/glTF/BoxTextured.gltf',
                 onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
                 onDeleteNode: () => deleteNode(`${nodeId}`),
                 isValidConnection,
-            } as CubePrimitiveNodeData;
+            } as MeshPrimitiveNodeData;
             id++;
             // const xyPosition = getNextXYPositionForNodeType(NodeTypes.DateFilter);
             const xyPosition = node.position;
-            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.CubePrimitive);
-            cubePrimitiveNode = {
-                type: NodeTypes.CubePrimitive,
+            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.MeshPrimitive);
+            meshPrimitiveNode = {
+                type: NodeTypes.MeshPrimitive,
                 id: `${nodeId}`,
                 position: clampedPosition,
                 data: nodeData,
@@ -617,22 +619,22 @@ const BasicFlow = () => {
                 const dataColumn = potentialDataColumns[dataColumnIndex];
                 let targetHandle =
                     dataColumnIndex === 0
-                        ? CubePrimitiveNodeTargetHandles.X
+                        ? MeshPrimitiveNodeTargetHandles.X
                         : dataColumnIndex === 1
-                        ? CubePrimitiveNodeTargetHandles.Z
+                        ? MeshPrimitiveNodeTargetHandles.Z
                         : dataColumnIndex === 2
-                        ? CubePrimitiveNodeTargetHandles.Y
+                        ? MeshPrimitiveNodeTargetHandles.Y
                         : dataColumnIndex === 3
-                        ? CubePrimitiveNodeTargetHandles.Color
-                        : CubePrimitiveNodeTargetHandles.Size;
+                        ? MeshPrimitiveNodeTargetHandles.Color
+                        : MeshPrimitiveNodeTargetHandles.Size;
                 if (dataColumn.toLowerCase() === 'x') {
-                    targetHandle = CubePrimitiveNodeTargetHandles.X;
+                    targetHandle = MeshPrimitiveNodeTargetHandles.X;
                 }
                 if (dataColumn.toLowerCase() === 'y') {
-                    targetHandle = CubePrimitiveNodeTargetHandles.Y;
+                    targetHandle = MeshPrimitiveNodeTargetHandles.Y;
                 }
                 if (dataColumn.toLowerCase() === 'z') {
-                    targetHandle = CubePrimitiveNodeTargetHandles.Z;
+                    targetHandle = MeshPrimitiveNodeTargetHandles.Z;
                 }
                 addedConnections.push({
                     source: dataColumnIndex < 3 || dataColumnIndex > 3 ? connectionsSource : colorMappingNode!.id,
@@ -644,9 +646,9 @@ const BasicFlow = () => {
             }
         }
 
-        if (cubePrimitiveNode !== undefined) {
+        if (meshPrimitiveNode !== undefined) {
             setNodes((nds) => {
-                return nds.concat(cubePrimitiveNode!);
+                return nds.concat(meshPrimitiveNode!);
             });
         }
 
@@ -656,7 +658,7 @@ const BasicFlow = () => {
 
         setNodes((nodes) =>
             nodes.map((node) =>
-                node.id === (cubePrimitiveNode ? cubePrimitiveNode.id : node.id)
+                node.id === (meshPrimitiveNode ? meshPrimitiveNode.id : node.id)
                     ? { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: true } } }
                     : { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: false } } },
             ),
@@ -1048,9 +1050,9 @@ const BasicFlow = () => {
                             ...(node as Node<MeshPrimitiveNodeData>).data,
                             // TODO: Make gltfloader's loadAsset method accept File objects (as gltf-loader's load method accepts either way) to pass File instead of data URL
                             // gltfAssetFile: file,
-                            // gltfAssetUri: source,
-                            gltfAssetUri:
-                                'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoxTextured/glTF/BoxTextured.gltf',
+                            gltfAssetUri: source,
+                            // gltfAssetUri:
+                            // 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoxTextured/glTF/BoxTextured.gltf',
                         };
                     }
                     return node;

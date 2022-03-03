@@ -23,7 +23,7 @@ export class Passes {
     protected _labels: LabelPass;
     protected _lines: LinePass;
 
-    protected _gltfAssets: GltfAssetPass[] = [];
+    protected _gltfAssets: Map<number, GltfAssetPass>;
 
     // // To-be-created
     // protected _cuboids: CuboidPass;
@@ -57,6 +57,8 @@ export class Passes {
 
         this._lines = new LinePass(context);
         this._lines.initialize();
+
+        this._gltfAssets = new Map();
     }
 
     public static initialize(context: Context, invalidate: Invalidate): void {
@@ -76,11 +78,11 @@ export class Passes {
         return this._instance._lines;
     }
 
-    public static get gltfAssets(): GltfAssetPass[] {
+    public static get gltfAssets(): Map<number, GltfAssetPass> {
         return this._instance._gltfAssets;
     }
 
-    public static set gltfAssets(gltfAssetPasses: GltfAssetPass[]) {
+    public static set gltfAssets(gltfAssetPasses: Map<number, GltfAssetPass>) {
         this._instance._gltfAssets = gltfAssetPasses;
         this.renderFBO = this._instance._floor.target;
         this.update();
@@ -94,7 +96,12 @@ export class Passes {
     }
 
     public static get altered(): boolean {
-        return Passes.floor.altered || Passes.labels.altered || Passes.lines.altered || Passes.gltfAssets.some((pass) => pass.altered);
+        return (
+            Passes.floor.altered ||
+            Passes.labels.altered ||
+            Passes.lines.altered ||
+            Array.from(Passes.gltfAssets).some(([, pass]) => pass.altered)
+        );
     }
 
     public static update(): void {
