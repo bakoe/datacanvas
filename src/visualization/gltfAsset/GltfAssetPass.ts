@@ -24,6 +24,8 @@ export class GltfAssetPass extends Initializable {
 
         primitive: false,
         positions: false,
+        modelGlobal: false,
+        scale: false,
     });
 
     private _viewProjection: mat4 | undefined;
@@ -43,6 +45,11 @@ export class GltfAssetPass extends Initializable {
 
     protected _positions: vec3[] = [];
     protected _modelTransformsBuffer: any;
+
+    private _scale: vec3 | undefined;
+
+    private _modelGlobal: mat4 | undefined;
+    protected _uModelGlobal: WebGLUniformLocation | undefined;
 
     public constructor(context: Context) {
         super();
@@ -69,6 +76,8 @@ export class GltfAssetPass extends Initializable {
         this._uViewProjection = this._program.uniform('u_viewProjection');
         this._uNdcOffset = this._program.uniform('u_ndcOffset');
 
+        this._uModelGlobal = this._program.uniform('u_modelGlobal');
+
         return true;
     }
 
@@ -80,6 +89,8 @@ export class GltfAssetPass extends Initializable {
 
         this._uViewProjection = undefined;
         this._uNdcOffset = undefined;
+
+        this._uModelGlobal = undefined;
     }
 
     @Initializable.assert_initialized()
@@ -89,6 +100,43 @@ export class GltfAssetPass extends Initializable {
 
     @Initializable.assert_initialized()
     public frame(): void {
+        if ((this._positions.length > 0 && this._altered.positions) || this._altered.scale) {
+            // TODO: Use a more efficient and better debug-able approach,
+            // i.e., use Float32Array views as indicated on https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html
+            const modelTransforms = [] as number[];
+            for (let index = 0; index < this._positions.length; index++) {
+                const position = this._positions[index];
+                const scale = mat4.fromScaling(m4(), this._scale || vec3.fromValues(1.0, 1.0, 1.0));
+                const translate = mat4.fromTranslation(m4(), position);
+                const scaleAndTranslate = mat4.mul(m4(), translate, scale);
+                modelTransforms.push(
+                    scaleAndTranslate[0],
+                    scaleAndTranslate[1],
+                    scaleAndTranslate[2],
+                    scaleAndTranslate[3],
+                    scaleAndTranslate[4],
+                    scaleAndTranslate[5],
+                    scaleAndTranslate[6],
+                    scaleAndTranslate[7],
+                    scaleAndTranslate[8],
+                    scaleAndTranslate[9],
+                    scaleAndTranslate[10],
+                    scaleAndTranslate[11],
+                    scaleAndTranslate[12],
+                    scaleAndTranslate[13],
+                    scaleAndTranslate[14],
+                    scaleAndTranslate[15],
+                );
+            }
+
+            const gl = this._gl;
+            this._modelTransformsBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, this._modelTransformsBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelTransforms.flat()), gl.DYNAMIC_DRAW);
+
+            this._altered.reset();
+        }
+
         if (!this._target || !this._primitive || this._positions.length === 0 || this._modelTransformsBuffer === undefined) {
             return;
         }
@@ -163,6 +211,7 @@ export class GltfAssetPass extends Initializable {
 
         if (this._uViewProjection && this._viewProjection) gl.uniformMatrix4fv(this._uViewProjection, false, this._viewProjection);
         if (this._uNdcOffset && this._ndcOffset) gl.uniform2fv(this._uNdcOffset, this._ndcOffset);
+        if (this._uModelGlobal) gl.uniformMatrix4fv(this._uModelGlobal, false, this._modelGlobal || m4());
 
         const instanceCount = this._positions.length;
         if (indexBufferInformation === undefined) {
@@ -207,38 +256,6 @@ export class GltfAssetPass extends Initializable {
         }
 
         this._positions = positions;
-
-        // TODO: Use a more efficient and better debug-able approach,
-        // i.e., use Float32Array views as indicated on https://webglfundamentals.org/webgl/lessons/webgl-instanced-drawing.html
-        const modelTransforms = [] as number[];
-        for (let index = 0; index < positions.length; index++) {
-            const position = positions[index];
-            const translateMatrix = mat4.fromTranslation(m4(), position);
-            modelTransforms.push(
-                translateMatrix[0],
-                translateMatrix[1],
-                translateMatrix[2],
-                translateMatrix[3],
-                translateMatrix[4],
-                translateMatrix[5],
-                translateMatrix[6],
-                translateMatrix[7],
-                translateMatrix[8],
-                translateMatrix[9],
-                translateMatrix[10],
-                translateMatrix[11],
-                translateMatrix[12],
-                translateMatrix[13],
-                translateMatrix[14],
-                translateMatrix[15],
-            );
-        }
-
-        const gl = this._gl;
-        this._modelTransformsBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, this._modelTransformsBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(modelTransforms.flat()), gl.DYNAMIC_DRAW);
-
         this._altered.alter('positions');
     }
 
@@ -252,6 +269,16 @@ export class GltfAssetPass extends Initializable {
 
     public set viewProjection(value: mat4 | undefined) {
         this._viewProjection = value;
+    }
+
+    public set modelGlobal(value: mat4 | undefined) {
+        this._modelGlobal = value;
+        this._altered.alter('modelGlobal');
+    }
+
+    public set scale(value: vec3 | undefined) {
+        this._scale = value;
+        this._altered.alter('scale');
     }
 
     public set primitive(primitive: GLTFPrimitive) {

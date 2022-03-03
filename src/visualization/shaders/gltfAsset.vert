@@ -22,12 +22,14 @@ uniform mat4 u_viewProjection;
 
 uniform vec2 u_ndcOffset;
 
+uniform mat4 u_modelGlobal;
+
 void main(void)
 {
     v_uv = a_uv;
 
     vec3 position = a_position.xyz;
-    position.xyz = vec4(a_model * vec4(position, 1.0)).xyz;
+    position.xyz = vec4(u_modelGlobal * a_model * vec4(position, 1.0)).xyz;
     v_position = position.xyz;
     gl_Position = u_viewProjection * vec4(v_position, 1.0);
     gl_Position.xy = u_ndcOffset * vec2(gl_Position.w) + gl_Position.xy;

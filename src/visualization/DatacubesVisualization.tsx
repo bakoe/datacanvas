@@ -52,6 +52,7 @@ export interface DatacubeInformation {
     // TODO: Make gltfloader's loadAsset method accept File objects (as gltf-loader's load method accepts either way) to pass File instead of data URL
     // gltfAssetFile?: File;
     gltfAssetUri?: string;
+    gltfAssetScale?: number;
     labelString?: string;
 }
 
@@ -261,6 +262,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 let sizeColumn = undefined as undefined | CSVColumn;
                 let colors = undefined as undefined | { column: CSVColumn; colorPalette: ColorPalette };
                 let gltfAssetUri = undefined as undefined | string;
+                let gltfAssetScale = 1.0;
                 let labelString = '';
                 const isSelected = node.selected;
                 if (isFixedTextNode(node)) {
@@ -324,6 +326,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     if (isMeshPrimitiveNode(node)) {
                         labelString += 'Rendering: Mesh Primitive';
                         gltfAssetUri = node.data.gltfAssetUri;
+                        gltfAssetScale = node.data.state?.scale || gltfAssetScale;
                         xColumn = node.data.state?.xColumn;
                         yColumn = node.data.state?.yColumn;
                         zColumn = node.data.state?.zColumn;
@@ -350,6 +353,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     sizeColumn,
                     colors,
                     gltfAssetUri,
+                    gltfAssetScale,
                     labelString: isSelected ? labelString : '',
                     isSelected,
                 } as DatacubeInformation;
@@ -385,6 +389,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     ? `${serializeColumnInfo(nodeInfo.colors.column)}_${JSON.stringify(nodeInfo.colors.colorPalette)}`
                     : undefined,
                 gltfAssetUri: nodeInfo.gltfAssetUri,
+                gltfAssetScale: nodeInfo.gltfAssetScale,
                 labelString: nodeInfo.labelString,
                 isSelected: nodeInfo.isSelected,
             })),

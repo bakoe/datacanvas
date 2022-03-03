@@ -32,6 +32,7 @@ export const MeshPrimitiveNodeTargetHandlesDatatypes: Map<MeshPrimitiveNodeTarge
 
 export interface MeshPrimitiveNodeState {
     isPending: boolean;
+    scale: number;
     xColumn?: CSVColumn;
     yColumn?: CSVColumn;
     zColumn?: CSVColumn;
@@ -42,7 +43,7 @@ export interface MeshPrimitiveNodeState {
     };
 }
 
-export const defaultState = { isPending: true } as MeshPrimitiveNodeState;
+export const defaultState = { isPending: true, scale: 1.0 } as MeshPrimitiveNodeState;
 
 export interface MeshPrimitiveNodeData {
     onChangeState: (state: Partial<MeshPrimitiveNodeState>) => void;
@@ -60,7 +61,13 @@ const onConnect = (params: Connection | Edge) => console.log('handle onConnect o
 
 const MeshPrimitiveNode: FC<MeshPrimitiveNodeProps> = ({ isConnectable, selected, data }) => {
     const { state, onChangeState, onDeleteNode, isValidConnection } = data;
-    const { isPending = true, xColumn = undefined, yColumn = undefined, zColumn = undefined } = { ...defaultState, ...state };
+    const {
+        isPending = true,
+        scale,
+        xColumn = undefined,
+        yColumn = undefined,
+        zColumn = undefined,
+    } = { ...defaultState, ...state } as MeshPrimitiveNodeState;
 
     useEffect(() => {
         if (xColumn) {
@@ -101,6 +108,33 @@ const MeshPrimitiveNode: FC<MeshPrimitiveNodeProps> = ({ isConnectable, selected
                     </div>
                 );
             })}
+
+            <hr className="divider" />
+
+            <div className="nodrag">
+                <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <label htmlFor="scale">Scale:</label>
+                            </td>
+                            <td>
+                                <input
+                                    id="scale"
+                                    type="number"
+                                    step={0.05}
+                                    value={scale}
+                                    onChange={(event) => {
+                                        onChangeState({
+                                            scale: event.target.valueAsNumber,
+                                        });
+                                    }}
+                                />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };

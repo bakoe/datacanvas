@@ -116,6 +116,7 @@ export interface Cuboid {
     pointsCount?: number;
     // gltfAssetRootNode?: SceneNode;
     gltfAssetPrimitive?: GLTFPrimitive;
+    gltfAssetScale?: number;
 }
 
 // LAB values converted using: https://colors.dopely.top/color-converter/hex/
@@ -1279,8 +1280,9 @@ class DatacubesRenderer extends Renderer {
                         return loader.meshes[0].primitives[0];
                     };
                     if (existingCuboid && existingCuboid.gltfAssetPrimitive !== undefined) {
-                        // Do nothing
+                        existingCuboid!.gltfAssetScale = datacube.gltfAssetScale;
                     } else {
+                        (existingCuboid || newCuboid)!.gltfAssetScale = datacube.gltfAssetScale;
                         loadAsset(datacube.gltfAssetUri).then((primitive) => {
                             const cuboidToSetAssetFor = existingCuboid || newCuboid;
                             // cuboidToSetAssetFor!.gltfAssetRootNode = rootNode;
@@ -2006,6 +2008,20 @@ class DatacubesRenderer extends Renderer {
                     vec3.fromValues(-2, 0.5, 0),
                 ]),
         );
+        Passes.gltfAssets.forEach(
+            (pass) =>
+                (pass.modelGlobal = mat4.fromTranslation(
+                    m4(),
+                    vec3.fromValues(Array.from(this.datacubePositions)[0][1].x, 0.5, Array.from(this.datacubePositions)[0][1].y),
+                )),
+        );
+        Passes.gltfAssets.forEach((pass) => {
+            pass.scale = vec3.fromValues(
+                this.datacubes[0].gltfAssetScale || 1,
+                this.datacubes[0].gltfAssetScale || 1,
+                this.datacubes[0].gltfAssetScale || 1,
+            );
+        });
         Passes.gltfAssets.forEach((pass) => pass.frame());
 
         // Render points
