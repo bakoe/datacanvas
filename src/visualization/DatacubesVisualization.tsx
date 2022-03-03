@@ -153,7 +153,11 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     if ((event as any).data !== undefined && (event as any).data.cuboidBboxHovered !== undefined) {
                         const datacubeId = (event as any).data.datacubeID;
                         const matchingDatacube = store.getState().nodeInternals.get(`${datacubeId}`);
-                        if (matchingDatacube?.type === NodeTypes.PointPrimitive) {
+                        if (
+                            matchingDatacube?.type === NodeTypes.PointPrimitive ||
+                            matchingDatacube?.type === NodeTypes.CubePrimitive ||
+                            matchingDatacube?.type === NodeTypes.MeshPrimitive
+                        ) {
                             const cuboidBboxHovered = (event as any).data.cuboidBboxHovered as {
                                 xMin: boolean;
                                 xMax: boolean;
