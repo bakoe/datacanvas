@@ -41,7 +41,7 @@ export interface ColorMappingNodeState {
 
 export const defaultState = {
     isPending: true,
-    colorScaleConfig: { type: 'sequential', identifier: 'YlGnBu' },
+    colorScaleConfig: { preset: 'smithwalt', type: 'sequential', identifier: 'magma' },
     numberOfStops: 5,
 } as ColorMappingNodeState;
 
@@ -56,9 +56,10 @@ type ColorMappingNodeProps = NodeWithStateProps<ColorMappingNodeData>;
 const onConnect = (params: Connection | Edge) => console.log('handle onConnect on ColorMappingNode', params);
 
 interface ColorScaleConfig {
-    type: string;
-    identifier: string;
-    interpolate: boolean;
+    preset: string;
+    type?: string;
+    identifier?: string;
+    interpolate?: boolean;
 }
 
 const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, data }) => {
@@ -67,37 +68,50 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
         isPending = defaultState.isPending,
         colorPalette = undefined as undefined | ColorPalette,
         column = undefined,
-        colorScaleConfig = defaultState.colorScaleConfig,
+        colorScaleConfig = defaultState.colorScaleConfig as ColorScaleConfig | undefined,
         numberOfStops = defaultState.numberOfStops,
     } = { ...defaultState, ...state };
     const [availableColorScales, setAvailableColorScales] = useState([] as ColorScaleConfig[]);
 
     useEffect(() => {
-        const loadColorScales = async () => {
-            const response = await fetch('/colorbrewer.json');
-            const colorbrewerJSON = (await response.json()) as Array<{
+        const loadColorScales = async (presetName: string) => {
+            const response = await fetch(`/${presetName}.json`);
+            const presetJSON = (await response.json()) as Array<{
                 identifier: string;
                 type: string;
                 format: string;
                 colors: Array<Array<number>>;
             }>;
             const colorScales = [] as ColorScaleConfig[];
-            for (let presetIndex = 0; presetIndex < colorbrewerJSON.length; presetIndex++) {
-                const preset = colorbrewerJSON[presetIndex];
+            for (let presetIndex = 0; presetIndex < presetJSON.length; presetIndex++) {
+                const preset = presetJSON[presetIndex];
                 colorScales[presetIndex] = {
+                    preset: presetName,
                     identifier: preset.identifier,
                     type: preset.type,
                     interpolate: preset.type !== 'qualitative',
                 };
             }
-            setAvailableColorScales(colorScales);
+            setAvailableColorScales((availableColorScalePresets) => availableColorScalePresets.concat(colorScales));
         };
 
-        loadColorScales();
+        for (const preset of ['smithwalt', 'colorbrewer']) {
+            loadColorScales(preset);
+        }
     }, []);
 
     useEffect(() => {
-        ColorScale.fromPreset('/colorbrewer.json', colorScaleConfig.identifier, numberOfStops).then((colorScale) => {
+        if (
+            availableColorScales.find(
+                (colorScale) =>
+                    colorScale.preset === colorScaleConfig.preset &&
+                    colorScale.identifier === colorScaleConfig.identifier &&
+                    colorScale.type === colorScaleConfig.type,
+            ) === undefined
+        ) {
+            return;
+        }
+        ColorScale.fromPreset(`/${colorScaleConfig.preset}.json`, colorScaleConfig.identifier, numberOfStops).then((colorScale) => {
             let colorPalette = colorScale.colors.map((color, index) => {
                 const rgbaUint8 = color.rgbaUI8;
                 const r = rgbaUint8[0];
@@ -129,7 +143,7 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                 colorPalette,
             });
         });
-    }, [numberOfStops, JSON.stringify(colorScaleConfig)]);
+    }, [numberOfStops, JSON.stringify(colorScaleConfig), JSON.stringify(availableColorScales)]);
 
     useEffect(() => {
         if (column && colorPalette) {
@@ -144,17 +158,25 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
     }, [serializeColumnInfo(column), JSON.stringify(colorPalette)]);
 
     const availableColorScaleTypes = availableColorScales.reduce(
-        (types, colorScale) => (!types.includes(colorScale.type) ? types.concat(colorScale.type) : types),
+        (types, colorScale) =>
+            colorScale.preset === colorScale.type && colorScaleConfig.preset && !types.includes(colorScale.type)
+                ? types.concat(colorScale.type)
+                : types,
         [] as string[],
     );
 
-    const availableColorScalePresets = availableColorScales.filter((colorScale) => colorScale.type === colorScaleConfig.type);
+    const availableColorScalePresets = availableColorScales.filter(
+        (colorScale) => colorScale.preset === colorScaleConfig.preset && colorScale.type === colorScaleConfig.type,
+    );
 
     useEffect(() => {
         if (availableColorScalePresets.length > 0) {
             if (
                 availableColorScalePresets.findIndex(
-                    (colorScale) => colorScale.identifier === colorScaleConfig.identifier && colorScale.type === colorScaleConfig.type,
+                    (colorScale) =>
+                        colorScale.preset === colorScaleConfig.preset &&
+                        colorScale.identifier === colorScaleConfig.identifier &&
+                        colorScale.type === colorScaleConfig.type,
                 ) !== -1
             ) {
                 return;
@@ -165,6 +187,15 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
             });
         }
     }, [JSON.stringify(availableColorScalePresets)]);
+
+    useEffect(() => {
+        onChangeState({
+            colorScaleConfig:
+                availableColorScales.find(
+                    (colorScale) => colorScale.preset === colorScaleConfig.preset && colorScale.type === colorScaleConfig.type,
+                ) || availableColorScales.find((colorScale) => colorScale.preset === colorScaleConfig.preset),
+        });
+    }, [colorScaleConfig.preset]);
 
     useEffect(() => {
         if (column?.type === 'string') {
@@ -213,6 +244,33 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
             <div className="nodrag">
                 <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
                     <tbody>
+                        <tr>
+                            <td>
+                                <label htmlFor="preset">Preset:</label>
+                            </td>
+                            <td>
+                                <select
+                                    id="preset"
+                                    value={colorScaleConfig.preset}
+                                    onChange={(event) => {
+                                        onChangeState({
+                                            colorScaleConfig: {
+                                                ...colorScaleConfig,
+                                                preset: event.target.value,
+                                                identifier: undefined,
+                                            },
+                                            numberOfStops: undefined,
+                                        });
+                                    }}
+                                >
+                                    {['colorbrewer', 'smithwalt'].map((presetName) => (
+                                        <option key={presetName} value={presetName}>
+                                            {presetName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </td>
+                        </tr>
                         <tr>
                             <td>
                                 <label htmlFor="type">Type:</label>
