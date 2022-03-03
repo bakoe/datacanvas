@@ -91,7 +91,7 @@ const ANIME_JS_SPRING_PARAMS = {
 };
 
 const DEBUG_SHOW_POINTS_ON_INTERACTION = false;
-const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
 
 export interface Cuboid {
     geometry: CuboidGeometry;
@@ -450,7 +450,7 @@ class DatacubesRenderer extends Renderer {
         this._debugPass.debug = DebugPass.Mode.None;
 
         this._debugPass.framebuffer = this._preDepthFBO;
-        // this._debugPass.framebuffer = this._intermediateFBOs[1];
+        this._debugPass.framebuffer = this._intermediateFBOs[1];
         this._debugPass.readBuffer = gl.COLOR_ATTACHMENT0;
 
         this._debugPass.target = this._defaultFBO;
@@ -2011,20 +2011,40 @@ class DatacubesRenderer extends Renderer {
             const pass = Passes.gltfAssets.get(cuboidWithGltfAsset.id);
             if (pass) {
                 if (cuboidWithGltfAsset.points !== undefined && cuboidWithGltfAsset.points.length > 0) {
+                    // TODO: Pass the points data (cuboidWithGltfAsset.points) directly here to avoid performance bottleneck due to re-computation of positions
                     pass.positions = cuboidWithGltfAsset.points.map((pointData) => vec3.fromValues(pointData.x, pointData.y, pointData.z));
                 } else {
-                    pass.positions = [vec3.fromValues(0.5, 0.5, 0.5)];
+                    pass.positions = [vec3.fromValues(0.0, -0.5, 0.0)];
                 }
                 const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - cuboidWithGltfAsset.id!);
                 if (matchingDatacube) {
                     const datacubePosition = this._datacubePositions.get(matchingDatacube.id);
+                    let extentScale = mat4.identity(m4());
                     if (datacubePosition) {
-                        pass.modelGlobal = mat4.fromTranslation(m4(), vec3.fromValues(datacubePosition.x, 0.0, datacubePosition.y));
+                        const extent = matchingDatacube.extent;
+                        const translateXZ = datacubePosition;
+                        const translateY = cuboidWithGltfAsset.translateY;
+                        extentScale = mat4.fromScaling(
+                            mat4.create(),
+                            vec3.fromValues((extent.maxX - extent.minX) / CUBOID_SIZE_X, 1.0, (extent.maxZ - extent.minZ) / CUBOID_SIZE_Z),
+                        );
+                        const translate = mat4.fromTranslation(mat4.create(), [
+                            translateXZ.x + (extent.maxX + extent.minX) / 2,
+                            translateY,
+                            translateXZ.y + (extent.maxZ + extent.minZ) / 2,
+                        ]);
+
+                        const transform = mat4.multiply(mat4.create(), translate, extentScale);
+                        pass.modelGlobal = transform;
                     }
-                    pass.scale = vec3.fromValues(
-                        matchingDatacube.gltfAssetScale || 1,
-                        matchingDatacube.gltfAssetScale || 1,
-                        matchingDatacube.gltfAssetScale || 1,
+                    pass.scale = vec3.transformMat4(
+                        v3(),
+                        vec3.fromValues(
+                            matchingDatacube.gltfAssetScale || 1,
+                            matchingDatacube.gltfAssetScale || 1,
+                            matchingDatacube.gltfAssetScale || 1,
+                        ),
+                        mat4.invert(m4(), extentScale),
                     );
                 }
             }
