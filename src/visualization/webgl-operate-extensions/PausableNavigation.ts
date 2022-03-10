@@ -1,4 +1,7 @@
-import { EventProvider, Invalidate, Navigation } from 'webgl-operate';
+import { Camera as PerspectiveCamera, EventProvider, Invalidate, Navigation } from 'webgl-operate';
+import { OrthographicAndPerspectivePinchZoomModifier } from './OrthographicAndPerspectivePinchZoomModifier';
+import { OrthographicCamera } from './OrthographicCamera';
+import { OrthographicWheelZoomModifier } from './OrthographicWheelZoomModifier';
 import { PausableEventHandler } from './PausableEventHandler';
 
 export class PausableNavigation extends Navigation {
@@ -33,13 +36,45 @@ export class PausableNavigation extends Navigation {
             this.onPointerCancel(latests, previous),
         );
 
-        // TODO: Fix type error -> repace the two "any"s with, e.g., MouseEvent or WheelEvent
+        // TODO: Fix type error -> replace the two "any"s with, e.g., MouseEvent or WheelEvent
         // Argument of type '(latests: Array<WheelEvent>, previous: Array<WheelEvent>) => void' is not assignable to parameter of type 'MouseEventHandler'.
         // (Apparently, pushMouseWheelHandler expects a MouseEventHandler instead of something like a WheelEventHandler)
         this._eventHandler.pushMouseWheelHandler((latests: Array<any>, previous: Array<any>) => this.onWheel(latests, previous));
+
+        this._wheelZoom = new OrthographicWheelZoomModifier();
+        this._wheelZoom.camera = this._camera;
+
+        this._pinch = new OrthographicAndPerspectivePinchZoomModifier();
+        this._pinch.camera = this._camera;
     }
 
     set isPaused(isPaused: boolean) {
         this._eventHandler.isPaused = isPaused;
+    }
+
+    set camera(camera: PerspectiveCamera | OrthographicCamera) {
+        this._camera = camera;
+        if (this._firstPerson) {
+            this._firstPerson.camera = camera;
+        }
+        if (this._trackball) {
+            this._trackball.camera = camera;
+        }
+        if (this._turntable) {
+            this._turntable.camera = camera;
+        }
+        if (this._pan) {
+            this._pan.camera = camera;
+        }
+        if (this._pinch) {
+            this._pinch.camera = camera;
+        }
+        if (this._wheelZoom) {
+            this._wheelZoom.camera = camera;
+        }
+    }
+
+    get camera(): PerspectiveCamera | OrthographicCamera {
+        return this._camera;
     }
 }
