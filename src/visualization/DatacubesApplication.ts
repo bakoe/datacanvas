@@ -9,7 +9,7 @@ import {
     Renderer,
     Wizard,
     mat4,
-    Camera,
+    Camera as PerspectiveCamera,
     Invalidate,
     EventProvider,
     Context,
@@ -61,6 +61,8 @@ import { GLfloat2 } from 'webgl-operate/lib/tuples';
 import { getDistinctValuesInStringColumn } from '../data/nodes/DatasetNode';
 import { GltfAssetPass } from './gltfAsset/GltfAssetPass';
 import { DebugPassSupportingIDBuffer } from './webgl-operate-extensions/DebugPassSupportingIDBuffer';
+import { OrthographicCamera } from './webgl-operate-extensions/OrthographicCamera';
+import { DEG2RAD, RAD2DEG } from 'haeley-math';
 
 /* spellchecker: enable */
 
@@ -159,7 +161,7 @@ for (const color of [
     color[2] = mappedColor[2];
 }
 
-class DatacubesRenderer extends Renderer {
+export class DatacubesRenderer extends Renderer {
     protected _extensions = false;
 
     protected _capturedIDBufferImageData: ImageData | undefined;
@@ -179,7 +181,7 @@ class DatacubesRenderer extends Renderer {
     protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
     protected _uModelCuboids: WebGLUniformLocation | undefined;
 
-    protected _camera: Camera | undefined;
+    protected _camera: PerspectiveCamera | OrthographicCamera | undefined;
     protected _cameraRunningAnimeJSAnimation: AnimeInstance | undefined;
     protected _navigation: PausableNavigation | undefined;
 
@@ -299,7 +301,7 @@ class DatacubesRenderer extends Renderer {
             debugPoints: false,
         });
 
-        this._camera = new Camera();
+        this._camera = new PerspectiveCamera();
 
         this._camera.center = vec3.fromValues(0.0, 0.5, 0.0);
         this._camera.up = vec3.fromValues(0.0, 1.0, 0.0);
@@ -2641,6 +2643,48 @@ class DatacubesRenderer extends Renderer {
     get debugPoints(): Float32Array | undefined {
         return this._debugPoints;
     }
+
+    set isPerspectiveCamera(isPerspectiveCamera: boolean) {
+        if (isPerspectiveCamera) {
+            const perspectiveCamera = new PerspectiveCamera();
+
+            perspectiveCamera.center = this._camera?.center || vec3.fromValues(0.0, 0.5, 0.0);
+            perspectiveCamera.up = this._camera?.up || vec3.fromValues(0.0, 1.0, 0.0);
+            perspectiveCamera.eye = this._camera?.eye || vec3.fromValues(2.0, 2.0, 4.0);
+            perspectiveCamera.near = 0.01;
+            perspectiveCamera.far = 32.0;
+            perspectiveCamera.fovy = this._camera
+                ? RAD2DEG * Math.tan((this._camera as OrthographicCamera).frustumHeight / this.distanceToCamera(this._camera.center))
+                : 45.0;
+
+            this._camera = perspectiveCamera;
+            if (this._navigation) {
+                this._navigation.camera = this._camera;
+            }
+            this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
+            this._camera.viewport = [this._frameSize[0], this._frameSize[1]];
+            Passes.labels.camera = this._camera;
+            this.invalidate(true);
+        } else {
+            const orthographicCamera = new OrthographicCamera();
+
+            orthographicCamera.center = this._camera?.center || vec3.fromValues(0.0, 0.5, 0.0);
+            orthographicCamera.up = this._camera?.up || vec3.fromValues(0.0, 1.0, 0.0);
+            orthographicCamera.eye = this._camera?.eye || vec3.fromValues(2.0, 2.0, 4.0);
+            orthographicCamera.frustumHeight = this._camera
+                ? Math.atan(DEG2RAD * this._camera.fovy) * this.distanceToCamera(this._camera.center)
+                : 1.0;
+
+            this._camera = orthographicCamera;
+            if (this._navigation) {
+                this._navigation.camera = this._camera;
+            }
+            this._camera.aspect = this._canvasSize[0] / this._canvasSize[1];
+            this._camera.viewport = [this._frameSize[0], this._frameSize[1]];
+            Passes.labels.camera = this._camera;
+            this.invalidate(true);
+        }
+    }
 }
 
 export class DatacubesApplication extends Application {
@@ -2664,6 +2708,12 @@ export class DatacubesApplication extends Application {
         this._spinner = spinnerElement;
 
         return true;
+    }
+
+    set isPerspectiveCamera(isPerspectiveCamera: boolean) {
+        if (this._renderer) {
+            this._renderer.isPerspectiveCamera = isPerspectiveCamera;
+        }
     }
 
     set datacubes(datacubes: Array<DatacubeInformation>) {

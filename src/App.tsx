@@ -5,7 +5,7 @@ import Split from 'react-split';
 
 import BasicFlow from './data/BasicFlow';
 import { lab2rgb } from './data/nodes/util/colorTransformations';
-import { Cuboid, mapLABColorRangeToNonZeroOne } from './visualization/DatacubesApplication';
+import { Cuboid, DatacubesRenderer, mapLABColorRangeToNonZeroOne } from './visualization/DatacubesApplication';
 import { DatacubesVisualization } from './visualization/DatacubesVisualization';
 
 const Controls: React.FC<{
@@ -13,6 +13,13 @@ const Controls: React.FC<{
     showClearButton?: boolean;
 }> = ({ showClearButton, onChangeHighQualityRenderingImageBase64 }) => {
     const [fetchAbortController, setFetchAbortController] = React.useState(undefined as undefined | AbortController);
+    const [isPerspectiveCamera, setIsPerspectiveCamera] = React.useState(true);
+
+    useEffect(() => {
+        if ((window['renderer'] as DatacubesRenderer) !== undefined) {
+            (window['renderer'] as DatacubesRenderer).isPerspectiveCamera = isPerspectiveCamera;
+        }
+    }, [isPerspectiveCamera]);
 
     const onRenderHighQualityVisualization = async () => {
         let usedAbortController;
@@ -130,6 +137,15 @@ const Controls: React.FC<{
                     Clear
                 </a>
             )}
+            <a
+                className="link"
+                style={{ marginLeft: '1rem' }}
+                onClick={() => {
+                    setIsPerspectiveCamera((prev) => !prev);
+                }}
+            >
+                {isPerspectiveCamera ? 'Switch to Orthographic' : 'Switch to Perspective'}
+            </a>
         </div>
     );
 };
