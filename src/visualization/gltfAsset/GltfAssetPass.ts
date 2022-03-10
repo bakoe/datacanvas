@@ -251,10 +251,6 @@ export class GltfAssetPass extends Initializable {
     public set positions(positions: vec3[]) {
         this.assertInitialized();
 
-        if (JSON.stringify(positions) === JSON.stringify(this._positions)) {
-            return;
-        }
-
         this._positions = positions;
         this._altered.alter('positions');
     }
