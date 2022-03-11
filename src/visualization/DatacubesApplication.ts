@@ -303,7 +303,7 @@ export class DatacubesRenderer extends Renderer {
 
         this._camera = new PerspectiveCamera();
 
-        this._camera.center = vec3.fromValues(0.0, 0.5, 0.0);
+        this._camera.center = vec3.fromValues(0.0, 0.0, 0.0);
         this._camera.up = vec3.fromValues(0.0, 1.0, 0.0);
         this._camera.eye = vec3.fromValues(2.0, 2.0, 4.0);
         this._camera.near = 0.01;
