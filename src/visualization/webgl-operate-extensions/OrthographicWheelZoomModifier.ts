@@ -7,6 +7,8 @@ export class OrthographicWheelZoomModifier extends WheelZoomModifier {
     protected _camera: PerspectiveCamera | OrthographicCamera | undefined = undefined;
     protected _zoomOffset: number = 0.0;
 
+    protected _sensitivity: number = WheelZoomModifier.DEFAULT_SENSITIVITY * 0.1;
+
     process(delta: number): void {
         Object.assign(this._reference, this._camera);
 
