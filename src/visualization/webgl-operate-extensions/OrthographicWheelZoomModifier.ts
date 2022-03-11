@@ -37,7 +37,13 @@ export class OrthographicWheelZoomModifier extends WheelZoomModifier {
             console.log('WheelZoomModifier -> this._camera instanceof PerspectiveCamera');
             const T = mat4.fromTranslation(m4(), this._translation);
 
-            const eye = vec3.transformMat4(v3(), this._reference.eye, T);
+            let eye = vec3.transformMat4(v3(), this._reference.eye, T);
+            // If the zoom would move the camera's eye "behind" the current camera center, discard it (i.e., keep the camera eye)
+            const newEyeToCenter = vec3.sub(v3(), this._reference.center, eye);
+            const referenceEyeToCenter = vec3.sub(v3(), this._reference.center, this._reference.eye);
+            if (vec3.dot(newEyeToCenter, referenceEyeToCenter) <= 0) {
+                eye = this._reference.eye;
+            }
 
             this._camera.eye = eye;
         }
