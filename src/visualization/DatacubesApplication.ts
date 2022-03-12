@@ -63,6 +63,7 @@ import { GltfAssetPass } from './gltfAsset/GltfAssetPass';
 import { DebugPassSupportingIDBuffer } from './webgl-operate-extensions/DebugPassSupportingIDBuffer';
 import { OrthographicCamera } from './webgl-operate-extensions/OrthographicCamera';
 import { DEG2RAD, RAD2DEG } from 'haeley-math';
+import { CameraMode, ExtendedCamera } from './webgl-operate-extensions/ExtendedCamera';
 
 /* spellchecker: enable */
 
@@ -93,8 +94,8 @@ const ANIME_JS_SPRING_PARAMS = {
     velocity: 0,
 };
 
-const DEBUG_SHOW_POINTS_ON_INTERACTION = true;
-const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
+const DEBUG_SHOW_POINTS_ON_INTERACTION = false;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
 
 // 4294967295 is the maximum to-be-encoded ID (due to 4 8-bit integer components -> 2^(4 * 8) - 1 = 4294967295)
 // -> With, e.g., 5000000 max elements per object, this allows for up to 858 elements with 5000000 indexed elements each.
@@ -181,7 +182,7 @@ export class DatacubesRenderer extends Renderer {
     protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
     protected _uModelCuboids: WebGLUniformLocation | undefined;
 
-    protected _camera: PerspectiveCamera | OrthographicCamera | undefined;
+    protected _camera: ExtendedCamera | undefined;
     protected _cameraRunningAnimeJSAnimation: AnimeInstance | undefined;
     protected _navigation: PausableNavigation | undefined;
 
@@ -301,7 +302,7 @@ export class DatacubesRenderer extends Renderer {
             debugPoints: false,
         });
 
-        this._camera = new PerspectiveCamera();
+        this._camera = new ExtendedCamera();
 
         this._camera.center = vec3.fromValues(0.0, 0.0, 0.0);
         this._camera.up = vec3.fromValues(0.0, 1.0, 0.0);
@@ -2645,198 +2646,18 @@ export class DatacubesRenderer extends Renderer {
     }
 
     set isPerspectiveCamera(isPerspectiveCamera: boolean) {
-        if (isPerspectiveCamera) {
-            const perspectiveCamera = new PerspectiveCamera();
-
-            if (DEBUG_SHOW_POINTS_ON_INTERACTION && this._camera) {
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.center[0],
-                        this._camera.center[1],
-                        this._camera.center[2],
-                        0,
-                        1,
-                        0,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.eye[0],
-                        this._camera.eye[1],
-                        this._camera.eye[2],
-                        0,
-                        1,
-                        0,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-            }
-
-            perspectiveCamera.aspect = this._canvasSize[0] / this._canvasSize[1];
-            perspectiveCamera.viewport = [this._frameSize[0], this._frameSize[1]];
-
-            // perspectiveCamera.center = this._navigation?.camera.center || vec3.fromValues(0.0, 0.5, 0.0);
-            perspectiveCamera.eye = this._navigation?.camera.eye || vec3.fromValues(2.0, 2.0, 4.0);
-            // perspectiveCamera.near = 0.01;
-            // perspectiveCamera.far = 32.0;
-            // perspectiveCamera.fovy = this._camera
-            //     ? RAD2DEG * Math.tan((this._camera as OrthographicCamera).frustumHeight / this.distanceToCamera(this._camera.center))
-            //     : 45.0;
-            // perspectiveCamera.up = vec3.fromValues(0.0, 1.0, 0.0);
-
-            console.log('Orthographic → Perspective');
-            console.log('Camera Eye', this._navigation?.camera.eye);
-            console.log('Camera Center', this._navigation?.camera.center);
-            console.log('Camera Frustum Height', (this._camera as OrthographicCamera).frustumHeight);
-            console.log(
-                'Math.tan((this._camera as OrthographicCamera).frustumHeight / this.distanceToCamera(this._camera.center))',
-                Math.tan((this._camera as OrthographicCamera).frustumHeight / this.distanceToCamera(this._camera!.center)),
-            );
-            console.log('this.distanceToCamera(this._camera.center)', this.distanceToCamera(this._camera!.center));
-
-            this._camera = perspectiveCamera;
-            if (this._navigation) {
-                this._navigation.camera = perspectiveCamera;
-            }
-            Passes.labels.camera = this._camera;
-
-            if (DEBUG_SHOW_POINTS_ON_INTERACTION && this._camera) {
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.center[0],
-                        this._camera.center[1],
-                        this._camera.center[2],
-                        1,
-                        0,
-                        1,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.eye[0],
-                        this._camera.eye[1],
-                        this._camera.eye[2],
-                        1,
-                        0,
-                        1,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-            }
-
-            this.invalidate(true);
-        } else {
-            if (DEBUG_SHOW_POINTS_ON_INTERACTION && this._camera) {
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.center[0],
-                        this._camera.center[1],
-                        this._camera.center[2],
-                        1,
-                        0,
-                        0,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.eye[0],
-                        this._camera.eye[1],
-                        this._camera.eye[2],
-                        1,
-                        0,
-                        0,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-            }
-
-            const orthographicCamera = new OrthographicCamera();
-
-            console.log('Perspective → Orthographic');
-            console.log('Camera Eye', this._navigation?.camera.eye);
-            console.log('Camera Center', this._navigation?.camera.center);
-            console.log('Camera FovY', this._camera?.fovy);
-            console.log('Math.atan(DEG2RAD * this._camera.fovy)', Math.atan(DEG2RAD * this._camera!.fovy));
-            console.log('this.distanceToCamera(this._camera.center)', this.distanceToCamera(this._camera!.center));
-
-            orthographicCamera.aspect = this._canvasSize[0] / this._canvasSize[1];
-            orthographicCamera.viewport = [this._frameSize[0], this._frameSize[1]];
-
-            // orthographicCamera.center = this._navigation?.camera.center || vec3.fromValues(0.0, 0.5, 0.0);
-            orthographicCamera.eye = this._navigation?.camera.eye || vec3.fromValues(2.0, 2.0, 4.0);
-            // orthographicCamera.frustumHeight = this._camera
-            //     ? Math.atan(DEG2RAD * this._camera.fovy) * this.distanceToCamera(this._camera.center)
-            //     : 1.0;
-            // orthographicCamera.up = vec3.fromValues(0.0, 1.0, 0.0);
-
-            this._camera = orthographicCamera;
-            if (this._navigation) {
-                this._navigation.camera = orthographicCamera;
-            }
-            Passes.labels.camera = this._camera;
-
-            if (DEBUG_SHOW_POINTS_ON_INTERACTION && this._camera) {
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.center[0],
-                        this._camera.center[1],
-                        this._camera.center[2],
-                        1,
-                        1,
-                        0,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-                {
-                    const debugPoint = [
-                        // prettier-ignore
-                        this._camera.eye[0],
-                        this._camera.eye[1],
-                        this._camera.eye[2],
-                        1,
-                        1,
-                        0,
-                        5,
-                    ];
-                    this.debugPoints = this._debugPoints
-                        ? new Float32Array(Array.from(this._debugPoints).concat([debugPoint].flat()).flat())
-                        : new Float32Array([debugPoint].flat());
-                }
-            }
-
-            this.invalidate(true);
+        if (!this._camera) {
+            return;
         }
+
+        if (isPerspectiveCamera) {
+            this._camera.mode = CameraMode.Perspective;
+        } else {
+            this._camera.mode = CameraMode.Orthographic;
+        }
+
+        this.invalidate(true);
+        return;
     }
 }
 

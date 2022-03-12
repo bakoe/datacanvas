@@ -1,10 +1,9 @@
-import { Camera as PerspectiveCamera, vec3, WheelZoomModifier, gl_matrix_extensions, mat4 } from 'webgl-operate';
+import { vec3, WheelZoomModifier, gl_matrix_extensions, mat4 } from 'webgl-operate';
+import { CameraMode, ExtendedCamera } from './ExtendedCamera';
 const { v3, m4 } = gl_matrix_extensions;
 
-import { OrthographicCamera } from './OrthographicCamera';
-
-export class OrthographicWheelZoomModifier extends WheelZoomModifier {
-    protected _camera: PerspectiveCamera | OrthographicCamera | undefined = undefined;
+export class ExtendedCameraWheelZoomModifier extends WheelZoomModifier {
+    protected _camera: ExtendedCamera | undefined = undefined;
     protected _zoomOffset: number = 0.0;
 
     protected _sensitivity: number = WheelZoomModifier.DEFAULT_SENSITIVITY * 0.1;
@@ -12,9 +11,9 @@ export class OrthographicWheelZoomModifier extends WheelZoomModifier {
     process(delta: number): void {
         Object.assign(this._reference, this._camera);
 
-        if (this._camera instanceof OrthographicCamera) {
+        if (this._camera?.mode === CameraMode.Orthographic) {
             this._zoomOffset = delta * this._sensitivity;
-        } else if (this._camera instanceof PerspectiveCamera) {
+        } else if (this._camera?.mode === CameraMode.Perspective) {
             const magnitude = delta * this._sensitivity;
 
             const eyeToCenter = vec3.sub(v3(), this._reference.center, this._reference.eye);
@@ -31,12 +30,11 @@ export class OrthographicWheelZoomModifier extends WheelZoomModifier {
             return;
         }
 
-        if (this._camera instanceof OrthographicCamera) {
+        if (this._camera.mode === CameraMode.Orthographic) {
             this._camera.zoom = this._camera.zoom * (1.0 - this._zoomOffset * 0.1);
-            console.log('WheelZoomModifier -> this._camera instanceof OrthographicCamera');
-        } else if (this._camera instanceof PerspectiveCamera) {
+        } else if (this._camera.mode === CameraMode.Perspective) {
             /* Adjust for arbitrary camera center and rotate using quaternion based rotation. */
-            console.log('WheelZoomModifier -> this._camera instanceof PerspectiveCamera');
+
             const T = mat4.fromTranslation(m4(), this._translation);
 
             let eye = vec3.transformMat4(v3(), this._reference.eye, T);

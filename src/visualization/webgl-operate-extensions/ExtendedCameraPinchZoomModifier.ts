@@ -1,13 +1,12 @@
-import { vec2, gl_matrix_extensions, Camera as PerspectiveCamera, vec3, mat4 } from 'webgl-operate';
+import { vec2, gl_matrix_extensions, vec3, mat4 } from 'webgl-operate';
 
 const { v2, v3, m4 } = gl_matrix_extensions;
 
 import { PinchZoomModifier } from 'webgl-operate';
+import { CameraMode, ExtendedCamera } from './ExtendedCamera';
 
-import { OrthographicCamera } from './OrthographicCamera';
-
-export class OrthographicAndPerspectivePinchZoomModifier extends PinchZoomModifier {
-    protected _camera: PerspectiveCamera | OrthographicCamera | undefined = undefined;
+export class ExtendedCameraPinchZoomModifier extends PinchZoomModifier {
+    protected _camera: ExtendedCamera | undefined = undefined;
     protected _zoomOffset: number = 0.0;
     protected _initialZoom: number | undefined = undefined;
 
@@ -21,7 +20,7 @@ export class OrthographicAndPerspectivePinchZoomModifier extends PinchZoomModifi
         const magnitudes = vec2.subtract(v2(), point1, point2);
         this._initialDistance = vec2.length(magnitudes);
 
-        if (this._camera instanceof OrthographicCamera) {
+        if (this._camera?.mode === CameraMode.Orthographic) {
             this._initialZoom = this._camera?.zoom;
         }
     }
@@ -37,9 +36,9 @@ export class OrthographicAndPerspectivePinchZoomModifier extends PinchZoomModifi
 
         const change = this._currentDistance / this._initialDistance - 1.0;
 
-        if (this._camera instanceof OrthographicCamera) {
+        if (this._camera?.mode === CameraMode.Orthographic) {
             this._zoomOffset = change * PinchZoomModifier.DEFAULT_SENSITIVITY;
-        } else if (this._camera instanceof PerspectiveCamera) {
+        } else if (this._camera?.mode === CameraMode.Perspective) {
             const magnitude = change * PinchZoomModifier.DEFAULT_SENSITIVITY;
 
             const eyeToCenter = vec3.sub(v3(), this._reference.center, this._reference.eye);
@@ -59,12 +58,10 @@ export class OrthographicAndPerspectivePinchZoomModifier extends PinchZoomModifi
             return;
         }
 
-        if (this._camera instanceof OrthographicCamera) {
+        if (this._camera.mode === CameraMode.Orthographic) {
             this._camera.zoom = this._initialZoom * (1.0 - -1.0 * this._zoomOffset * 0.5);
-            console.log('PinchZoomModifier -> this._camera instanceof OrthographicCamera');
-        } else if (this._camera instanceof PerspectiveCamera) {
+        } else if (this._camera?.mode === CameraMode.Perspective) {
             /* Adjust for arbitrary camera center and rotate using quaternion based rotation. */
-            console.log('PinchZoomModifier -> this._camera instanceof OrthographicCamera');
             const T = mat4.fromTranslation(m4(), this._translation);
 
             const eye = vec3.transformMat4(v3(), this._reference.eye, T);

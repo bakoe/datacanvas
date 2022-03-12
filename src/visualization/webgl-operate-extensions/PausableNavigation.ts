@@ -1,7 +1,7 @@
 import { Camera as PerspectiveCamera, EventProvider, Invalidate, Navigation } from 'webgl-operate';
-import { OrthographicAndPerspectivePinchZoomModifier } from './OrthographicAndPerspectivePinchZoomModifier';
+import { ExtendedCameraPinchZoomModifier } from './ExtendedCameraPinchZoomModifier';
 import { OrthographicCamera } from './OrthographicCamera';
-import { OrthographicWheelZoomModifier } from './OrthographicWheelZoomModifier';
+import { ExtendedCameraWheelZoomModifier } from './OrthographicWheelZoomModifier';
 import { PausableEventHandler } from './PausableEventHandler';
 
 export class PausableNavigation extends Navigation {
@@ -41,10 +41,10 @@ export class PausableNavigation extends Navigation {
         // (Apparently, pushMouseWheelHandler expects a MouseEventHandler instead of something like a WheelEventHandler)
         this._eventHandler.pushMouseWheelHandler((latests: Array<any>, previous: Array<any>) => this.onWheel(latests, previous));
 
-        this._wheelZoom = new OrthographicWheelZoomModifier();
+        this._wheelZoom = new ExtendedCameraWheelZoomModifier();
         this._wheelZoom.camera = this._camera;
 
-        this._pinch = new OrthographicAndPerspectivePinchZoomModifier();
+        this._pinch = new ExtendedCameraPinchZoomModifier();
         this._pinch.camera = this._camera;
     }
 
