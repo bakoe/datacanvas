@@ -19,7 +19,7 @@ export class ExtendedCamera extends Camera {
     /** @see {@link zoom} */
     protected _zoom = 1.0;
 
-    protected _mode: CameraMode;
+    protected _mode: number;
 
     constructor(eye?: vec3, center?: vec3, up?: vec3) {
         super(eye, center, up);
@@ -89,29 +89,55 @@ export class ExtendedCamera extends Camera {
             return this._projection;
         }
 
+        // Based on three.js’s implementation:
+        // @see https://github.com/mrdoob/three.js/blob/94f043c4e105eb73236529231388402da2b07cba/src/cameras/OrthographicCamera.js#L87-L95
+        let left = -0.5 * this.frustumHeight * this.aspect;
+        let right = 0.5 * this.frustumHeight * this.aspect;
+        let top = 0.5 * this.frustumHeight;
+        let bottom = -0.5 * this.frustumHeight;
+
+        const dx = (right - left) / (2 * this.zoom);
+        const dy = (top - bottom) / (2 * this.zoom);
+        const cx = (right + left) / 2;
+        const cy = (top + bottom) / 2;
+
+        left = cx - dx;
+        right = cx + dx;
+        top = cy + dy;
+        bottom = cy - dy;
+
+        const orthographicProjection = mat4.ortho(m4(), left, right, bottom, top, this.near, this.far);
+
         if (this._mode === CameraMode.Orthographic) {
-            // Based on three.js’s implementation:
-            // @see https://github.com/mrdoob/three.js/blob/94f043c4e105eb73236529231388402da2b07cba/src/cameras/OrthographicCamera.js#L87-L95
-            let left = -0.5 * this.frustumHeight * this.aspect;
-            let right = 0.5 * this.frustumHeight * this.aspect;
-            let top = 0.5 * this.frustumHeight;
-            let bottom = -0.5 * this.frustumHeight;
-
-            const dx = (right - left) / (2 * this.zoom);
-            const dy = (top - bottom) / (2 * this.zoom);
-            const cx = (right + left) / 2;
-            const cy = (top + bottom) / 2;
-
-            left = cx - dx;
-            right = cx + dx;
-            top = cy + dy;
-            bottom = cy - dy;
-
-            this._projection = mat4.ortho(m4(), left, right, bottom, top, this.near, this.far);
+            this._projection = orthographicProjection;
             return this._projection;
         }
 
-        this._projection = mat4.perspective(m4(), this.fovy * DEG2RAD, this.aspect, this.near, this.far);
+        const perspectiveProjection = mat4.perspective(m4(), this.fovy * DEG2RAD, this.aspect, this.near, this.far);
+
+        if (this._mode === CameraMode.Perspective) {
+            this._projection = perspectiveProjection;
+            return this._projection;
+        }
+
+        this._projection = mat4.fromValues(
+            orthographicProjection[0] + (perspectiveProjection[0] - orthographicProjection[0]) * this._mode,
+            orthographicProjection[1] + (perspectiveProjection[1] - orthographicProjection[1]) * this._mode,
+            orthographicProjection[2] + (perspectiveProjection[2] - orthographicProjection[2]) * this._mode,
+            orthographicProjection[3] + (perspectiveProjection[3] - orthographicProjection[3]) * this._mode,
+            orthographicProjection[4] + (perspectiveProjection[4] - orthographicProjection[4]) * this._mode,
+            orthographicProjection[5] + (perspectiveProjection[5] - orthographicProjection[5]) * this._mode,
+            orthographicProjection[6] + (perspectiveProjection[6] - orthographicProjection[6]) * this._mode,
+            orthographicProjection[7] + (perspectiveProjection[7] - orthographicProjection[7]) * this._mode,
+            orthographicProjection[8] + (perspectiveProjection[8] - orthographicProjection[8]) * this._mode,
+            orthographicProjection[9] + (perspectiveProjection[9] - orthographicProjection[9]) * this._mode,
+            orthographicProjection[10] + (perspectiveProjection[10] - orthographicProjection[10]) * this._mode,
+            orthographicProjection[11] + (perspectiveProjection[11] - orthographicProjection[11]) * this._mode,
+            orthographicProjection[12] + (perspectiveProjection[12] - orthographicProjection[12]) * this._mode,
+            orthographicProjection[13] + (perspectiveProjection[13] - orthographicProjection[13]) * this._mode,
+            orthographicProjection[14] + (perspectiveProjection[14] - orthographicProjection[14]) * this._mode,
+            orthographicProjection[15] + (perspectiveProjection[15] - orthographicProjection[15]) * this._mode,
+        );
         return this._projection;
     }
 
@@ -119,10 +145,8 @@ export class ExtendedCamera extends Camera {
         return this._mode;
     }
 
-    set mode(mode: CameraMode) {
-        this._mode = mode;
-
-        if (mode === CameraMode.Perspective) {
+    set mode(mode: number) {
+        if (this._mode === CameraMode.Orthographic && mode !== this._mode) {
             const distanceToCamera = vec3.len(vec3.sub(v3(), this._center, this._eye));
             const scaledFrustumHeight = this._frustumHeight / this._zoom;
             const newDistanceToCamera = scaledFrustumHeight / Math.abs(Math.atan(DEG2RAD * this._fovy));
@@ -135,17 +159,19 @@ export class ExtendedCamera extends Camera {
             this.eye = eye;
         }
 
-        if (mode === CameraMode.Orthographic) {
+        if (this._mode === CameraMode.Perspective && mode !== this._mode) {
             const distanceToCamera = vec3.len(vec3.sub(v3(), this._center, this._eye));
             const newFrustumHeight = Math.abs(Math.atan(DEG2RAD * this._fovy) * distanceToCamera);
             this.zoom = 1.0 / (newFrustumHeight / this._frustumHeight);
         }
+
+        this._mode = mode;
 
         this.invalidate(false, true);
     }
 }
 
 export enum CameraMode {
-    Perspective,
-    Orthographic,
+    Orthographic = 0,
+    Perspective = 1,
 }

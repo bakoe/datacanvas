@@ -2650,14 +2650,23 @@ export class DatacubesRenderer extends Renderer {
             return;
         }
 
-        if (isPerspectiveCamera) {
-            this._camera.mode = CameraMode.Perspective;
-        } else {
-            this._camera.mode = CameraMode.Orthographic;
-        }
+        const from = {
+            mode: this._camera.mode * 1000,
+        };
 
-        this.invalidate(true);
-        return;
+        anime({
+            targets: from,
+            mode: isPerspectiveCamera ? CameraMode.Perspective * 1000 : CameraMode.Orthographic * 1000,
+            round: 1,
+            easing: `spring(${ANIME_JS_SPRING_PARAMS.mass}, ${ANIME_JS_SPRING_PARAMS.stiffness}, ${ANIME_JS_SPRING_PARAMS.damping}, ${ANIME_JS_SPRING_PARAMS.velocity})`,
+            update: () => {
+                if (this._camera) {
+                    const mode = from.mode / 1000;
+                    this._camera.mode = mode;
+                    this._invalidate(true);
+                }
+            },
+        });
     }
 }
 
