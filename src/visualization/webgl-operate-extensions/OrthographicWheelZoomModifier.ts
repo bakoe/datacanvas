@@ -31,7 +31,7 @@ export class ExtendedCameraWheelZoomModifier extends WheelZoomModifier {
         }
 
         if (this._camera.mode === CameraMode.Orthographic) {
-            this._camera.zoom = this._camera.zoom * (1.0 - this._zoomOffset * 0.1);
+            this._camera.zoom = this._camera.zoom / (1.0 - this._zoomOffset * 0.1);
         } else if (this._camera.mode === CameraMode.Perspective) {
             /* Adjust for arbitrary camera center and rotate using quaternion based rotation. */
 
