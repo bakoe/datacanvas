@@ -328,7 +328,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
 
         return (
             <CollapsibleHandle
-                key={columnHeader.name}
+                key={columnHeader.name || index}
                 handleElement={
                     <Handle
                         type="source"
