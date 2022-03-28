@@ -67,6 +67,7 @@ export interface DatasetNodeState {
     remoteUri?: string;
     googleSheetsUri?: string;
     forceRefreshGoogleSheets?: boolean;
+    includesHeader?: boolean;
     delimiter?: string;
 }
 
@@ -196,7 +197,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 const fileId = fileOrUri instanceof File ? fileOrUri.name : fileOrUri;
 
                 const loader = new CSV<string>({
-                    includesHeader: false,
+                    includesHeader: state?.includesHeader || true,
                     delimiter: state?.delimiter || undefined,
                 });
 
@@ -504,6 +505,32 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                                                 onChangeState({ delimiter: updatedDelimiter });
                                             }}
                                         ></input>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <label htmlFor="includes-header">Includes Header:</label>
+                                    </td>
+                                    <td>
+                                        <select
+                                            id="includes-header"
+                                            value={
+                                                data.state?.includesHeader !== undefined && data.state?.includesHeader === false
+                                                    ? 'no'
+                                                    : 'yes'
+                                            }
+                                            onChange={(event) => {
+                                                onChangeState({
+                                                    includesHeader: event.target.value === 'yes' ? true : false,
+                                                });
+                                            }}
+                                        >
+                                            {['yes', 'no'].map((option) => (
+                                                <option key={option} value={option}>
+                                                    {option}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </td>
                                 </tr>
                             </tbody>
