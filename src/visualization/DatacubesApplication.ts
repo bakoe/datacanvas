@@ -9,7 +9,7 @@ import {
     Renderer,
     Wizard,
     mat4,
-    Camera,
+    Camera as PerspectiveCamera,
     Invalidate,
     EventProvider,
     Context,
@@ -62,6 +62,7 @@ import { getDistinctValuesInStringColumn } from '../data/nodes/DatasetNode';
 import { GltfAssetPass } from './gltfAsset/GltfAssetPass';
 import { DebugPassSupportingIDBuffer } from './webgl-operate-extensions/DebugPassSupportingIDBuffer';
 import { LinePass } from './line/LinePass';
+import { CameraMode, ExtendedCamera } from './webgl-operate-extensions/ExtendedCamera';
 
 /* spellchecker: enable */
 
@@ -93,7 +94,7 @@ const ANIME_JS_SPRING_PARAMS = {
 };
 
 const DEBUG_SHOW_POINTS_ON_INTERACTION = false;
-const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = true;
+const DEBUG_SHOW_OFFSCREEN_FRAMEBUFFER = false;
 
 // 4294967295 is the maximum to-be-encoded ID (due to 4 8-bit integer components -> 2^(4 * 8) - 1 = 4294967295)
 // -> With, e.g., 5000000 max elements per object, this allows for up to 858 elements with 5000000 indexed elements each.
@@ -160,7 +161,7 @@ for (const color of [
     color[2] = mappedColor[2];
 }
 
-class DatacubesRenderer extends Renderer {
+export class DatacubesRenderer extends Renderer {
     protected _extensions = false;
 
     protected _capturedIDBufferImageData: ImageData | undefined;
@@ -180,7 +181,7 @@ class DatacubesRenderer extends Renderer {
     protected _uViewProjectionCuboids: WebGLUniformLocation | undefined;
     protected _uModelCuboids: WebGLUniformLocation | undefined;
 
-    protected _camera: Camera | undefined;
+    protected _camera: ExtendedCamera | undefined;
     protected _cameraRunningAnimeJSAnimation: AnimeInstance | undefined;
     protected _navigation: PausableNavigation | undefined;
 
@@ -300,9 +301,9 @@ class DatacubesRenderer extends Renderer {
             debugPoints: false,
         });
 
-        this._camera = new Camera();
+        this._camera = new ExtendedCamera();
 
-        this._camera.center = vec3.fromValues(0.0, 0.5, 0.0);
+        this._camera.center = vec3.fromValues(0.0, 0.0, 0.0);
         this._camera.up = vec3.fromValues(0.0, 1.0, 0.0);
         this._camera.eye = vec3.fromValues(2.0, 2.0, 4.0);
         this._camera.near = 0.01;
@@ -2738,6 +2739,30 @@ class DatacubesRenderer extends Renderer {
     get debugPoints(): Float32Array | undefined {
         return this._debugPoints;
     }
+
+    set isPerspectiveCamera(isPerspectiveCamera: boolean) {
+        if (!this._camera) {
+            return;
+        }
+
+        const from = {
+            mode: this._camera.mode * 1000,
+        };
+
+        anime({
+            targets: from,
+            mode: isPerspectiveCamera ? CameraMode.Perspective * 1000 : CameraMode.Orthographic * 1000,
+            round: 1,
+            easing: `spring(${ANIME_JS_SPRING_PARAMS.mass}, ${ANIME_JS_SPRING_PARAMS.stiffness}, ${ANIME_JS_SPRING_PARAMS.damping}, ${ANIME_JS_SPRING_PARAMS.velocity})`,
+            update: () => {
+                if (this._camera) {
+                    const mode = from.mode / 1000;
+                    this._camera.mode = mode;
+                    this._invalidate(true);
+                }
+            },
+        });
+    }
 }
 
 export class DatacubesApplication extends Application {
@@ -2761,6 +2786,12 @@ export class DatacubesApplication extends Application {
         this._spinner = spinnerElement;
 
         return true;
+    }
+
+    set isPerspectiveCamera(isPerspectiveCamera: boolean) {
+        if (this._renderer) {
+            this._renderer.isPerspectiveCamera = isPerspectiveCamera;
+        }
     }
 
     set datacubes(datacubes: Array<DatacubeInformation>) {
