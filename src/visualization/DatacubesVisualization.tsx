@@ -297,6 +297,9 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 if (isFixedTextNode(node)) {
                     return undefined;
                 }
+                if (!(isPointPrimitiveNode(node) || isCubePrimitiveNode(node) || isMeshPrimitiveNode(node))) {
+                    return undefined;
+                }
                 if (
                     isDatasetNode(node) ||
                     isDateFilterNode(node) ||
