@@ -335,7 +335,6 @@ const ColorMappingNode: FC<ColorMappingNodeProps> = ({ isConnectable, selected, 
                                             numberOfStops: event.target.valueAsNumber,
                                         });
                                     }}
-                                    disabled={column?.type === 'string'}
                                     type="number"
                                     min="1"
                                     max="32"
