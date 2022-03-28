@@ -302,44 +302,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 if (!(isPointPrimitiveNode(node) || isLinePrimitiveNode(node) || isCubePrimitiveNode(node) || isMeshPrimitiveNode(node))) {
                     return undefined;
                 }
-                if (
-                    isDatasetNode(node) ||
-                    isDateFilterNode(node) ||
-                    isPointPrimitiveNode(node) ||
-                    isLinePrimitiveNode(node) ||
-                    isCubePrimitiveNode(node) ||
-                    isMeshPrimitiveNode(node) ||
-                    isColorMappingNode(node) ||
-                    isSyncToScatterplotViewerNode(node)
-                ) {
-                    if (isDatasetNode(node)) {
-                        // labelString += node.data.filename;
-                        const typeString = makeTypeHumanReadable(node.data.type);
-                        labelString += (typeString ? typeString + ' ' : '') + 'Dataset';
-                        if (overallMaxRowCount) {
-                            const colRowCounts = node.data.state?.columns?.map((col) => col.length);
-                            if (colRowCounts) {
-                                relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
-                                labelString += `\n${node.data.state?.columns?.length} columns • ${colRowCounts[0]} rows`;
-                            }
-                        }
-                        isPending = node.data.state?.isLoading;
-                    }
-                    if (isDateFilterNode(node)) {
-                        labelString += 'Filter: Date Range';
-                        if (overallMaxRowCount) {
-                            const colRowCounts = node.data.state?.filteredColumns?.map((col) => col.length);
-                            if (colRowCounts) {
-                                relativeHeight = Math.max(...colRowCounts) / overallMaxRowCount;
-                            }
-                        }
-                        isErroneous = node.data.state?.errorMessage !== undefined;
-                        isPending = node.data.state?.isPending;
-                    }
-                    if (isColorMappingNode(node)) {
-                        labelString += 'Mapping: Color Mapping';
-                        isPending = node.data.state?.isPending;
-                    }
+                if (isPointPrimitiveNode(node) || isLinePrimitiveNode(node) || isCubePrimitiveNode(node) || isMeshPrimitiveNode(node)) {
                     if (isPointPrimitiveNode(node)) {
                         labelString += 'Rendering: Point Primitive';
                         isPending = node.data.state?.isPending;
@@ -377,10 +340,6 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                         sizeColumn = node.data.state?.sizeColumn;
                         colors = node.data.state?.colors;
                     }
-                    if (isSyncToScatterplotViewerNode(node)) {
-                        labelString += 'Rendering: Sync to Scatterplot Viewer';
-                        isPending = node.data.state?.isPending;
-                    }
                 }
                 return {
                     position: node.position,
@@ -390,7 +349,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     type: node.type,
                     isErroneous,
                     isPending,
-                    isFocused: node.data?.state?.isFocused ?? false,
+                    isFocused: (node.data?.state as any).isFocused ?? false,
                     xColumn,
                     yColumn,
                     zColumn,
@@ -400,7 +359,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     gltfAssetScale,
                     labelString: isSelected ? labelString : '',
                     isSelected,
-                    selectedPointIndex: node.data?.state?.selectedPointIndex ?? undefined,
+                    selectedPointIndex: (node.data?.state as any).selectedPointIndex ?? undefined,
                 } as DatacubeInformation;
             })
             .filter((datacube) => datacube !== undefined) as DatacubeInformation[];

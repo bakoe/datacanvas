@@ -1070,8 +1070,10 @@ const BasicFlow = () => {
                         (node as Node<DatasetNodeData>).data = {
                             ...(node as Node<DatasetNodeData>).data,
                             filename: fileName,
-                            type,
                             file,
+                            state: {
+                                type,
+                            },
                         };
                     }
                     return node;

@@ -1,6 +1,6 @@
 import { Camera as PerspectiveCamera, EventProvider, Invalidate, Navigation } from 'webgl-operate';
+import { ExtendedCamera } from './ExtendedCamera';
 import { ExtendedCameraPinchZoomModifier } from './ExtendedCameraPinchZoomModifier';
-import { OrthographicCamera } from './OrthographicCamera';
 import { ExtendedCameraWheelZoomModifier } from './OrthographicWheelZoomModifier';
 import { PausableEventHandler } from './PausableEventHandler';
 
@@ -52,7 +52,7 @@ export class PausableNavigation extends Navigation {
         this._eventHandler.isPaused = isPaused;
     }
 
-    set camera(camera: PerspectiveCamera | OrthographicCamera) {
+    set camera(camera: PerspectiveCamera | ExtendedCamera) {
         this._camera = camera;
         if (this._firstPerson) {
             this._firstPerson.camera = camera;
@@ -74,7 +74,7 @@ export class PausableNavigation extends Navigation {
         }
     }
 
-    get camera(): PerspectiveCamera | OrthographicCamera {
+    get camera(): PerspectiveCamera | ExtendedCamera {
         return this._camera;
     }
 }
