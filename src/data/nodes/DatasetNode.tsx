@@ -60,9 +60,11 @@ export const getDistinctValuesInStringColumn = (column: StringColumn): string[] 
 };
 
 export interface DatasetNodeState {
+    type: DatasetNodeValidTypes;
     columnHeaders?: CSVColumnHeader[];
     columns?: CSVColumn[];
     isLoading?: boolean;
+    remoteUri?: string;
     googleSheetsUri?: string;
     forceRefreshGoogleSheets?: boolean;
     delimiter?: string;
@@ -71,7 +73,6 @@ export interface DatasetNodeState {
 export const defaultState = { isLoading: true } as DatasetNodeState;
 
 export interface DatasetNodeData {
-    type: DatasetNodeValidTypes;
     filename: string;
     onChangeState: (state: Partial<DatasetNodeState>) => void;
     onDeleteNode: () => void;
@@ -117,7 +118,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
             return;
         }
 
-        if (data.type === 'google-sheets' && state?.googleSheetsUri) {
+        if (data.state?.type === 'google-sheets' && state?.googleSheetsUri) {
             const sheetId = state.googleSheetsUri.match(/docs.google.com\/spreadsheets\/d\/(.*)\//)?.[1];
 
             if (!sheetId) {
@@ -190,16 +191,16 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
     }, []);
 
     useEffect(() => {
-        const readColumnsFromCSVFile = async (file: File) => {
+        const readColumnsFromCSVFileOrUri = async (fileOrUri: File | string) => {
             if (USE_CSV_PARSER_INSTEAD_OF_PAPAPARSE) {
-                const fileId = file.name;
+                const fileId = fileOrUri instanceof File ? fileOrUri.name : fileOrUri;
 
                 const loader = new CSV<string>({
-                    includesHeader: true,
+                    includesHeader: false,
                     delimiter: state?.delimiter || undefined,
                 });
 
-                loader.addDataSource(fileId, file);
+                loader.addDataSource(fileId, fileOrUri);
                 const columnHeaders = await loader.open(fileId);
 
                 onChangeState({ columnHeaders });
@@ -215,7 +216,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                     }
                 }
             } else {
-                Papa.parse(file, {
+                Papa.parse(fileOrUri, {
                     download: true,
                     header: true,
                     dynamicTyping: true,
@@ -285,9 +286,15 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         };
 
         if (data.file) {
-            readColumnsFromCSVFile(data.file);
+            readColumnsFromCSVFileOrUri(data.file);
+            return;
         }
-    }, [data.file, state?.delimiter]);
+
+        if (!data.file && state?.type === 'csv' && state.remoteUri) {
+            readColumnsFromCSVFileOrUri(state.remoteUri);
+            return;
+        }
+    }, [data.file, state?.delimiter, state?.type, state?.remoteUri]);
 
     const { isLoading, columnHeaders, columns } = { ...defaultState, ...data.state };
 
@@ -367,7 +374,8 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
         >
             <div className="title-wrapper">
                 <div className="title hyphenate">
-                    {makeTypeHumanReadable(data.type) ? makeTypeHumanReadable(data.type) + ' ' : ''}Dataset{isLoading ? ' …' : ''}
+                    {makeTypeHumanReadable(data.state?.type) ? makeTypeHumanReadable(data.state?.type) + ' ' : ''}Dataset
+                    {isLoading ? ' …' : ''}
                 </div>
                 <div className="title-actions">
                     <span>
@@ -387,7 +395,68 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 dangerouslySetInnerHTML={{ __html: data.filename.replaceAll(/[_. -]/g, (match) => `${match}&shy;`) }}
             />
 
-            {(data.type === undefined || data.type === 'google-sheets') && (
+            {data.state?.type === undefined && !data.file && (
+                <div className="nodrag">
+                    <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <label htmlFor="type">Type:</label>
+                                </td>
+                                <td>
+                                    <select
+                                        id="type"
+                                        value={data.state?.type || 'none'}
+                                        onChange={(event) => {
+                                            onChangeState({
+                                                type: event.target.value as DatasetNodeValidTypes,
+                                            });
+                                        }}
+                                    >
+                                        {(['csv', 'google-sheets', 'json', undefined] as DatasetNodeValidTypes[]).map((presetName) => (
+                                            <option
+                                                disabled={presetName === undefined}
+                                                key={presetName || 'none'}
+                                                value={presetName || 'none'}
+                                            >
+                                                {presetName?.replace('-', ' ') || 'Select type …'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {!data.file && (data.state?.type === 'json' || data.state?.type === 'csv') && (
+                <div className="nodrag">
+                    <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <label htmlFor="url">URL:</label>
+                                </td>
+                                <td>
+                                    <input
+                                        id="url"
+                                        type="url"
+                                        value={data.state?.remoteUri}
+                                        onChange={(event) => {
+                                            onChangeState({
+                                                remoteUri: event.target.value,
+                                            });
+                                        }}
+                                    ></input>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {data.state?.type === 'google-sheets' && (
                 <>
                     <div className="nodrag">
                         <table style={{ textAlign: 'right', width: 'calc(100% + 2px)', borderSpacing: '2px' }}>
@@ -415,7 +484,7 @@ const DatasetNode: FC<DatasetNodeProps> = ({ data, isConnectable, selected }) =>
                 </>
             )}
 
-            {data.type !== 'google-sheets' && columnHeaders?.length === 1 && (
+            {data.state?.type !== 'google-sheets' && (
                 <>
                     <hr className="divider" />
                     <div className="nodrag">

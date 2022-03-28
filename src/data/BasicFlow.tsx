@@ -1202,7 +1202,7 @@ const BasicFlow = () => {
             case 'dataset':
                 nodeData = {
                     filename: '',
-                    type: 'google-sheets',
+                    type: undefined,
                     state: {
                         ...DatasetNodeDefaultState,
                     },
@@ -1232,7 +1232,7 @@ const BasicFlow = () => {
     const nodesThatCanBeAddedViaContextMenu = [
         {
             nodeType: NodeTypes.Dataset,
-            label: 'Input: Dataset (Google Sheets)',
+            label: 'Input: Dataset …',
             highlightString: undefined as undefined | string,
         },
         {
