@@ -495,7 +495,7 @@ const BasicFlow = () => {
     const autoCreateFlowForDatasetNode = (node: Node<DatasetNodeData>): void => {
         // const addedNodes = [] as Node<any>[];
         let dateFilterNode = undefined as Node<DateFilterNodeData> | undefined;
-        let meshPrimitiveNode = undefined as Node<MeshPrimitiveNodeData> | undefined;
+        let pointPrimitiveNode = undefined as Node<PointPrimitiveNodeData> | undefined;
         let colorMappingNode = undefined as Node<ColorMappingNodeData> | undefined;
         const addedConnections = [] as Connection[];
 
@@ -550,7 +550,7 @@ const BasicFlow = () => {
             const nodeId = getId();
             const nodeData = {
                 state: {
-                    ...MeshPrimitiveNodeDefaultState,
+                    ...PointPrimitiveNodeDefaultState,
                     extent: {
                         minX: -0.25,
                         maxX: 0.75,
@@ -563,13 +563,13 @@ const BasicFlow = () => {
                 onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
                 onDeleteNode: () => deleteNode(`${nodeId}`),
                 isValidConnection,
-            } as MeshPrimitiveNodeData;
+            } as PointPrimitiveNodeData;
             id++;
             // const xyPosition = getNextXYPositionForNodeType(NodeTypes.DateFilter);
             const xyPosition = node.position;
-            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.MeshPrimitive);
-            meshPrimitiveNode = {
-                type: NodeTypes.MeshPrimitive,
+            const clampedPosition = clampXYPositionByNodeType(xyPosition, NodeTypes.PointPrimitive);
+            pointPrimitiveNode = {
+                type: NodeTypes.PointPrimitive,
                 id: `${nodeId}`,
                 position: clampedPosition,
                 data: nodeData,
@@ -619,22 +619,22 @@ const BasicFlow = () => {
                 const dataColumn = potentialDataColumns[dataColumnIndex];
                 let targetHandle =
                     dataColumnIndex === 0
-                        ? MeshPrimitiveNodeTargetHandles.X
+                        ? PointPrimitiveNodeTargetHandles.X
                         : dataColumnIndex === 1
-                        ? MeshPrimitiveNodeTargetHandles.Z
+                        ? PointPrimitiveNodeTargetHandles.Z
                         : dataColumnIndex === 2
-                        ? MeshPrimitiveNodeTargetHandles.Y
+                        ? PointPrimitiveNodeTargetHandles.Y
                         : dataColumnIndex === 3
-                        ? MeshPrimitiveNodeTargetHandles.Color
-                        : MeshPrimitiveNodeTargetHandles.Size;
+                        ? PointPrimitiveNodeTargetHandles.Color
+                        : PointPrimitiveNodeTargetHandles.Size;
                 if (dataColumn.toLowerCase() === 'x') {
-                    targetHandle = MeshPrimitiveNodeTargetHandles.X;
+                    targetHandle = PointPrimitiveNodeTargetHandles.X;
                 }
                 if (dataColumn.toLowerCase() === 'y') {
-                    targetHandle = MeshPrimitiveNodeTargetHandles.Y;
+                    targetHandle = PointPrimitiveNodeTargetHandles.Y;
                 }
                 if (dataColumn.toLowerCase() === 'z') {
-                    targetHandle = MeshPrimitiveNodeTargetHandles.Z;
+                    targetHandle = PointPrimitiveNodeTargetHandles.Z;
                 }
                 addedConnections.push({
                     source: dataColumnIndex < 3 || dataColumnIndex > 3 ? connectionsSource : colorMappingNode!.id,
@@ -646,9 +646,9 @@ const BasicFlow = () => {
             }
         }
 
-        if (meshPrimitiveNode !== undefined) {
+        if (pointPrimitiveNode !== undefined) {
             setNodes((nds) => {
-                return nds.concat(meshPrimitiveNode!);
+                return nds.concat(pointPrimitiveNode!);
             });
         }
 
@@ -658,7 +658,7 @@ const BasicFlow = () => {
 
         setNodes((nodes) =>
             nodes.map((node) =>
-                node.id === (meshPrimitiveNode ? meshPrimitiveNode.id : node.id)
+                node.id === (pointPrimitiveNode ? pointPrimitiveNode.id : node.id)
                     ? { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: true } } }
                     : { ...node, data: { ...node.data, state: { ...node.data.state, isFocused: false } } },
             ),
