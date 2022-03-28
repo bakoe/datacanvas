@@ -91,6 +91,7 @@ def add_scene_element(scene, scene_element):
         extent_compensation_translate_blender = vec3_transform_webgl_to_blender(extent_compensation_translate_webgl)
     
     hide = scene_element["idBufferOnly"] == True
+    type = scene_element["type"]
     if hide:
         points = scene_element["points"]
         logging.info(f"Adding {len(points)} points to scene element {id}")
@@ -170,6 +171,10 @@ def add_scene_element(scene, scene_element):
             #     # Blender < 2.8
             #     # scene.objects.link(object)
             #     bpy.context.collection.objects.link(object)
+
+            if type == 'line-primitive':
+                for point_index, point in enumerate(verts[:-1]):
+                    edges.append([point_index, point_index + 1])
             
             mesh.from_pydata(verts, edges, faces)
 
@@ -212,7 +217,7 @@ def add_scene_element(scene, scene_element):
             dependency_graph = bpy.context.evaluated_depsgraph_get()
             dependency_graph.update()
             
-            add_point_rendering_geometry_nodes(obj, mat)
+            add_point_rendering_geometry_nodes(obj, mat, type=type)
 
             if (extent_scale_blender != None and extent_compensation_translate_blender != None):
                 extent_transform = mathutils.Matrix.LocRotScale(None, None, extent_scale_blender)
@@ -262,7 +267,7 @@ def add_scene_element(scene, scene_element):
     logging.info(f"Adding scene element {id} took {t_end - t_start:.2f}s")
 
 
-def add_point_rendering_geometry_nodes(object: bpy.types.Object, material: bpy.types.Material, size_attr_name = 'size'):
+def add_point_rendering_geometry_nodes(object: bpy.types.Object, material: bpy.types.Material, size_attr_name = 'size', type = None):
     # Setup a geometry node tree for spheres instanced at vertex positions
     modifier: bpy.types.NodesModifier = object.modifiers.new('Geometry Nodes Modifier', type='NODES')
     geometry_node_tree: bpy.types.GeometryNodeTree = modifier.node_group
@@ -292,13 +297,43 @@ def add_point_rendering_geometry_nodes(object: bpy.types.Object, material: bpy.t
     geometry_node_tree.links.new(input_node.outputs['Geometry'], instance_on_points_node.inputs['Points'])
     geometry_node_tree.links.new(instance_on_points_node.outputs['Instances'], realize_instances_node.inputs['Geometry'])
     geometry_node_tree.links.new(realize_instances_node.outputs['Geometry'], set_material_node.inputs['Geometry'])
-    geometry_node_tree.links.new(set_material_node.outputs['Geometry'], output_node.inputs['Geometry'])
 
     # https://docs.blender.org/api/3.1/bpy.types.NodeSocket.html#bpy.types.NodeSocket.type
     input_node.outputs.new("VECTOR", "Scale", identifier="Scale")
     geometry_node_tree.links.new(input_node.outputs["Scale"], instance_on_points_node.inputs['Scale'])
     modifier["Input_2_use_attribute"] = 1
     modifier["Input_2_attribute_name"] = size_attr_name
+
+    if type == 'line-primitive':
+        mesh_to_curve_node: bpy.types.GeometryNodeMeshToCurve = geometry_node_tree.nodes.new(type='GeometryNodeMeshToCurve')
+        
+        curve_circle_node: bpy.types.GeometryNodeCurvePrimitiveCircle = geometry_node_tree.nodes.new(type='GeometryNodeCurvePrimitiveCircle')
+        curve_circle_node.inputs['Radius'].default_value = 0.004
+        curve_circle_node.inputs['Resolution'].default_value = 16
+        curve_to_mesh_node: bpy.types.GeometryNodeCurveToMesh = geometry_node_tree.nodes.new(type='GeometryNodeCurveToMesh')
+
+        realize_instances_line_node: bpy.types.GeometryNodeRealizeInstances = geometry_node_tree.nodes.new(type='GeometryNodeRealizeInstances')
+
+        set_material_line_node: bpy.types.GeometryNodeSetMaterial = geometry_node_tree.nodes.new(type='GeometryNodeSetMaterial')
+        set_material_line_node.inputs['Material'].default_value = material
+
+        join_geometry_node: bpy.types.GeometryNodeJoinGeometry = geometry_node_tree.nodes.new(type='GeometryNodeJoinGeometry')
+
+        geometry_node_tree.links.new(input_node.outputs['Geometry'], mesh_to_curve_node.inputs['Mesh'])
+        
+        geometry_node_tree.links.new(mesh_to_curve_node.outputs['Curve'], curve_to_mesh_node.inputs['Curve'])
+        geometry_node_tree.links.new(curve_circle_node.outputs['Curve'], curve_to_mesh_node.inputs['Profile Curve'])
+        
+        geometry_node_tree.links.new(curve_to_mesh_node.outputs['Mesh'], realize_instances_line_node.inputs['Geometry'])
+        geometry_node_tree.links.new(realize_instances_line_node.outputs['Geometry'], set_material_line_node.inputs['Geometry'])
+
+        geometry_node_tree.links.new(set_material_node.outputs['Geometry'], join_geometry_node.inputs['Geometry'])
+        geometry_node_tree.links.new(set_material_line_node.outputs['Geometry'], join_geometry_node.inputs['Geometry'])
+
+        geometry_node_tree.links.new(join_geometry_node.outputs['Geometry'], output_node.inputs['Geometry'])
+    else:
+        geometry_node_tree.links.new(set_material_node.outputs['Geometry'], output_node.inputs['Geometry'])
+
 
     # TODO: Auto-arrange nodes based on Blender's Node Arrange plug-in
     # TODO: see https://docs.blender.org/manual/en/latest/addons/node/node_arrange.html

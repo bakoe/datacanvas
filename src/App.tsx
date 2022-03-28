@@ -6,7 +6,7 @@ import Split from 'react-split';
 import BasicFlow from './data/BasicFlow';
 import { lab2rgb } from './data/nodes/util/colorTransformations';
 import { Cuboid, DatacubesRenderer, mapLABColorRangeToNonZeroOne } from './visualization/DatacubesApplication';
-import { DatacubesVisualization } from './visualization/DatacubesVisualization';
+import { DatacubeInformation, DatacubesVisualization } from './visualization/DatacubesVisualization';
 
 const Controls: React.FC<{
     onChangeHighQualityRenderingImageBase64: (base64String: string | undefined) => void;
@@ -39,6 +39,7 @@ const Controls: React.FC<{
         const cameraFovYDegrees = (window['renderer'] as any)._camera.fovy;
         let sceneElements = (window['renderer'] as any)._cuboids as Array<Partial<Cuboid>>;
         const datacubePositions = (window['renderer'] as any).datacubePositions as Map<number, XYPosition>;
+        const datacubes = (window['renderer'] as any).datacubes as DatacubeInformation[];
 
         // Keep this in sync with headless-renderer-blender.py, but use as few properties as possible (to reduce size of serialized data)
         sceneElements = sceneElements.map((cuboid) => {
@@ -53,6 +54,11 @@ const Controls: React.FC<{
                 colorRGB[1] /= 255;
                 colorRGB[2] /= 255;
             }
+            let type = undefined;
+            if (id !== undefined) {
+                const matchingDatacube = datacubes.find((datacube) => datacube.id === 4294967295 - id);
+                type = matchingDatacube?.type;
+            }
             return {
                 id: cuboid.id,
                 colorRGB,
@@ -65,6 +71,7 @@ const Controls: React.FC<{
                 idBufferOnly: cuboid.idBufferOnly,
                 extent: cuboid.extent,
                 points: cuboid.points,
+                type,
             };
         });
 
