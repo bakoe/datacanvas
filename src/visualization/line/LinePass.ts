@@ -1,5 +1,6 @@
-import { ChangeLookup, Context, Framebuffer, Initializable, mat4, Program, Shader } from 'webgl-operate';
+import { ChangeLookup, Context, Framebuffer, Initializable, mat4, Program, Shader, gl_matrix_extensions } from 'webgl-operate';
 import { GLfloat2 } from 'webgl-operate/lib/tuples';
+const { m4 } = gl_matrix_extensions;
 
 import lineVert from '../shaders/line.vert';
 import lineFrag from '../shaders/line.frag';
@@ -9,6 +10,7 @@ export class LinePass extends Initializable {
         any: false,
 
         lines: false,
+        modelGlobal: false,
     });
 
     private _viewProjection: mat4 | undefined;
@@ -26,6 +28,9 @@ export class LinePass extends Initializable {
 
     protected _lines: Float32Array = new Float32Array(); // x, y, z, r, g, b
     protected _linesBuffer: any;
+
+    private _modelGlobal: mat4 | undefined;
+    protected _uModelGlobal: WebGLUniformLocation | undefined;
 
     public constructor(context: Context) {
         super();
@@ -57,6 +62,8 @@ export class LinePass extends Initializable {
             0, 0, 0, 0, 0, 0,  
         ]);
 
+        this._uModelGlobal = this._program.uniform('u_modelGlobal');
+
         return true;
     }
 
@@ -67,6 +74,8 @@ export class LinePass extends Initializable {
 
         this._uViewProjection = undefined;
         this._uNdcOffset = undefined;
+
+        this._uModelGlobal = undefined;
     }
 
     @Initializable.assert_initialized()
@@ -98,6 +107,7 @@ export class LinePass extends Initializable {
 
         if (this._uViewProjection && this._viewProjection) gl.uniformMatrix4fv(this._uViewProjection, false, this._viewProjection);
         if (this._uNdcOffset && this._ndcOffset) gl.uniform2fv(this._uNdcOffset, this._ndcOffset);
+        if (this._uModelGlobal) gl.uniformMatrix4fv(this._uModelGlobal, false, this._modelGlobal || m4());
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this._linesBuffer);
 
@@ -135,6 +145,11 @@ export class LinePass extends Initializable {
 
     public set viewProjection(value: mat4 | undefined) {
         this._viewProjection = value;
+    }
+
+    public set modelGlobal(value: mat4 | undefined) {
+        this._modelGlobal = value;
+        this._altered.alter('modelGlobal');
     }
 
     set lines(lines: Float32Array) {

@@ -61,6 +61,7 @@ import { GLfloat2 } from 'webgl-operate/lib/tuples';
 import { getDistinctValuesInStringColumn } from '../data/nodes/DatasetNode';
 import { GltfAssetPass } from './gltfAsset/GltfAssetPass';
 import { DebugPassSupportingIDBuffer } from './webgl-operate-extensions/DebugPassSupportingIDBuffer';
+import { LinePass } from './line/LinePass';
 
 /* spellchecker: enable */
 
@@ -1035,6 +1036,7 @@ class DatacubesRenderer extends Renderer {
         Passes.floor.viewProjection = this._camera?.viewProjection;
         Passes.lines.viewProjection = this._camera?.viewProjection;
         Passes.gltfAssets.forEach((pass) => (pass.viewProjection = this._camera?.viewProjection));
+        Passes.linePrimitives.forEach((pass) => (pass.viewProjection = this._camera?.viewProjection));
         if (this._altered.datacubes) {
             const updatedCuboids = [];
 
@@ -1325,6 +1327,17 @@ class DatacubesRenderer extends Renderer {
                             this._altered.alter('cuboids');
                             this._invalidate(true);
                         });
+                    }
+                }
+
+                if (datacube.type === NodeTypes.LinePrimitive) {
+                    const cuboidToSetPassFor = existingCuboid || newCuboid;
+                    if (!Passes.linePrimitives.has(cuboidToSetPassFor!.id!)) {
+                        const linePass = new LinePass(this._context);
+                        linePass.initialize();
+                        Passes.linePrimitives.set(cuboidToSetPassFor!.id!, linePass);
+                        this._altered.alter('cuboids');
+                        this._invalidate(true);
                     }
                 }
             }
@@ -1803,6 +1816,42 @@ class DatacubesRenderer extends Renderer {
                                 amountOfValidPoints++;
                             }
 
+                            const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - id);
+
+                            if (matchingDatacube?.type === NodeTypes.LinePrimitive) {
+                                const linesData = [] as number[];
+                                for (let pointIndexFromStart = 0; pointIndexFromStart < pointsData.length - 11; pointIndexFromStart += 11) {
+                                    const pointIndexToStart = pointIndexFromStart + 11;
+                                    linesData.push(
+                                        pointsData[pointIndexFromStart],
+                                        pointsData[pointIndexFromStart + 1],
+                                        pointsData[pointIndexFromStart + 2],
+                                        pointsData[pointIndexFromStart + 3],
+                                        pointsData[pointIndexFromStart + 4],
+                                        pointsData[pointIndexFromStart + 5],
+                                    );
+                                    linesData.push(
+                                        pointsData[pointIndexToStart],
+                                        pointsData[pointIndexToStart + 1],
+                                        pointsData[pointIndexToStart + 2],
+                                        pointsData[pointIndexToStart + 3],
+                                        pointsData[pointIndexToStart + 4],
+                                        pointsData[pointIndexToStart + 5],
+                                    );
+                                }
+                                const linePass = Passes.linePrimitives.get(id);
+                                if (linePass) {
+                                    linePass.lines = new Float32Array(linesData.flat());
+                                } else {
+                                    const linePass = new LinePass(this._context);
+                                    linePass.initialize();
+                                    linePass.lines = new Float32Array(linesData.flat());
+                                    Passes.linePrimitives.set(id, linePass);
+                                    this._altered.alter('cuboids');
+                                    this._invalidate(true);
+                                }
+                            }
+
                             const existingCuboidIndex = this.cuboids.findIndex((cuboid) => cuboid.id === id);
                             if (existingCuboidIndex !== -1) {
                                 const existingCuboid = this.cuboids[existingCuboidIndex];
@@ -2005,7 +2054,7 @@ class DatacubesRenderer extends Renderer {
 
             for (const { geometry, id, translateY, scaleY, colorLAB, extent, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
                 geometry.bind();
-                
+
                 if (idBufferOnly || !id) {
                     geometry.unbind();
                     continue;
@@ -2142,6 +2191,47 @@ class DatacubesRenderer extends Renderer {
 
             gl.enable(gl.DEPTH_TEST);
         }
+
+        // Render lines
+        Passes.linePrimitives.forEach((pass) => (pass.target = this._intermediateFBOs[0]));
+        if (ndcOffset) Passes.linePrimitives.forEach((pass) => (pass.ndcOffset = ndcOffset as GLfloat2));
+        
+        const cuboidsOfLinePrimitives = this._cuboids.filter((cuboid) => {
+            if (!cuboid.id) return false;
+            const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - cuboid.id!);
+            return matchingDatacube?.type === NodeTypes.LinePrimitive;
+        });
+        for (const cuboidOfLinePrimitive of cuboidsOfLinePrimitives) {
+            if (cuboidOfLinePrimitive.id === undefined) {
+                continue;
+            }
+            const pass = Passes.linePrimitives.get(cuboidOfLinePrimitive.id);
+            if (pass) {
+                const matchingDatacube = this.datacubes.find((datacube) => datacube.id === 4294967295 - cuboidOfLinePrimitive.id!);
+                if (matchingDatacube) {
+                    const datacubePosition = this._datacubePositions.get(matchingDatacube.id);
+                    let extentScale = mat4.identity(m4());
+                    if (datacubePosition) {
+                        const extent = matchingDatacube.extent;
+                        const translateXZ = datacubePosition;
+                        const translateY = cuboidOfLinePrimitive.translateY;
+                        extentScale = mat4.fromScaling(
+                            mat4.create(),
+                            vec3.fromValues((extent.maxX - extent.minX) / CUBOID_SIZE_X, 1.0, (extent.maxZ - extent.minZ) / CUBOID_SIZE_Z),
+                        );
+                        const translate = mat4.fromTranslation(mat4.create(), [
+                            translateXZ.x + (extent.maxX + extent.minX) / 2,
+                            translateY,
+                            translateXZ.y + (extent.maxZ + extent.minZ) / 2,
+                        ]);
+
+                        const transform = mat4.multiply(mat4.create(), translate, extentScale);
+                        pass.modelGlobal = transform;
+                    }
+                }
+            }
+        }
+        Passes.linePrimitives.forEach((pass) => pass.frame());
 
         if (DEBUG_SHOW_POINTS_ON_INTERACTION) {
             // Render debug points
@@ -2529,6 +2619,10 @@ class DatacubesRenderer extends Renderer {
                 if (matchingCuboid && matchingCuboid.id && Passes.gltfAssets.has(matchingCuboid.id)) {
                     Passes.gltfAssets.get(matchingCuboid.id)?.uninitialize();
                     Passes.gltfAssets.delete(matchingCuboid.id);
+                }
+                if (matchingCuboid && matchingCuboid.id && Passes.linePrimitives.has(matchingCuboid.id)) {
+                    Passes.linePrimitives.get(matchingCuboid.id)?.uninitialize();
+                    Passes.linePrimitives.delete(matchingCuboid.id);
                 }
             }
         }

@@ -24,6 +24,7 @@ export class Passes {
     protected _lines: LinePass;
 
     protected _gltfAssets: Map<number, GltfAssetPass>;
+    protected _linePrimitives: Map<number, LinePass>;
 
     // // To-be-created
     // protected _cuboids: CuboidPass;
@@ -59,6 +60,7 @@ export class Passes {
         this._lines.initialize();
 
         this._gltfAssets = new Map();
+        this._linePrimitives = new Map();
     }
 
     public static initialize(context: Context, invalidate: Invalidate): void {
@@ -88,11 +90,22 @@ export class Passes {
         this.update();
     }
 
+    public static get linePrimitives(): Map<number, LinePass> {
+        return this._instance._linePrimitives;
+    }
+
+    public static set linePrimitives(linePrimitives: Map<number, LinePass>) {
+        this._instance._linePrimitives = linePrimitives;
+        this.renderFBO = this._instance._floor.target;
+        this.update();
+    }
+
     public static set renderFBO(fbo: Framebuffer) {
         Passes.floor.target = fbo;
         Passes.labels.target = fbo;
         Passes.lines.target = fbo;
         Passes.gltfAssets.forEach((pass) => (pass.target = fbo));
+        Passes.linePrimitives.forEach((pass) => (pass.target = fbo));
     }
 
     public static get altered(): boolean {
@@ -100,7 +113,8 @@ export class Passes {
             Passes.floor.altered ||
             Passes.labels.altered ||
             Passes.lines.altered ||
-            Array.from(Passes.gltfAssets).some(([, pass]) => pass.altered)
+            Array.from(Passes.gltfAssets).some(([, pass]) => pass.altered) ||
+            Array.from(Passes.linePrimitives).some(([, pass]) => pass.altered)
         );
     }
 
@@ -109,5 +123,6 @@ export class Passes {
         Passes.labels.update();
         Passes.lines.update();
         Passes.gltfAssets.forEach((pass) => pass.update());
+        Passes.linePrimitives.forEach((pass) => pass.update());
     }
 }
