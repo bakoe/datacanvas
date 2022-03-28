@@ -48,6 +48,12 @@ import PointPrimitiveNode, {
     PointPrimitiveNodeState,
     PointPrimitiveNodeTargetHandles,
 } from './nodes/PointPrimitiveNode';
+import LinePrimitiveNode, {
+    defaultState as LinePrimitiveNodeDefaultState,
+    LinePrimitiveNodeData,
+    LinePrimitiveNodeState,
+    LinePrimitiveNodeTargetHandles,
+} from './nodes/LinePrimitiveNode';
 import CubePrimitiveNode, {
     defaultState as CubePrimitiveNodeDefaultState,
     CubePrimitiveNodeData,
@@ -221,6 +227,7 @@ const getValidXPositionRangeByNodeType = (nodeType: NodeTypes): [number, number]
                     columnWidthsAndGutters[2].width,
             ];
         case NodeTypes.PointPrimitive:
+        case NodeTypes.LinePrimitive:
         case NodeTypes.CubePrimitive:
         case NodeTypes.MeshPrimitive:
         case NodeTypes.SyncToScatterplotViewer:
@@ -823,6 +830,35 @@ const BasicFlow = () => {
             }
         }
 
+        if (targetNode.type === NodeTypes.LinePrimitive) {
+            let stateKey;
+            switch (params.targetHandle as LinePrimitiveNodeTargetHandles) {
+                case LinePrimitiveNodeTargetHandles.X:
+                    stateKey = 'xColumn';
+                    break;
+                case LinePrimitiveNodeTargetHandles.Y:
+                    stateKey = 'yColumn';
+                    break;
+                case LinePrimitiveNodeTargetHandles.Z:
+                    stateKey = 'zColumn';
+                    break;
+                case LinePrimitiveNodeTargetHandles.Size:
+                    stateKey = 'sizeColumn';
+                    break;
+                case LinePrimitiveNodeTargetHandles.Color:
+                    stateKey = 'colors';
+                    break;
+            }
+            if (stateKey) {
+                const sourceColumn = findSourceColumn(sourceNode, params);
+                if (sourceColumn) {
+                    const updatedState = {} as Partial<LinePrimitiveNodeState>;
+                    (updatedState as any)[stateKey] = sourceColumn;
+                    updateNodeState(targetNode.id, updatedState);
+                }
+            }
+        }
+
         if (targetNode.type === NodeTypes.CubePrimitive) {
             let stateKey;
             switch (params.targetHandle as CubePrimitiveNodeTargetHandles) {
@@ -921,6 +957,7 @@ const BasicFlow = () => {
         mapping[NodeTypes.FixedText] = FixedTextNode;
         mapping[NodeTypes.Dataset] = DatasetNode;
         mapping[NodeTypes.PointPrimitive] = PointPrimitiveNode;
+        mapping[NodeTypes.LinePrimitive] = LinePrimitiveNode;
         mapping[NodeTypes.CubePrimitive] = CubePrimitiveNode;
         mapping[NodeTypes.MeshPrimitive] = MeshPrimitiveNode;
         mapping[NodeTypes.DateFilter] = DateFilterNode;
@@ -1169,6 +1206,16 @@ const BasicFlow = () => {
                     isValidConnection,
                 } as PointPrimitiveNodeData;
                 break;
+            case 'line-primitive':
+                nodeData = {
+                    state: {
+                        ...LinePrimitiveNodeDefaultState,
+                    },
+                    onChangeState: (newState) => updateNodeState(`${nodeId}`, newState),
+                    onDeleteNode: () => deleteNode(`${nodeId}`),
+                    isValidConnection,
+                } as LinePrimitiveNodeData;
+                break;
             case 'cube-primitive':
                 nodeData = {
                     state: {
@@ -1248,6 +1295,11 @@ const BasicFlow = () => {
         {
             nodeType: NodeTypes.PointPrimitive,
             label: 'Rendering: Point Primitive',
+            highlightString: undefined as undefined | string,
+        },
+        {
+            nodeType: NodeTypes.LinePrimitive,
+            label: 'Rendering: Line Primitive',
             highlightString: undefined as undefined | string,
         },
         {

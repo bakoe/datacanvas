@@ -20,6 +20,7 @@ import { isSyncToScatterplotViewerNode } from '../data/nodes/SyncToScatterplotVi
 import { isFixedTextNode } from '../data/nodes/FixedTextNode';
 import { isMeshPrimitiveNode } from '../data/nodes/MeshPrimitiveNode';
 import { isCubePrimitiveNode } from '../data/nodes/CubePrimitiveNode';
+import { isLinePrimitiveNode } from '../data/nodes/LinePrimitiveNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 interface DatacubesProps {}
@@ -155,6 +156,7 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                         const matchingDatacube = store.getState().nodeInternals.get(`${datacubeId}`);
                         if (
                             matchingDatacube?.type === NodeTypes.PointPrimitive ||
+                            matchingDatacube?.type === NodeTypes.LinePrimitive ||
                             matchingDatacube?.type === NodeTypes.CubePrimitive ||
                             matchingDatacube?.type === NodeTypes.MeshPrimitive
                         ) {
@@ -297,13 +299,14 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                 if (isFixedTextNode(node)) {
                     return undefined;
                 }
-                if (!(isPointPrimitiveNode(node) || isCubePrimitiveNode(node) || isMeshPrimitiveNode(node))) {
+                if (!(isPointPrimitiveNode(node) || isLinePrimitiveNode(node) || isCubePrimitiveNode(node) || isMeshPrimitiveNode(node))) {
                     return undefined;
                 }
                 if (
                     isDatasetNode(node) ||
                     isDateFilterNode(node) ||
                     isPointPrimitiveNode(node) ||
+                    isLinePrimitiveNode(node) ||
                     isCubePrimitiveNode(node) ||
                     isMeshPrimitiveNode(node) ||
                     isColorMappingNode(node) ||
@@ -339,6 +342,15 @@ export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: P
                     }
                     if (isPointPrimitiveNode(node)) {
                         labelString += 'Rendering: Point Primitive';
+                        isPending = node.data.state?.isPending;
+                        xColumn = node.data.state?.xColumn;
+                        yColumn = node.data.state?.yColumn;
+                        zColumn = node.data.state?.zColumn;
+                        sizeColumn = node.data.state?.sizeColumn;
+                        colors = node.data.state?.colors;
+                    }
+                    if (isLinePrimitiveNode(node)) {
+                        labelString += 'Rendering: Line Primitive';
                         isPending = node.data.state?.isPending;
                         xColumn = node.data.state?.xColumn;
                         yColumn = node.data.state?.yColumn;

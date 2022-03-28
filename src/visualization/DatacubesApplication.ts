@@ -1045,6 +1045,7 @@ class DatacubesRenderer extends Renderer {
                 let points = undefined as undefined | PointData[];
                 if (
                     (datacube.type === NodeTypes.PointPrimitive ||
+                        datacube.type === NodeTypes.LinePrimitive ||
                         datacube.type === NodeTypes.CubePrimitive ||
                         datacube.type === NodeTypes.MeshPrimitive) &&
                     datacube.xColumn
@@ -1164,6 +1165,7 @@ class DatacubesRenderer extends Renderer {
                         colorLAB = DATACUBE_MAPPING_COLOR_LAB;
                         break;
                     case NodeTypes.PointPrimitive:
+                    case NodeTypes.LinePrimitive:
                     case NodeTypes.CubePrimitive:
                     case NodeTypes.MeshPrimitive:
                     case NodeTypes.SyncToScatterplotViewer:
