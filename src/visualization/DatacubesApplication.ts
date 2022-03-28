@@ -2002,7 +2002,10 @@ class DatacubesRenderer extends Renderer {
             gl.cullFace(gl.BACK);
 
             for (const { geometry, id, translateY, scaleY, colorLAB, extent, idBufferOnly = false } of cuboidsSortedByCameraDistance) {
+                geometry.bind();
+                
                 if (idBufferOnly || !id) {
+                    geometry.unbind();
                     continue;
                 }
 
@@ -2011,8 +2014,6 @@ class DatacubesRenderer extends Renderer {
                 if (!translateXZ) {
                     continue;
                 }
-
-                geometry.bind();
 
                 const scale = mat4.fromScaling(mat4.create(), vec3.fromValues(1.0, scaleY, 1.0));
                 const extentScale = mat4.fromScaling(
