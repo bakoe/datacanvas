@@ -145,7 +145,7 @@ export class GltfAssetPass extends Initializable {
         const positionBufferInformation = this._primitive.getVertexBufferInformationFromAttribute('POSITION')!;
         const texCoordBufferInformation = this._primitive.getVertexBufferInformationFromAttribute('TEXCOORD_0')!;
         const material = this._primitive.material as GLTFPbrMaterial;
-        const texture = material.baseColorTexture!;
+        const texture = material.baseColorTexture;
 
         const gl = this._gl;
 
@@ -163,7 +163,7 @@ export class GltfAssetPass extends Initializable {
         // gl.clear(gl.COLOR_BUFFER_BIT);
 
         this._program.bind();
-        texture.bind(gl.TEXTURE0);
+        texture?.bind(gl.TEXTURE0);
 
         // Setup positions
         gl.enableVertexAttribArray(0);
