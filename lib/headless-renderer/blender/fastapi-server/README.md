@@ -1,4 +1,4 @@
-# **haeley-datacubes** › [Headless Renderers](../../) › [Blender Headless Renderer](../) › FastAPI Server
+# **datacanvas** › [Headless Renderers](../../) › [Blender Headless Renderer](../) › FastAPI Server
 
 ## Setup Instructions
 

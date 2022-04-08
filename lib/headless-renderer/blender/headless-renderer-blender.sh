@@ -15,7 +15,7 @@ blender\
     -f 1\
     --\
     --cycles-device CUDA+CPU\
-    --datacubes-blend-file-filename $DATETIME_FILE_PREFIX
+    --datacanvas-blend-file-filename $DATETIME_FILE_PREFIX
 
 # Remove the 0001.png prefix that Blender adds automatically
 # See https://blender.stackexchange.com/questions/172704/properly-control-compositors-output-file-names-when-using-command-line-renderin#comment290409_172704

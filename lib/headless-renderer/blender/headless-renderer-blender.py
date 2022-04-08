@@ -60,7 +60,7 @@ for scene in bpy.data.scenes:
 
 blender_file_name = ''
 try:
-    argv_blend_file_index = argv.index('--datacubes-blend-file-filename') 
+    argv_blend_file_index = argv.index('--datacanvas-blend-file-filename') 
     argv_blend_file_name = argv[argv_blend_file_index + 1]
     blender_file_name = f"{argv_blend_file_name}.blend"
 except ValueError:

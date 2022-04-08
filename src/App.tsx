@@ -5,8 +5,8 @@ import Split from 'react-split';
 
 import BasicFlow from './data/BasicFlow';
 import { lab2rgb } from './data/nodes/util/colorTransformations';
-import { Cuboid, DatacubesRenderer, mapLABColorRangeToNonZeroOne } from './visualization/DatacubesApplication';
-import { DatacubeInformation, DatacubesVisualization } from './visualization/DatacubesVisualization';
+import { Cuboid, DatacanvasRenderer, mapLABColorRangeToNonZeroOne } from './visualization/DatacanvasApplication';
+import { DatacubeInformation, DatacanvasVisualization } from './visualization/DatacanvasVisualization';
 
 const Controls: React.FC<{
     onChangeHighQualityRenderingImageBase64: (base64String: string | undefined) => void;
@@ -16,8 +16,8 @@ const Controls: React.FC<{
     const [isPerspectiveCamera, setIsPerspectiveCamera] = React.useState(true);
 
     useEffect(() => {
-        if ((window['renderer'] as DatacubesRenderer) !== undefined) {
-            (window['renderer'] as DatacubesRenderer).isPerspectiveCamera = isPerspectiveCamera;
+        if ((window['renderer'] as DatacanvasRenderer) !== undefined) {
+            (window['renderer'] as DatacanvasRenderer).isPerspectiveCamera = isPerspectiveCamera;
         }
     }, [isPerspectiveCamera]);
 
@@ -192,13 +192,13 @@ function App() {
                 }}
             >
                 <BasicFlow />
-                <DatacubesVisualization>
+                <DatacanvasVisualization>
                     <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }} ref={highQualityRenderingOverlayRef}></div>
                     <Controls
                         onChangeHighQualityRenderingImageBase64={(base64String) => setHighQualityRenderingImageBase64(base64String)}
                         showClearButton={highQualityRenderingImageBase64 !== undefined}
                     />
-                </DatacubesVisualization>
+                </DatacanvasVisualization>
             </Split>
         </ReactFlowProvider>
     );

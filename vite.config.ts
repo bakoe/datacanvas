@@ -15,7 +15,7 @@ export default defineConfig({
         },
         proxy: {
             '/api': {
-                target: 'http://haeley-datacubes.bakoe.dev:8000/',
+                target: 'http://datacanvas.bakoe.dev:8000/',
                 changeOrigin: true,
                 rewrite: (path) => path.replace(/^\/api/, ''),
             },

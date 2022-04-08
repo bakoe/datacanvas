@@ -6,24 +6,22 @@ import { ReactFlowState, useStore, XYPosition, useStoreApi, NodeDiffUpdate } fro
 
 import shallow from 'zustand/shallow';
 
-import { DatacubesApplication } from './DatacubesApplication';
+import { DatacubesApplication } from './DatacanvasApplication';
 
-import { isDatasetNode, makeTypeHumanReadable } from '../data/nodes/DatasetNode';
+import { isDatasetNode } from '../data/nodes/DatasetNode';
 import { isDateFilterNode } from '../data/nodes/DateFilterNode';
 import { isPointPrimitiveNode } from '../data/nodes/PointPrimitiveNode';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
 import { Column as CSVColumn } from '@lukaswagner/csv-parser';
 import { ColorPalette } from '../data/nodes/util/EditableColorGradient';
 import { serializeColumnInfo } from '../data/nodes/util/serializeColumnInfo';
-import { isColorMappingNode } from '../data/nodes/ColorMappingNode';
-import { isSyncToScatterplotViewerNode } from '../data/nodes/SyncToScatterplotViewerNode';
 import { isFixedTextNode } from '../data/nodes/FixedTextNode';
 import { isMeshPrimitiveNode } from '../data/nodes/MeshPrimitiveNode';
 import { isCubePrimitiveNode } from '../data/nodes/CubePrimitiveNode';
 import { isLinePrimitiveNode } from '../data/nodes/LinePrimitiveNode';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface DatacubesProps {}
+interface DatacanvasProps {}
 
 const SET_CUBOID_EXTENT_FROM_FLOW_EDITOR_NODE_SIZE = false;
 
@@ -64,7 +62,7 @@ const selector = (s: ReactFlowState) => ({
     nodeInternals: s.nodeInternals,
 });
 
-export const DatacubesVisualization: React.FC<DatacubesProps> = ({ ...props }: PropsWithChildren<DatacubesProps>) => {
+export const DatacanvasVisualization: React.FC<DatacanvasProps> = ({ ...props }: PropsWithChildren<DatacanvasProps>) => {
     const store = useStoreApi();
     const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
     const spinnerRef = React.useRef<HTMLDivElement | null>(null);

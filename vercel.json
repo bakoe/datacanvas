@@ -15,7 +15,7 @@
         }
     ],
     "rewrites": [
-        { "source": "/api/renderings/", "destination": "http://haeley-datacubes.bakoe.dev:8000/renderings/" },
+        { "source": "/api/renderings/", "destination": "http://datacanvas.bakoe.dev:8000/renderings/" },
         { "source": "/external/scatterplot-viewer", "destination": "https://topicmap-git-datacube-sprint-lukaswagner.vercel.app/" },
         { "source": "/icons.js", "destination": "https://topicmap-git-datacube-sprint-lukaswagner.vercel.app/icons.js" },
         { "source": "/app.js", "destination": "https://topicmap-git-datacube-sprint-lukaswagner.vercel.app/app.js" },

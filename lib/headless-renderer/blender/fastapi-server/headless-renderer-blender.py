@@ -349,7 +349,7 @@ def main():
 
     file_uuid = ''
     try:
-        argv_blend_file_index = argv.index('--datacubes-blend-file-filename') 
+        argv_blend_file_index = argv.index('--datacanvas-blend-file-filename') 
         argv_blend_file_name = argv[argv_blend_file_index + 1]
         file_uuid = f"{argv_blend_file_name}"
     except ValueError:
@@ -373,14 +373,14 @@ def main():
     sample_canvas_size = [2560, 379]
 
     try:
-        argv_width_index = argv.index('--datacubes-width') 
+        argv_width_index = argv.index('--datacanvas-width') 
         argv_width = argv[argv_width_index + 1]
         sample_canvas_size[0] = int(argv_width)
     except:
         pass
 
     try:
-        argv_height_index = argv.index('--datacubes-height') 
+        argv_height_index = argv.index('--datacanvas-height') 
         argv_height = argv[argv_height_index + 1]
         sample_canvas_size[1] = int(argv_height)
     except:
@@ -391,21 +391,21 @@ def main():
     sample_fovy = 45
 
     try:
-        argv_camera_eye_index = argv.index('--datacubes-camera-eye') 
+        argv_camera_eye_index = argv.index('--datacanvas-camera-eye') 
         argv_camera_eye = argv[argv_camera_eye_index + 1]
         sample_eye =  mathutils.Vector(json.loads(argv_camera_eye))
     except:
         pass
 
     try:
-        argv_camera_center_index = argv.index('--datacubes-camera-center') 
+        argv_camera_center_index = argv.index('--datacanvas-camera-center') 
         argv_camera_center = argv[argv_camera_center_index + 1]
         sample_center =  mathutils.Vector(json.loads(argv_camera_center))
     except:
         pass
 
     try:
-        argv_fov_y_degrees_index = argv.index('--datacubes-fov-y-degrees') 
+        argv_fov_y_degrees_index = argv.index('--datacanvas-fov-y-degrees') 
         argv_fov_y_degrees = argv[argv_fov_y_degrees_index + 1]
         sample_fovy = float(argv_fov_y_degrees)
     except:
@@ -415,7 +415,7 @@ def main():
     scene_elements = None
 
     try:
-        argv_scene_elements_file_index = argv.index('--datacubes-scene-elements-file') 
+        argv_scene_elements_file_index = argv.index('--datacanvas-scene-elements-file') 
         argv_scene_elements_file = argv[argv_scene_elements_file_index + 1]
         with open(argv_scene_elements_file, 'r') as scene_elements_file:
             scene_elements = json.load(scene_elements_file)

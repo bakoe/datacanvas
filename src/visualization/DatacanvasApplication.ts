@@ -9,7 +9,6 @@ import {
     Renderer,
     Wizard,
     mat4,
-    Camera as PerspectiveCamera,
     Invalidate,
     EventProvider,
     Context,
@@ -31,7 +30,6 @@ import {
     FrameCapture,
     Label,
     GLTFLoader,
-    SceneNode,
     GLTFPrimitive,
 } from 'webgl-operate';
 
@@ -48,7 +46,7 @@ import PointFrag from './shaders/point.frag';
 import DepthFrag from './shaders/depth.frag';
 import { XYPosition } from 'react-flow-renderer/nocss';
 import { PausableNavigation } from './webgl-operate-extensions/PausableNavigation';
-import { DatacubeInformation } from './DatacubesVisualization';
+import { DatacubeInformation } from './DatacanvasVisualization';
 import { Observable, Subject } from 'rxjs';
 import anime, { AnimeInstance } from 'animejs';
 import { NodeTypes } from '../data/nodes/enums/NodeTypes';
@@ -161,7 +159,7 @@ for (const color of [
     color[2] = mappedColor[2];
 }
 
-export class DatacubesRenderer extends Renderer {
+export class DatacanvasRenderer extends Renderer {
     protected _extensions = false;
 
     protected _capturedIDBufferImageData: ImageData | undefined;
@@ -2766,7 +2764,7 @@ export class DatacubesRenderer extends Renderer {
 }
 
 export class DatacubesApplication extends Application {
-    protected declare _renderer: DatacubesRenderer | undefined;
+    protected declare _renderer: DatacanvasRenderer | undefined;
 
     onInitialize(element: HTMLCanvasElement | string, spinnerElement?: HTMLDivElement): boolean {
         this._canvas = new Canvas(element, { antialias: false });
@@ -2774,7 +2772,7 @@ export class DatacubesApplication extends Application {
         this._canvas.framePrecision = Wizard.Precision.byte;
         this._canvas.frameScale = [1.0, 1.0];
 
-        this._renderer = new DatacubesRenderer();
+        this._renderer = new DatacanvasRenderer();
         this._canvas.renderer = this._renderer;
 
         if (element instanceof HTMLCanvasElement) {

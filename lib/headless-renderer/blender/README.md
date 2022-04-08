@@ -1,4 +1,4 @@
-# **haeley-datacubes** › [Headless Renderers](../) › Blender Headless Renderer
+# **datacanvas** › [Headless Renderers](../) › Blender Headless Renderer
 
 ## Setup Instructions
 
