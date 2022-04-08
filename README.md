@@ -6,10 +6,10 @@
 
 This repository is structured as follows:
 
-| Directory             | Description                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
-| [`/`](/) | TypeScript and GLSL source code files for the web-based visualization creation tool            |
-| [`lib/headless-renderer`](/lib/headless-renderer)   |  Source code files for the headless, server-side rendering of visualizations  |
+| Directory                                         | Description                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/`                                               | TypeScript and GLSL source code files for the web-based visualization creation tool  |
+| [`lib/headless-renderer`](/lib/headless-renderer) |  Source code files for the headless, server-side rendering of visualizations         |
 
 For instructions about the individual components and their setup, view the respective README files of the directories.
 

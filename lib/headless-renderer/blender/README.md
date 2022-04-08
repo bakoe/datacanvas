@@ -9,7 +9,7 @@ This directory is structured as follows:
 | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`/`](/lib/headless-renderer/blender)                               | Files for Docker-based, GPU-enabled provisioning of the Blender headless renderer for datacanvas                                                      |
 | [`fastapi-server`](/lib/headless-renderer/blender/fastapi-server) | Source code of a Python/FastAPI-based service for headless rendering of datacanvas scenes/visualizations using Blender                                |
-| [`blender-docker`](/lib/headless-renderer/blender-docker)                 | Dockerfile for creating a OptiX-enabled Docker image of Blender 3.1 with the necessary Python/pip modules required for the headless Blender renderer  |
+| [`blender-docker`](/lib/headless-renderer/blender/blender-docker)                 | Dockerfile for creating a OptiX-enabled Docker image of Blender 3.1 with the necessary Python/pip modules required for the headless Blender renderer  |
 
 For instructions about the individual components and their setup, view the respective README files of the directories.
 
