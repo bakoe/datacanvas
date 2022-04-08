@@ -20,7 +20,7 @@ For instructions about the individual components and their setup, view the respe
 ## Setup instructions
 
 0. Make sure to have Docker installed on your system.
-1. If no Docker image for a Blender 3.1 instance has been created yet, you can create one using the Dockerfile contained in [`blender-docker/`](/lib/headless-renderer/blender-docker).
+1. If no Docker image for a Blender 3.1 instance has been created yet, you can create one using the Dockerfile contained in [`blender-docker/`](/lib/headless-renderer/blender/blender-docker).
 2. Run the `build.sh` script, i.e., build the Docker image containing the [`fastapi-server/`](/lib/headless-renderer/blender/fastapi-server) source code 
 
 You can then run an instance of the Docker image using, e.g., `docker-compose up` utilizing the `docker-compose.yml` file.
