@@ -1,23 +1,26 @@
 # **datacanvas** › [Headless Renderers](../) › Blender Headless Renderer
 
-## Setup Instructions
+This directory contains the source code of a headless, server-side, GPU-enabled renderer for [datacanvas](https://datacanvas.dev) using [Blender](https://blender.org).
+## Structure
 
-- Install [Blender](https://blender.org) v3.0.0+ on the system and add the `blender` CLI executable to the system’s PATH.
+This directory is structured as follows:
 
+| Directory                                                                 | Description                                                                                                                                           |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`/`](/lib/headless-renderer/blender)                               | Files for Docker-based, GPU-enabled provisioning of the Blender headless renderer for datacanvas                                                      |
+| [`fastapi-server`](/lib/headless-renderer/blender/fastapi-server) | Source code of a Python/FastAPI-based service for headless rendering of datacanvas scenes/visualizations using Blender                                |
+| [`blender-docker`](/lib/headless-renderer/blender-docker)                 | Dockerfile for creating a OptiX-enabled Docker image of Blender 3.1 with the necessary Python/pip modules required for the headless Blender renderer  |
 
-## Usage
+For instructions about the individual components and their setup, view the respective README files of the directories.
 
-Inside this directory, run:
+---
 
-```bash
-source ./headless-renderer-blender.sh
-```
-(You can replace `source` with, e.g., `sh`).
+# **datacanvas** › [Headless Renderers](../) › Blender Headless Renderer › Docker-based provisioning
 
-Then, the following output files should be created inside this directory:
+## Setup instructions
 
-```bash
-2022-02-04_17-00-29.blend # A blend file with the imported (and rendered) scene
-2022-02-04_17-00-29.log # A log file indicating the output of running the headless Blender instance
-2022-02-04_17-00-29.png # The output image
-```
+0. Make sure to have Docker installed on your system.
+1. If no Docker image for a Blender 3.1 instance has been created yet, you can create one using the Dockerfile contained in [`blender-docker/`](/lib/headless-renderer/blender-docker).
+2. Run the `build.sh` script, i.e., build the Docker image containing the [`fastapi-server/`](/lib/headless-renderer/blender/fastapi-server) source code 
+
+You can then run an instance of the Docker image using, e.g., `docker-compose up` utilizing the `docker-compose.yml` file.

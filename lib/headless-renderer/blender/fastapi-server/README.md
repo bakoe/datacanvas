@@ -1,5 +1,7 @@
 # **datacanvas** › [Headless Renderers](../../) › [Blender Headless Renderer](../) › FastAPI Server
 
+This directory contains the source code of a Python/FastAPI-based service for headless rendering of datacanvas scenes/visualizations using Blender.
+
 ## Setup Instructions
 
 - Install Python, Pipenv, and Pyenv
