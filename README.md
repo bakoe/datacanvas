@@ -2,6 +2,8 @@
 
 [Datacanvas](https://datacanvas.dev) is a proof-of-concept, open-source, MIT-licensed web application for visual, interactive creation and editing of 2D, 2.5D and 3D data visualizations. 
 
+![A short, looping screencast showing the usage of the datacanvas editor](https://thumbs.gfycat.com/InsignificantDescriptiveGecko-size_restricted.gif)
+
 ## Source Structure
 
 This repository is structured as follows:
